@@ -45,8 +45,19 @@ unexplored, new, or walked before, and — on its own channel — how far off a 
 what is at arm's length ahead (a wall, a door, the exit switch, a locked door, something the map does not show),
 where an exit line, a key or a pickup was seen, and whether the player is stuck. Obstacles the automap does not
 draw (window bars, fake doors, barrels) are learned by pushing against them once. jev scores those words every
-~0.5 s; every number is bucketed before jev sees it. The map of a level is kept across attempts, as a player
-remembers a layout; the game itself restarts.
+~0.5 s; every number is bucketed before jev sees it.
+
+**Nothing survives an attempt.** Every episode, including a retry of the same level, starts with an empty world
+model: no raster, no barrier marks, no door memory. The payload used to keep the map between attempts on the
+reasoning that a player remembers a layout, and the effect was that every run after the first began on a level
+it already believed was walled in (`EXPLORED_CELLS` 662 against 1 for a fresh one) — which is level knowledge,
+and it confounded an afternoon of measurement before anyone noticed. `docs/CHARTER.md` §2.2 makes it a rule and
+`research/honesty.py` makes it a test.
+
+One more thing a player cannot do is read an exit line's colour from across a level, so an exit is only
+*recognised* while it has been within 512 units and drawn on the automap this attempt; recognition is then
+remembered, the way seeing a thing is. `EXIT_LINE_MAX_UNITS` in `payload/doom_payload.py`, 0 to remove exit
+colouring entirely.
 
 ## The decision graph
 
@@ -124,7 +135,11 @@ Integration findings worth keeping:
 | `ground/yamcs/`, `ground/openmct/`, `ground/dashboard/` | Yamcs config + ground XTCE, Open MCT config, the mission dashboard page |
 | `docs/` | diagrams (Graphviz sources + renders), report (`doomsat-report.md/.tex/.pdf`), handoff (`HANDOFF.md`), images, charts, `video/` |
 | `runs/<date>/` | the day's decision logs (one row per jev decision: **the exact state sent**, the answers, the selection detail, request id, latency, telemetry), pilot log, final graph, map, replay results |
-| `tests/` | `python -m unittest discover -s tests` — 71 tests, no network and no game: the state, the selection, the modes, the reflex layer, the graph contract and the report's head coverage |
+| `docs/CHARTER.md` | the mission, the knowledge boundary, the architecture and the build order; `docs/CHARTER-STATUS.md` says what of it is built |
+| `knowledge/doom_rules.yaml` | how Doom works: monsters, weapons, ammo, pickups, keys, doors, damaging floors. Values only, no level ever named |
+| `research/` | the ruler. `PROGRAM.md` (the rules of the loop), `levels.yaml` (dev and test sets, and every charter decision as one value), `frozen_metrics.py`, `honesty.py`, `preflight.py`, `runner.py` (bench and flight), `grade.py`, `ledger.py` + `ledger.tsv` |
+| `research/grader/` | the only code allowed to open a WAD, in its own process: walkability, the distance field, the score. It refuses to import inside a pilot |
+| `tests/` | `python -m unittest discover -s tests` — 173 tests, no network and no game: the state, the selection, the modes, the reflex layer, the graph contract, the report's head coverage, the honesty suite and its canary, the grader and the keep rule |
 | `scripts/`, `tools/` | start/stop/build helpers (WSL), replay and boundary-set tools, run report, charts, decision-graph figures, screenshots/recording, developer probes |
 
 ## Running it

@@ -5,3 +5,14 @@ external/
 __pycache__/
 .venv/
 node_modules/
+
+# Research runs (charter 6.1). `out/` above would swallow research/out entirely; keep the graded results,
+# the summaries and the preflight record -- those are the run details worth having in the repo -- and drop
+# the raw per-decision attempt files, which are megabytes each and reproducible from the same commit.
+!research/out/
+research/out/**/attempt-*.json
+research/out/**/RUN.lock
+
+# ViZDoom drops a config file wherever it is started from
+_vizdoom.ini
+_vizdoom/

@@ -1,0 +1,72 @@
+# The ruler's configuration. Charter sections 2.3, 2.5, 6.4 and 8.
+#
+# This file is HARNESS, not mutable surface: the experiment loop reads it and never writes it. Changing
+# anything here starts a new comparison track, because every earlier number was measured against these
+# values. `research/ledger.py` records the sha1 of this file in every row so a track change is visible.
+
+version: 1
+track: t1                      # bump when anything below changes; ledger rows carry it
+
+# ---------------------------------------------------------------- the two level sets (charter 2.5)
+# Tune on dev. Score on test. The experiment agent never sees a per-level test trace.
+dev:
+  name: dev6
+  wad: freedoom1.wad
+  maps: [E1M1, E1M2, E1M3, E1M4, E1M5, E1M6]
+  note: >
+    Freedoom Phase 1. Free, and built for the Doom 1 engine with Doom 1 compatible monsters and items, so
+    the knowledge file applies unchanged. Fetch with tools/get_freedoom.sh.
+
+dev_optional:
+  # Charter decision 8.5. Off until Kevin says he owns Ultimate Doom and wants it in the track.
+  enabled: false
+  name: dtwid
+  wad: dtwid.wad
+  maps: [E1M1, E1M2, E1M3, E1M4, E1M5, E1M6, E1M7, E1M8]
+  note: "Doom the Way id Did, Episode 1: Episode 1 style maps by other authors. Needs Ultimate Doom."
+
+test:
+  # Scored only, and only by a person at a milestone. Never run by the experiment loop (charter 5, phase 6).
+  name: e1
+  wad: doom1.wad
+  maps: [E1M1, E1M2, E1M3, E1M4, E1M5, E1M6, E1M7, E1M8]
+  locked: true
+
+# ---------------------------------------------------------------- how an attempt is run (charter 1, 8)
+run:
+  skill: 3                      # charter 8.2, provisional: 3 is "Hurt me plenty", the game's own default
+  level_budget_s: 180           # charter 1: a level must exit inside this
+  seeds: [1, 2, 3]              # the bench pairs parent and child on the same seeds
+  seeds_wide: [1, 2, 3, 4, 5, 6]   # the rerun for an inconclusive result (charter 6.3 step 5)
+  noise_floor_repeats: 5        # charter 5 phase 1: repeats per dev level to get the per-level SD
+  wad_dir: /root/doom/wads      # inside the WSL distro that runs ViZDoom
+
+# ---------------------------------------------------------------- the knowledge boundary (charter 2.3)
+perception:
+  labels_buffer: idealized      # 8.4: allowed, and recorded as an idealized instrument
+  locked_door_color: seen_only  # a colored door frame a player would also see
+  exit_line_max_units: 512      # 8.3, provisional: an exit line counts only while it has been this close
+                                #   and drawn on the automap this attempt. 0 removes exit colouring entirely.
+  automap_mode: NORMAL          # never WHOLE or OBJECTS (honesty test 1)
+  objects_info: false           # honesty test 2
+  sectors_info: false           # honesty test 2
+
+# ---------------------------------------------------------------- scoring (charter 6.4)
+scoring:
+  completed_base: 1.0           # completed in time scores 1 + (budget - t) / budget
+  incomplete_weight: 0.9        # not completed scores 0.9 * progress
+  on_death: retry_level         # 8.1: retry with the inventory the level started with, and count the death
+  deaths_allowed_in_campaign: 0 # 8.1: the final campaign requires zero
+
+# ---------------------------------------------------------------- guardrails (charter 6.4)
+guardrails:
+  decision_age_p95_ms: 800      # flight only; the bench injects sampled latency but cannot measure this
+  jev_share_min: 0.70           # 8.6
+  tokens_per_decision_rise_max: 0.25
+  honesty_must_pass: true
+  crashes_allowed: 0
+
+# ---------------------------------------------------------------- the keep rule (charter 6.3 step 5)
+keep_rule:
+  min_gain_in_noise_se: 2.0     # the paired mean gain must beat this many standard errors
+  completed_must_not_drop: true

@@ -3,6 +3,18 @@
 For whoever picks this up next (a research pass is welcome): what was built, what works, what does not, why, and
 what to try.
 
+> **Superseded for "what to do next" by `docs/CHARTER.md`.** The charter sets the mission (all of shareware
+> Episode 1, under 3 minutes a level, on the full stack), draws the knowledge boundary as testable rules, and
+> puts every change from here on through an experiment ledger. `docs/CHARTER-STATUS.md` says what is built.
+> The reasons in the sections below are still the reasons, and the research leads are still worth reading,
+> but where a lead conflicts with the charter the charter wins. Two that now conflict outright:
+>
+> - **"Exploration memory across attempts"** (in the stuck list below) is forbidden: no map survives an
+>   attempt. It was quietly the largest confound in the 22 September measurements.
+> - **"A planner was the wrong tool"** is narrowed: the *first* planner was wrong because it turned sensing
+>   errors into confident routes and flipped between equal-cost routes on every replan. Commitment solved
+>   that for sector choice and the charter puts a planner back, with commitment, in phase 3.
+
 > **Update, later the same day.** An audit of the decision graph found fourteen issues, most of them in the code
 > around jev rather than in jev's answers, and the graph has been rewritten against them. The heads are now one
 > Score per open direction, one danger Score and the goal Choice; walking, doors, firing, the weapon, the aim,

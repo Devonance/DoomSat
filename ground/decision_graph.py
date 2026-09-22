@@ -859,3 +859,39 @@ def lint(cfg):
             if not known_path(p) or p.split(".")[0] not in allowed:
                 bad.add(p)
     return sorted(bad)
+
+
+# ---------------------------------------------------------------- one decision, shared by every runner
+def decide(t, cfg, mem, goal, system_one, n=0, ask_goal=None, pending_turn=0.0):
+    """State, heads, pick and controls for one tick.
+
+    The flight pilot and the bench runner both call this, which is the only reason a bench number is worth
+    anything: a harness that reimplements the decision is measuring the harness. Everything around it --
+    telemetry freshness, waiting out a commanded turn, sending the command, logging -- stays with the
+    caller, because those differ between a Yamcs link and an in-process game.
+    """
+    mem.step()
+    mem.note_position((t.get("POS_X"), t.get("POS_Y")) if t.get("POS_X") is not None else None,
+                      window=cfg["select"]["idle_ticks"])
+    state = build_state(t, goal, cfg, mem)
+    mode = next_mode(state, t, mem, cfg)
+    state["here"]["mode"] = mode.lower()
+    offered = offered_sectors(state)
+    if ask_goal is None:
+        ask_goal = bool(cfg["goal_every"]) and n % cfg["goal_every"] == 0
+    questions = questions_for(state, cfg, mode, ask_goal=ask_goal, offered=offered,
+                              threat=threatened(state, t, cfg))
+    answers, reply = {}, {"latency_ms": 0}
+    sent = state_for(state, questions)      # only the blocks this tick's heads inspect
+    if questions:
+        reply = system_one.ask(sent, questions)
+        answers = reply["answers"]
+    pick, detail = None, {}
+    if mode in JUDGED_MODES:
+        pos = (t["POS_X"], t["POS_Y"]) if t.get("POS_X") is not None else None
+        pick, detail = pick_sector(answers, state, cfg, mem, float(t.get("ANGLE", 0.0) or 0.0),
+                                   goal, offered, pos)
+    cargs = control_args(state, t, cfg, mem, mode, answers, pick, pending_turn)
+    return {"state": state, "sent": sent, "mode": mode, "offered": offered, "questions": questions,
+            "answers": answers, "reply": reply, "pick": pick, "detail": detail, "control": cargs,
+            "code_only": not questions}

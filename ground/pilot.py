@@ -259,31 +259,18 @@ class Pilot:
                 return None
         self.pending_turn = 0.0
 
-        mem = self.nav_memory
-        mem.step()
-        mem.note_position((t.get("POS_X"), t.get("POS_Y")) if t.get("POS_X") is not None else None,
-                          window=cfg["select"]["idle_ticks"])
-        state = dg.build_state(t, self.goal, cfg, mem)
-        mode = dg.next_mode(state, t, mem, cfg)
-        state["here"]["mode"] = mode.lower()
+        # How stale the telemetry already was when this decision started. It is the first of the three
+        # terms in decision age (charter 7), and the only one nothing else can recover after the fact.
+        tel_age_ms = round((time.time() - self.telemetry_time) * 1000.0)
+        # One decision, in the same function the bench runner calls. A harness that reimplemented this
+        # would be measuring the harness.
+        d = dg.decide(t, cfg, self.nav_memory, self.goal, self.system_one, n)
+        state, mode, sent = d["state"], d["mode"], d["sent"]
+        questions, answers, reply = d["questions"], d["answers"], d["reply"]
+        pick, detail, cargs = d["pick"], d["detail"], d["control"]
         self.mode = mode
-        offered = dg.offered_sectors(state)
-        ask_goal = cfg["goal_every"] and n % cfg["goal_every"] == 0
-        questions = dg.questions_for(state, cfg, mode, ask_goal=ask_goal, offered=offered,
-                                     threat=dg.threatened(state, t, cfg))
-        answers, reply = {}, {"latency_ms": 0}
-        sent = dg.state_for(state, questions)  # only the blocks this tick's heads inspect
-        if questions:
-            reply = self.system_one.ask(sent, questions)
-            answers = reply["answers"]
-        else:
+        if d["code_only"]:
             self.code_only_ticks += 1          # OPERATE / RECOVER / DONE: exact rules, nothing to judge
-        pick, detail = None, {}
-        if mode in dg.JUDGED_MODES:
-            pos = (t["POS_X"], t["POS_Y"]) if t.get("POS_X") is not None else None
-            pick, detail = dg.pick_sector(answers, state, cfg, mem, float(t.get("ANGLE", 0.0) or 0.0),
-                                          self.goal, offered, pos)
-        cargs = dg.control_args(state, t, cfg, mem, mode, answers, pick)
         self.command("CONTROL", cargs)
         self.pending_turn, self.pending_turn_t, self.angle_at_cmd = cargs["turn"], time.time(), t.get("ANGLE")
         self.control_count += 1
@@ -292,7 +279,8 @@ class Pilot:
         row = {"t": time.time(), "kind": "control", "episode": self.episode, "graph_version": cfg.get("version"),
                "pinned_model": cfg.get("model"), "latency_ms": reply.get("latency_ms", 0),
                "model": reply.get("model"), "request_id": reply.get("request_id"), "usage": reply.get("usage"),
-               "cmd_ms": self.last_cmd_ms, "mode": mode, "goal": self.goal, "pick": pick, "select": detail,
+               "cmd_ms": self.last_cmd_ms, "tel_age_ms": tel_age_ms,
+               "mode": mode, "goal": self.goal, "pick": pick, "select": detail,
                "answers": {k: dg.answer_label(v) for k, v in answers.items()},
                "confidence": {k: round(dg.answer_confidence(v), 2) for k, v in answers.items()},
                "probabilities": {k: {o: round(float(pv), 2) for o, pv in (v.get("probabilities") or {}).items()}

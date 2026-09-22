@@ -71,6 +71,12 @@ UPLINK_TIMEOUT_S = 3.0  # no CONTROL for this long -> release everything (safe m
 DOOR_TRIES = 10        # use presses at a door before it counts as "does not open for me now"
 DOOR_RETRY_S = 120.0   # a door that did not open is treated as a wall for this long
 RAY_MAX = 400          # how far the map rays look (units)
+# Charter 2.3, the one borderline call that adds information rather than hiding it. ZDoom colours an exit
+# line on the automap from its special type, so the colour is readable from across a level the moment the
+# line is drawn -- which a player looking at a wall cannot do. An exit line is therefore only RECOGNISED
+# while it is within this many units; recognition is then remembered, the way seeing a thing is. Set it to
+# 0 to remove exit colouring entirely and make the pilot find the exit switch by looking at it.
+EXIT_LINE_MAX_UNITS = 512
 
 # ---- the automap as a sensor: ViZDoom renders it at screen size, centred on the player, viz_am_scale 2.5 = 0.5 px/unit
 AM_W, AM_H, AM_SCALE, AM_CX, AM_CY = 640, 480, 0.5, 320, 240
@@ -137,6 +143,7 @@ class Explorer:
         self.ux = (np.arange(AM_W) - AM_CX) / AM_SCALE          # automap column -> x offset from the player (units)
         self.vy = -(np.arange(AM_H) - AM_CY) / AM_SCALE         # automap row -> y offset (map y is up)
         self.free = set()
+        self.exit_px = set()   # raster pixels recognised as an exit line from close enough to read it
         self.visited = {}      # cell -> tics the player has stood in it (the walk, remembered)
         self.items = {}        # (kind, rounded x, rounded y) -> {"kind", "name", "x", "y", "seen"}
         self.keys = set()      # colours of keys picked up
@@ -166,10 +173,20 @@ class Explorer:
             ix = ((px + self.ux[xs] - self.ox) / WPX).astype(np.intp)
             iy = ((self.oy - (py + self.vy[ys])) / WPX).astype(np.intp)
             ok = (ix >= 0) & (ix < self.n) & (iy >= 0) & (iy < self.n)
-            np.maximum.at(self.raster, (iy[ok], ix[ok]), cls[ys[ok], xs[ok]])
+            # An exit line is a wall until it has been seen from within EXIT_LINE_MAX_UNITS; once it has, the
+            # pixel is remembered as an exit for the rest of the attempt (the window is rewritten every stamp,
+            # so the memory has to live outside the raster).
+            close = ok & (cls[ys, xs] == EXIT) & (np.hypot(self.ux[xs], self.vy[ys]) <= EXIT_LINE_MAX_UNITS)
+            self.exit_px.update(zip(iy[close].tolist(), ix[close].tolist()))
+            vals = cls[ys[ok], xs[ok]].copy()
+            vals[vals == EXIT] = WALL
+            np.maximum.at(self.raster, (iy[ok], ix[ok]), vals)
         blk = self.raster[cy_ - 5:cy_ + 6, cx_ - 5:cx_ + 6]
         if blk.shape == under.shape:
             np.maximum(blk, under, out=blk)
+        for ey_, ex_ in self.exit_px:
+            if c <= ey_ < d and a <= ex_ < b:
+                self.raster[ey_, ex_] = EXIT
         self.stamps += 1
 
     def sweep(self, x, y, angle, depth_row):
@@ -417,7 +434,15 @@ class Payload:
         return g
 
     def new_episode(self):
-        """A fresh attempt: the level restarts; the map of this level is kept (weapons carry over between levels)."""
+        """A fresh attempt: the level restarts and the world model is thrown away (weapons carry over between levels).
+
+        Charter 2.2: no map survives an attempt. This used to keep the raster whenever the map name had not
+        changed, on the reasoning that a player remembers a layout between tries. The effect was that every
+        run after the first started with a map the payload already believed was walled in (EXPLORED_CELLS 662
+        against 1 for a fresh one), which is the level knowledge the charter forbids and which confounded a
+        whole afternoon of measurement. Honesty test 3 reads this method and fails the run if the rebuild
+        ever becomes conditional again.
+        """
         self.game.set_doom_map(self.map)
         self.game.new_episode()
         loadout = self.carry or {"shotgun": True, "shells": 4, "bullets": 30}
@@ -428,20 +453,17 @@ class Payload:
             self.game.send_game_command(cmd)
         self.game.make_action([0] * len(BUTTONS), 1)
         self.episode += 1
-        if self.explorer is None or self.explorer_map != self.map:
-            # a new level: a new map. Another attempt at the same level keeps the map (a player remembers the layout);
-            # the game itself restarts from the beginning with everything in it.
+        if self.explorer_map != self.map:
             self.level += 1
-            self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
-        else:
-            self.explorer.items.clear()
-            self.explorer.hint = None
+        self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
         self.explorer_map = self.map
         self.positions.clear()
         self.motions.clear()
+        self.stuck = False
         self.goal = "EXPLORE"
         self.control = dict(move=0, strafe=0, turn=0.0, fire=0, use=0, weapon=0)
         self.sense, self.door_presses, self.door_at = None, 0, None
+        self.use_ok = False
         print(f"[payload] episode {self.episode} started on {self.map} (level {self.level})", flush=True)
 
     def level_finished(self):
