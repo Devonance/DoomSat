@@ -85,9 +85,13 @@ class FrameAssembler:
 class Pilot:
     def __init__(self, args):
         self.args = args
-        self.client = YamcsClient(args.yamcs)
+        self.client = YamcsClient(args.yamcs)             # commands + telemetry subscription
+        self.pub_client = YamcsClient(args.yamcs)         # frame uploads and ground parameters (kept off the command path)
         self.instance = args.instance
         self.processor = self.client.get_processor(args.instance, "realtime")
+        self.pub_processor = self.pub_client.get_processor(args.instance, "realtime")
+        self.last_publish = 0.0
+        self.last_stats = 0.0
         self.system_one = make_system_one(args.system_one, args)
         self.system_two = make_system_two(args.system_two, args)
         self.telemetry = {}
@@ -101,6 +105,7 @@ class Pilot:
         self.progress_mark = (time.time(), 0)
         self.plan_busy = False
         self.control_count = 0
+        self.last_cmd_ms = 0
         self.resubscribes = 0
         self.subscription = None
         self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
@@ -112,7 +117,7 @@ class Pilot:
 
     # ------------------------------------------------------------ Yamcs plumbing
     def _ensure_bucket(self):
-        storage = self.client.get_storage_client()
+        storage = self.pub_client.get_storage_client()
         for b in storage.list_buckets():
             if b.name == "doomframes":
                 return b
@@ -158,6 +163,10 @@ class Pilot:
                     self.last_enemy_seen = time.time()
 
     def publish_frame(self, seq, path, nbytes, gen_time):
+        """Put the image product in the Yamcs bucket for Open MCT, at most twice a second (HTTP is not free)."""
+        if time.time() - self.last_publish < 0.5:
+            return
+        self.last_publish = time.time()
         name = f"frame-{seq:06d}.jpg"
         try:
             with open(path, "rb") as f:
@@ -177,12 +186,15 @@ class Pilot:
     def set_ground(self, values):
         try:
             for k, v in values.items():
-                self.processor.set_parameter_value(f"{GROUND}/{k}", v)
+                self.pub_processor.set_parameter_value(f"{GROUND}/{k}", v)
         except Exception as e:
             print(f"[pilot] ground parameter set failed: {e}", file=sys.stderr)
 
     def command(self, name, args=None):
-        return self.processor.issue_command(f"{SPACE_SYSTEM}/{name}", args=args or {})
+        t0 = time.time()
+        r = self.processor.issue_command(f"{SPACE_SYSTEM}/{name}", args=args or {})
+        self.last_cmd_ms = int((time.time() - t0) * 1000)
+        return r
 
     # ------------------------------------------------------------ System One loop
     def control_step(self):
@@ -204,15 +216,17 @@ class Pilot:
         if "goal" in answers and self.system_two is None:
             self.set_goal(dg.GOAL_FROM_CHOICE.get(answers["goal"]["choice"], self.goal), "jev", answers["goal"])
         row = {"t": time.time(), "kind": "control", "latency_ms": reply["latency_ms"], "model": reply.get("model"),
-               "request_id": reply.get("request_id"), "usage": reply.get("usage"),
+               "request_id": reply.get("request_id"), "usage": reply.get("usage"), "cmd_ms": self.last_cmd_ms,
                "answers": {k: v.get("choice") for k, v in answers.items()},
                "confidence": {k: round(v.get("confidence", 0.0), 2) for k, v in answers.items()},
                "control": cargs, "goal": self.goal, "health": t.get("HEALTH"), "tic": t.get("TIC"),
                "seen": state["navigation"], "raw": {k: t.get(k) for k in ("ROUTE_BEARING", "CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "STUCK", "POS_X", "POS_Y", "ANGLE")}}
         self.log.write(json.dumps(row) + "\n")
-        summary = " ".join(f"{k}={v['choice']}" for k, v in answers.items() if k in dg.CONTROL_HEADS)
-        self.set_ground({"SystemOneLatencyMs": float(reply["latency_ms"]), "ControlCommands": self.control_count,
-                         "Controls": summary})
+        if time.time() - self.last_stats > 1.0:
+            self.last_stats = time.time()
+            summary = " ".join(f"{k}={v['choice']}" for k, v in answers.items() if k in dg.CONTROL_HEADS)
+            self.set_ground({"SystemOneLatencyMs": float(reply["latency_ms"]), "ControlCommands": self.control_count,
+                             "Controls": summary})
         return row
 
     def set_goal(self, goal, who, detail=None):
@@ -302,7 +316,7 @@ class Pilot:
                     threading.Thread(target=self.plan_step, args=(reason,), daemon=True).start()
             n += 1
             if row and n % 10 == 0:
-                print(f"[pilot] #{n} {row['latency_ms']} ms  hp={row['health']} goal={self.goal} "
+                print(f"[pilot] #{n} jev {row['latency_ms']} ms cmd {row['cmd_ms']} ms  hp={row['health']} goal={self.goal} "
                       f"{' '.join(f'{k}={v}' for k, v in row['answers'].items() if k in dg.CONTROL_HEADS)}  "
                       f"frames ok={self.frames.complete} lost={self.frames.incomplete}", flush=True)
             remaining = self.args.period - (time.time() - t0)

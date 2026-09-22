@@ -17,7 +17,8 @@ if not ctrl:
 span = ctrl[-1]["t"] - ctrl[0]["t"]
 lat = sorted(r["latency_ms"] for r in ctrl)
 print(f"run span {span:.0f} s")
-print(f"System One ({ctrl[0].get('model')}): {len(ctrl)} decisions, {len(ctrl) / max(span, 1):.2f}/s, latency median {lat[len(lat) // 2]} ms p95 {lat[int(len(lat) * 0.95) - 1]} ms")
+cmd = sorted(r.get("cmd_ms", 0) for r in ctrl)
+print(f"System One ({ctrl[0].get('model')}): {len(ctrl)} decisions, {len(ctrl) / max(span, 1):.2f}/s, latency median {lat[len(lat) // 2]} ms p95 {lat[int(len(lat) * 0.95) - 1]} ms; command issue median {cmd[len(cmd) // 2]} ms p95 {cmd[int(len(cmd) * 0.95) - 1]} ms")
 for head in ("move", "turn", "strafe", "dodge", "fire", "use", "weapon"):
     print(f"  {head:7s}", ", ".join(f"{k} {v}" for k, v in Counter(r["answers"].get(head) for r in ctrl).most_common(4)))
 raw = [r["raw"] for r in ctrl if r.get("raw") and r["raw"].get("POS_X") is not None]
