@@ -275,6 +275,7 @@ class Payload:
         self.episode = 0
         self.positions = deque(maxlen=20)
         self.motions = deque(maxlen=20)
+        self.headings = deque(maxlen=20)
         self.stuck = False
         self.cmd_count = 0
         self.last_obs = None
@@ -313,6 +314,7 @@ class Payload:
         self.episode += 1
         self.positions.clear()
         self.motions.clear()
+        self.headings.clear()
         self.goal = "EXPLORE"
         self.control = dict(move=0, strafe=0, turn=0.0, fire=0, use=0, weapon=0)
         self.explorer.items.clear()  # pickups respawn; the map stays (the player remembers the level)
@@ -394,8 +396,10 @@ class Payload:
         # still did not get anywhere. Jittering between commands does not count (that made stuck latch on).
         self.positions.append((x, y))
         self.motions.append((self.control["move"], self.control["strafe"]))
+        self.headings.append(angle)
         same = len(self.motions) == self.motions.maxlen and len(set(self.motions)) == 1 and self.motions[0] != (0, 0)
-        self.stuck = bool(same and math.hypot(x - self.positions[0][0], y - self.positions[0][1]) < 12)
+        turned = abs((angle - self.headings[0] + 180) % 360 - 180) > 25  # turning is progress: the camera sees new space
+        self.stuck = bool(same and not turned and math.hypot(x - self.positions[0][0], y - self.positions[0][1]) < 12)
         clear_fwd = self.sector_clearance(depth_row, -20, 20)
         clear_left = min(self.sector_clearance(depth_row, 25, 45), ex.side_clearance(x, y, angle, 90))
         clear_right = min(self.sector_clearance(depth_row, -45, -25), ex.side_clearance(x, y, angle, -90))

@@ -202,6 +202,7 @@ class Pilot:
         if "goal" in answers and self.system_two is None:
             self.set_goal(dg.GOAL_FROM_CHOICE.get(answers["goal"]["choice"], self.goal), "jev", answers["goal"])
         row = {"t": time.time(), "kind": "control", "latency_ms": reply["latency_ms"], "model": reply.get("model"),
+               "request_id": reply.get("request_id"), "usage": reply.get("usage"),
                "answers": {k: v.get("choice") for k, v in answers.items()},
                "confidence": {k: round(v.get("confidence", 0.0), 2) for k, v in answers.items()},
                "control": cargs, "goal": self.goal, "health": t.get("HEALTH"), "tic": t.get("TIC"),

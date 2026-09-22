@@ -46,7 +46,8 @@ class TypeSafeSystemOne:
                           json={"state": state, "model": self.model, "questions": questions}, timeout=10)
         r.raise_for_status()
         body = r.json()
-        return {"answers": body["answers"], "latency_ms": int((time.time() - t0) * 1000), "model": body.get("model", self.model)}
+        return {"answers": body["answers"], "latency_ms": int((time.time() - t0) * 1000), "model": body.get("model", self.model),
+                "request_id": r.headers.get("x-typesafe-request-id"), "usage": body.get("usage")}
 
 
 class OpenAISystemOne:

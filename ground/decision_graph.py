@@ -141,13 +141,13 @@ def control_questions(t, goal):
         "move": choice(
             f"Advance now? Route aligned ahead: {yn(f['aligned'])}. Space ahead: {f['ahead']}. Stuck: {yn(f['stuck'])}. Space behind: {f['behind']}.",
             {"Forward": "Route aligned ahead is yes and space ahead is clear or tight. Also forward to close on a distant enemy.",
-             "Hold": "Route aligned ahead is no (turn first), or space ahead is blocked, or the destination is here.",
-             **({"Backward": "Stuck is yes and space behind is clear or unknown."} if f["stuck"] else {})}),
+             "Hold": "Route aligned ahead is no (turn first), or space ahead is blocked, or the destination is here, or stuck with nothing known clear around (turn instead).",
+             **({"Backward": "Stuck is yes and space behind is clear."} if f["stuck"] and f["behind"] == "clear" else {})}),
         "strafe": choice(
             f"Recovery sidestep? Stuck: yes. Space left: {f['left']}, right: {f['right']}.",
-            {"Hold": "Both sides are blocked.",
-             "Strafe left": "Space left is clear or unknown.",
-             "Strafe right": "Left is blocked, space right is clear or unknown."}) if f["stuck"] else None,
+            {"Hold": "Neither side is known clear: turn instead.",
+             **({"Strafe left": "Space left is clear."} if f["left"] == "clear" else {}),
+             **({"Strafe right": "Space right is clear."} if f["right"] == "clear" else {})}) if f["stuck"] and (f["left"] == "clear" or f["right"] == "clear") else None,
         "turn": choice(
             f"Turn to put {f['aim_target']} in the crosshair. It is now: {f['aim']}.",
             {"Hard left": "It is far left.", "Left": "It is left.", "Fine left": "It is slightly left or just left of the crosshair.",
