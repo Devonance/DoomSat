@@ -1,0 +1,13 @@
+import { chromium } from "file:///C:/Users/Kevin/Genai/mars-rover-game/node_modules/playwright/index.mjs";
+const b = await chromium.launch({ channel: "chrome", args: ["--use-gl=angle", "--ignore-gpu-blocklist"] });
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+const msgs = [];
+p.on("console", (m) => msgs.push(m.type() + ": " + m.text().slice(0, 120)));
+p.on("pageerror", (e) => msgs.push("pageerror: " + String(e).slice(0, 200)));
+await p.goto("http://localhost:9000/", { waitUntil: "load", timeout: 60000 });
+await p.waitForTimeout(25000);
+const info = await p.evaluate(() => ({ html: document.body.innerHTML.length, text: document.body.innerText.slice(0, 200), hasOpenmct: typeof window.openmct, started: !!document.querySelector(".l-shell"), els: document.querySelectorAll("*").length }));
+console.log(JSON.stringify(info));
+console.log(msgs.filter((m) => !m.includes("valueMetadatas") && !m.includes("Error requesting")).slice(0, 12).join("\n"));
+await p.screenshot({ path: "out/stack/openmct.png" });
+await b.close();

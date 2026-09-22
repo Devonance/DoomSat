@@ -29,8 +29,11 @@ and code owns the loop.
 - Uplink: CONTROL commands every ~300 ms; the F´ command dispatcher, the Doom component and the
   payload all report them (events `OpCodeDispatched/Completed`, `GoalSet`, `ExploreHint`).
 - jev: 7 control heads per request, ~470 ms median including the Yamcs round trip.
-- Claude Sonnet 5 via the local `claude` CLI: goal + steer hint from telemetry and the last frame,
-  6-11 s per plan, ~$0.06 each.
+- Claude Sonnet 5 via the local `claude` CLI: a level strategy at each episode start, then a re-plan only
+  when code sees a reason (no new map cells for 20 s, a health drop, death, level done), never more than
+  once per 30 s; 6-11 s per plan, ~$0.06 each. When it reads the frame, the CLI runs a ~1k-token Haiku
+  helper call for its tool plumbing; the plan itself is Sonnet. `--system-two anthropic` (API key) is the
+  Sonnet-only path, `--no-vision` avoids the helper on the CLI path.
 
 Integration findings worth keeping:
 1. F´ `string` telemetry is serialized length-prefixed, but `fprime-xtce` emits a fixed-size
@@ -74,6 +77,14 @@ scripts/start_pilot.sh --system-one openai --openai-base-url http://localhost:12
 ```
 
 After editing anything under `flight/`: `scripts/flight.sh build` (incremental) or `rebuild`.
+
+## Who decides what
+
+| Layer | Runs | Decides |
+|---|---|---|
+| Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, range-camera map, frontier route, target choice |
+| System One: jev | every ~0.5 s | the seven control heads (dodge, move, strafe, turn, fire, weapon, use) from words |
+| System Two: Claude Sonnet 5 | once per episode + triggers | the goal (explore / fight / supplies / scout / hold) and an exploration hint from the frame |
 
 ## Honest play
 

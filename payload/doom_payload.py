@@ -466,6 +466,8 @@ class Payload:
         use = int(c["use"]) and int(tic % 8 == 0)  # Doom triggers USE on the press edge: pulse a held use
         step = max(-6.0, min(6.0, self.turn_remaining))  # onboard attitude loop: turn to the setpoint, then stop
         self.turn_remaining -= step
+        if step and os.environ.get("DOOM_DEBUG_TURN"):
+            print(f"[turn] tic={tic} step={step:+.1f} remaining={self.turn_remaining:+.1f} angle={self.var('ANGLE'):.1f}", flush=True)
         return [14 * c["move"], 14 * c["strafe"], -step, int(c["fire"]), use,
                 int(c["weapon"] == 1), int(c["weapon"] == 2)]
 

@@ -118,6 +118,8 @@ class ClaudeCli:
         cmd = [self.exe, "-p", "--model", self.model, "--no-session-persistence", "--output-format", "json",
                "--json-schema", json.dumps(PLAN_SCHEMA), "--system-prompt", SYSTEM_TWO_PROMPT]
         if image_path and os.path.exists(image_path):
+            # Reading the image makes the CLI run a ~1k-token Haiku helper (tool plumbing); the plan itself is
+            # Sonnet. A Sonnet-only run uses --system-two anthropic (API key) or --no-vision.
             cmd += ["--allowedTools", "Read"]
             prompt += f"\n\nThe last downlinked frame is the image file {image_path}. Read it before deciding."
         t0 = time.time()
@@ -129,7 +131,9 @@ class ClaudeCli:
         plan = result.get("structured_output") or json.loads(result.get("result", "{}"))
         plan["latency_ms"] = int((time.time() - t0) * 1000)
         plan["cost_usd"] = result.get("total_cost_usd")
-        plan["model"] = ",".join(result.get("modelUsage", {}).keys()) or self.model
+        usage = result.get("modelUsage", {})
+        plan["model"] = ",".join(usage.keys()) or self.model
+        plan["tokens"] = {m: [u.get("inputTokens", 0) + u.get("cacheReadInputTokens", 0) + u.get("cacheCreationInputTokens", 0), u.get("outputTokens", 0)] for m, u in usage.items()}
         return plan
 
 

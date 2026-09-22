@@ -96,7 +96,9 @@ class Pilot:
         self.goal = "EXPLORE"
         self.standing_order = args.standing_order
         self.plan = {"goal": self.goal, "rationale": "initial standing order", "model": "code"}
-        self.last_plan_time = time.time()  # System One plans only if System Two stays silent for a while
+        self.last_plan_time = 0.0
+        self.planned_episode = None
+        self.progress_mark = (time.time(), 0)
         self.plan_busy = False
         self.control_count = 0
         self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
@@ -168,15 +170,15 @@ class Pilot:
             return None  # stale telemetry: hold what the payload holds (its own uplink timeout releases controls)
         t = dict(self.telemetry)
         state = dg.build_state(t, self.goal, self.standing_order)
-        questions = dg.control_questions()
-        if self.system_two is None or time.time() - self.last_plan_time > self.args.plan_every * 3:
-            questions.update(dg.goal_question())  # System One also plans when System Two is silent
+        questions = dg.control_questions(t, self.goal)
+        if self.system_two is None:
+            questions.update(dg.goal_question(t))  # System One plans only when there is no System Two
         reply = self.system_one.ask(state, questions)
         answers = reply["answers"]
         cargs = dg.control_args(answers)
         self.command("CONTROL", cargs)
         self.control_count += 1
-        if "goal" in answers and (self.system_two is None or time.time() - self.last_plan_time > self.args.plan_every * 3):
+        if "goal" in answers and self.system_two is None:
             self.set_goal(dg.GOAL_FROM_CHOICE.get(answers["goal"]["choice"], self.goal), "jev", answers["goal"])
         row = {"t": time.time(), "kind": "control", "latency_ms": reply["latency_ms"], "model": reply.get("model"),
                "answers": {k: v.get("choice") for k, v in answers.items()},
@@ -199,18 +201,29 @@ class Pilot:
 
     # ------------------------------------------------------------ System Two loop
     def plan_trigger(self):
+        """System Two is for strategy: once per episode, then only when code sees a reason."""
         t = self.telemetry
         now = time.time()
         if self.plan_busy or not t:
             return None
-        if now - self.last_plan_time > self.args.plan_every:
-            return "periodic"
-        if len(self.recent_health) >= 2 and self.recent_health[0] - self.recent_health[-1] >= 25 and now - self.last_plan_time > 4:
+        episode = t.get("EPISODE", 0)
+        if episode != self.planned_episode:
+            self.planned_episode = episode
+            self.progress_mark = (now, t.get("EXPLORED_CELLS", 0))
+            return "new episode: level strategy"
+        if now - self.last_plan_time < self.args.plan_floor:
+            return None
+        if len(self.recent_health) >= 2 and self.recent_health[0] - self.recent_health[-1] >= 25:
             return "health dropped"
-        if t.get("STUCK") and now - self.last_plan_time > 6:
-            return "stuck"
-        if (t.get("DEAD") or t.get("LEVEL_DONE")) and now - self.last_plan_time > 4:
-            return "episode boundary"
+        explored = t.get("EXPLORED_CELLS", 0)
+        mark_t, mark_cells = self.progress_mark
+        if explored > mark_cells:
+            self.progress_mark = (now, explored)
+        elif now - mark_t > self.args.no_progress and not t.get("ENEMY_COUNT", 0):
+            self.progress_mark = (now, explored)
+            return "no progress"
+        if self.args.plan_every and now - self.last_plan_time > self.args.plan_every:
+            return "periodic"
         return None
 
     def plan_step(self, reason):
@@ -228,7 +241,7 @@ class Pilot:
             self.set_goal(plan.get("goal", self.goal), self.system_two.name, plan)
             hint = {"ahead": 0, "left": 60, "right": -60, "behind": 180}.get(plan.get("steer_hint"))
             if hint is not None:
-                self.command("EXPLORE_HINT", {"bearing": hint, "ttl": int(self.args.plan_every * 1.5)})
+                self.command("EXPLORE_HINT", {"bearing": hint, "ttl": 25})
             if plan.get("frame_rate_hz") is not None:
                 self.command("FRAME_RATE", {"hz": int(plan["frame_rate_hz"]), "quality": self.args.quality})
             row = {"t": time.time(), "kind": "plan", "reason": reason, **{k: v for k, v in plan.items()}}
@@ -245,7 +258,8 @@ class Pilot:
     # ------------------------------------------------------------ main
     def run(self):
         self.subscribe()
-        print(f"[pilot] subscribed; System One = {self.system_one.name}, System Two = {self.system_two.name if self.system_two else 'none'}", flush=True)
+        key = getattr(self.system_one, "api_key", "")
+        print(f"[pilot] subscribed; System One = {self.system_one.name} (key {key[:14]}...), System Two = {self.system_two.name if self.system_two else 'none'} ({getattr(self.system_two, 'model', '-')})", flush=True)
         self.command("FRAME_RATE", {"hz": self.args.fps, "quality": self.args.quality})
         self.command("SET_GOAL", {"goal": self.goal})
         deadline = time.time() + self.args.duration if self.args.duration else None
@@ -287,7 +301,9 @@ def main():
     p.add_argument("--env-files", nargs="*", default=[str(HERE / ".env"), str(HERE.parent / ".env"),
                                                        str(HERE.parent.parent / "typesafe-decision-game" / ".env")])
     p.add_argument("--period", type=float, default=0.25, help="seconds between control decisions (lower bound)")
-    p.add_argument("--plan-every", type=float, default=15.0, help="seconds between periodic System Two plans")
+    p.add_argument("--plan-every", type=float, default=0.0, help="periodic System Two plans every N seconds (0 = triggers only)")
+    p.add_argument("--plan-floor", type=float, default=30.0, help="minimum seconds between System Two plans")
+    p.add_argument("--no-progress", type=float, default=20.0, help="seconds without new map cells before asking System Two")
     p.add_argument("--no-vision", dest="vision", action="store_false", help="do not show System Two the last frame")
     p.add_argument("--fps", type=int, default=10)
     p.add_argument("--quality", type=int, default=45)

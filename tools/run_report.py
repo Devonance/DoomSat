@@ -1,0 +1,35 @@
+"""Summarise a pilot run from out/decisions.jsonl: who decided what, how often, how fast, and whether the player moved.
+
+    python tools/run_report.py [out/decisions.jsonl]
+"""
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+path = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "out" / "decisions.jsonl")
+rows = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+ctrl = [r for r in rows if r.get("kind") == "control"]
+plans = [r for r in rows if r.get("kind") == "plan"]
+errors = [r for r in rows if r.get("kind") == "plan_error"]
+if not ctrl:
+    sys.exit("no control decisions in " + str(path))
+span = ctrl[-1]["t"] - ctrl[0]["t"]
+lat = sorted(r["latency_ms"] for r in ctrl)
+print(f"run span {span:.0f} s")
+print(f"System One ({ctrl[0].get('model')}): {len(ctrl)} decisions, {len(ctrl) / max(span, 1):.2f}/s, latency median {lat[len(lat) // 2]} ms p95 {lat[int(len(lat) * 0.95) - 1]} ms")
+for head in ("move", "turn", "strafe", "dodge", "fire", "use", "weapon"):
+    print(f"  {head:7s}", ", ".join(f"{k} {v}" for k, v in Counter(r["answers"].get(head) for r in ctrl).most_common(4)))
+raw = [r["raw"] for r in ctrl if r.get("raw") and r["raw"].get("POS_X") is not None]
+if raw:
+    xs, ys = [r["POS_X"] for r in raw], [r["POS_Y"] for r in raw]
+    moved = sum(abs(a["POS_X"] - b["POS_X"]) + abs(a["POS_Y"] - b["POS_Y"]) for a, b in zip(raw, raw[1:]))
+    print(f"  player: x {min(xs):.0f}..{max(xs):.0f}  y {min(ys):.0f}..{max(ys):.0f}  path length ~{moved:.0f} units  stuck {sum(1 for r in raw if r.get('STUCK'))}/{len(raw)}")
+hp = [r["health"] for r in ctrl if r.get("health") is not None]
+if hp:
+    print(f"  health: start {hp[0]} min {min(hp)} end {hp[-1]}")
+print(f"System Two: {len(plans)} plans, {len(errors)} errors")
+for r in plans:
+    tok = r.get("tokens") or {}
+    tk = " ".join(f"{m.split('-')[1]}:{v[0]}in/{v[1]}out" for m, v in tok.items())
+    print(f"  [{r.get('reason')}] {r.get('goal')} steer={r.get('steer_hint')} {r.get('latency_ms')} ms ${r.get('cost_usd') or 0:.3f} {tk}: {str(r.get('rationale'))[:90]}")
