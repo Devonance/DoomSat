@@ -7,18 +7,24 @@
 \usepackage{array}
 \usepackage{colortbl}
 \usepackage{longtable}
-\usepackage{tabularx}
-\newcommand{\rowrule}{\arrayrulecolor{black!22}\midrule\arrayrulecolor{black}}
-\renewcommand{\arraystretch}{1.18}
-\usepackage{enumitem}
-\usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{graphicx}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{caption}
+\usepackage{enumitem}
 \usepackage{amsmath}
+\usepackage{xurl}
+\usepackage{hyperref}
+\newcommand{\rowrule}{\arrayrulecolor{black!25}\midrule\arrayrulecolor{black}}
+\renewcommand{\arraystretch}{1.15}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 \hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,breaklinks=true}
+\captionsetup{font=small,labelfont=bf,skip=4pt}
 \setlist{nosep}
 \setlength{\parskip}{4pt}
 \setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
 \definecolor{claude}{HTML}{7A55CC}
 \definecolor{jev}{HTML}{2E9E63}
 \definecolor{code}{HTML}{3A7BC0}
@@ -31,19 +37,34 @@
 
 Repository: \url{https://github.com/Devonance/claude-jev-fprime-yamcs-openmct-doom}
 
+\FloatBarrier
 \section*{1. What this is}
 Doom is a stress test dressed up as a toy: interactive (uplink latency shows up as a character that turns late), high rate (a frame every 100 ms has to be fragmented, framed, sent, deframed and reassembled) and self-validating (a dropped or mis-decoded frame is obvious to anyone watching). We put the game behind a real flight computer and played it from the ground through a real mission control system. The player is not a person: TypeSafe's \textbf{jev}, a System One model, classifies the situation every half second; \textbf{Claude Sonnet 5}, a System Two, nudges it once a minute and rewrites its questions after every attempt.
 
 The result in one sentence: the stack works end to end under the load, every layer measured; the autonomous player explores, opens doors and dies honestly, but does not yet finish a level. The engineering result is the first part. The second part is documented as a failure with causes.
 
-\begin{center}\includegraphics[width=\textwidth]{diagrams/architecture.png}\end{center}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.75\textheight,keepaspectratio]{diagrams/architecture.png}
+\caption{Architecture}
+\end{figure}
+\FloatBarrier
 \section*{2. The stack and how the data flows}
-\begin{center}\includegraphics[width=\textwidth]{diagrams/dataflow.png}\end{center}
-\begin{center}\small
-\begin{tabular}{p{0.16\textwidth} p{0.14\textwidth} p{0.34\textwidth} p{0.28\textwidth}}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.9\textheight,keepaspectratio]{diagrams/dataflow.png}
+\caption{Data flow}
+\end{figure}
+\begingroup\small
+\begin{longtable}{L{0.179\textwidth} L{0.306\textwidth} L{0.229\textwidth} L{0.162\textwidth}}
 \toprule
 \textbf{Hop} & \textbf{What crosses it} & \textbf{Type and size} & \textbf{Rate} \\
 \midrule
+\endfirsthead
+\toprule
+\textbf{Hop} & \textbf{What crosses it} & \textbf{Type and size} & \textbf{Rate} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
 Doom $\rightarrow$ payload & screen, depth buffer, labels, automap (seen lines only), HUD variables & ViZDoom buffers, 640x480 & 35 Hz \\ \rowrule
 payload $\rightarrow$ F\'{} Doom component & STATUS record & 112-byte big-endian struct, 56 fields & 12 Hz \\ \rowrule
 payload $\rightarrow$ F\'{} Doom component & JPEG frame; map PNG every 5 s & \textasciitilde{}8 KB; \textasciitilde{}2-6 KB & 10 fps \\ \rowrule
@@ -56,23 +77,42 @@ jev $\rightarrow$ pilot & choice + probabilities per Choice head, probability pe
 pilot $\rightarrow$ Yamcs $\rightarrow$ F\'{} & CONTROL(move, strafe, turn, fire, use, weapon), SET\_GOAL, EXPLORE\_HINT, RESET\_GAME & F\'{} commands, CCSDS TC, UDP & one per decision \\ \rowrule
 pilot $\rightarrow$ Sonnet & progress check (ASCII map + walk); after-action report & text, \textasciitilde{}4 KB; JSON, \textasciitilde{}2 KB & every 60 s; per episode \\ \rowrule
 Sonnet $\rightarrow$ pilot & bearing + hold time + goal; revised graph config & JSON schema replies & 20-120 s later \\
-\bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
+\endgroup
 Everything on the ground reads Yamcs: the pilot, Open MCT and the dashboard have no other source.
 
-\begin{center}\includegraphics[width=\textwidth]{images/dashboard.png}\end{center}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{images/dashboard.png}
+\caption{Dashboard}
+\end{figure}
 Open MCT reads the same Yamcs: the frame product as an imagery view with its thumbnail strip, and any parameter as a plot (here jev's per-decision latency over 30 minutes).
 
-\begin{center}\includegraphics[width=\textwidth]{images/openmct_imagery.png}\end{center}
-\begin{center}\includegraphics[width=\textwidth]{images/openmct_latency.png}\end{center}
-\begin{center}\includegraphics[width=\textwidth]{images/chart_latency.png}\end{center}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{images/openmct_imagery.png}
+\caption{Open MCT imagery}
+\end{figure}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{images/openmct_latency.png}
+\caption{Open MCT plot}
+\end{figure}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{images/chart_latency.png}
+\caption{Latency}
+\end{figure}
+\FloatBarrier
 \section*{3. Measured, not asserted}
-\begin{center}\small
-\begin{tabular}{p{0.28\textwidth} p{0.66\textwidth}}
+\begingroup\small
+\begin{longtable}{L{0.333\textwidth} L{0.595\textwidth}}
 \toprule
 \textbf{Quantity} & \textbf{Value} \\
 \midrule
+\endfirsthead
+\toprule
+\textbf{Quantity} & \textbf{Value} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
 XTCE from the F\'{} dictionary & 156 parameters, 54 commands, all Doom channels decode \\ \rowrule
 Frame path & 10 fps, 320x240 JPEG q45, \textasciitilde{}8 KB, 9 chunks per frame, about 1 incomplete frame per 1000 \\ \rowrule
 Telemetry & STATUS at 12 Hz, 112 bytes, parsed into 56 channels \\ \rowrule
@@ -82,9 +122,8 @@ Turn execution & onboard setpoint, 6 degrees per tic; a 90-degree turn lands in 
 Sonnet bump & 20-60 s per call, one per minute \\ \rowrule
 Sonnet after-action review & 100-140 s per call, \textasciitilde{}\$0.3, one per episode; graph revisions v2..v9 in one afternoon \\ \rowrule
 Yamcs bucket & hard limit of 1000 objects; frames written into a ring of 20 names \\
-\bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
+\endgroup
 Integration findings that cost real time and are worth keeping:
 
 \begin{enumerate}
@@ -96,34 +135,52 @@ Integration findings that cost real time and are worth keeping:
   \item WSL processes launched from a \texttt{wsl bash -c} call die with it unless started with \texttt{setsid -f}.
   \item The openmct-yamcs example configuration imports a demo layout bound to a Yamcs instance called \texttt{myproject}; on any other instance Open MCT shows "Error requesting telemetry data" until that import is removed (ours lands on the frame product instead).
 \end{enumerate}
+\FloatBarrier
 \section*{4. What the player is allowed to see}
 Nothing from the level file. The character senses like a player:
 
-\begin{center}\small
-\begin{tabular}{p{0.18\textwidth} p{0.34\textwidth} p{0.42\textwidth}}
+\begingroup\small
+\begin{longtable}{L{0.210\textwidth} L{0.285\textwidth} L{0.407\textwidth}}
 \toprule
 \textbf{Sense} & \textbf{Stands in for} & \textbf{Source} \\
 \midrule
+\endfirsthead
+\toprule
+\textbf{Sense} & \textbf{Stands in for} & \textbf{Source} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
 Depth buffer & where the walls are & ViZDoom; perpendicular distance, 7.16 map units per step; 0 is the sky \\ \rowrule
 Object labels & recognising monsters, pickups, keys, barrels & ViZDoom labels buffer, things in view only \\ \rowrule
 Automap, seen lines only & the map a player sees on Tab & ZDoom \texttt{NORMAL} mode; walls, floor steps, ceiling changes (doors), locked doors in key colour, exit lines; only recoloured \\ \rowrule
 HUD variables & health, armor, ammo, position, heading & ViZDoom game variables \\
-\bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
+\endgroup
 Not used: whole-map or show-objects automap modes, trigger-line display, sector geometry from the game state, monster counts, item lists, cheats. The WAD statistics script is a developer tool for choosing levels and checking results; the payload never imports it.
 
 The payload has no planner. It stamps the automap into a raster, sweeps the floor it has seen, counts where it has walked, and reports eight directions around the player (every 45 degrees): how far the map is open, and whether the ground that way is unexplored, new, walked before, or has a door on the way. It also reports what is at arm's length ahead (wall, door, exit switch, locked door, monster or barrel, or something the map does not show such as window bars), where an exit line, a key and pickups were seen, and whether the player is stuck. What it bumps into becomes a barrier for the rest of the level. The map of a level is kept across attempts; the game itself restarts.
 
-\begin{center}\includegraphics[width=\textwidth]{images/map_product.png}\end{center}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{images/map_product.png}
+\caption{Map product}
+\end{figure}
+\FloatBarrier
 \section*{5. jev's decision graph}
 jev classifies a structured state document in one forward pass and returns, per question, an option with probabilities (Choice) or a yes-probability (Noul). It does not reason, plan or remember. The graph is therefore one narrow question per head, options with contrastive criteria (what / not\_for / examples) that reference state fields, Nouls for yes/no heads, and code combining the answers:
 
-\begin{center}\small
-\begin{tabular}{p{0.16\textwidth} p{0.14\textwidth} p{0.34\textwidth} p{0.28\textwidth}}
+\begingroup\small
+\begin{longtable}{L{0.148\textwidth} L{0.121\textwidth} L{0.306\textwidth} L{0.301\textwidth}}
 \toprule
 \textbf{Head} & \textbf{Type} & \textbf{Options} & \textbf{Decides} \\
 \midrule
+\endfirsthead
+\toprule
+\textbf{Head} & \textbf{Type} & \textbf{Options} & \textbf{Decides} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
 way & Choice & the open directions among ahead, ahead-left, left, behind-left, behind, behind-right, right, ahead-right, each with its own "now" (space, ground) & the direction: jev is the navigator \\ \rowrule
 advance & Noul & yes / no & walk forward this tick \\ \rowrule
 use & Noul & yes / no & press Use (asked with a door, the exit or a locked door at arm's length, or when stuck) \\ \rowrule
@@ -132,28 +189,38 @@ dodge & Choice & Carry on / Dodge left / right / back (open sides only) & evasio
 turn & Choice & Hard left ... Hard right / Turn around & aim at a visible enemy \\ \rowrule
 weapon & Choice & Keep / Pistol / Shotgun & ammunition scarcity \\ \rowrule
 goal (every 8th tick) & Choice & Kill enemies / Restore health / Stock ammo / Add armor / Explore & priority \\
-\bottomrule
-\end{tabular}
-\end{center}
+\end{longtable}
+\endgroup
 Code maps the answers onto one CONTROL command: the way becomes a turn setpoint of 0, 45, 90, 135 or 180 degrees (or a step backward when the way behind is open), advance becomes the move, and the option probabilities give hysteresis so the direction only changes when jev is clearly surer of the new one. A large turn is allowed to finish before the next question is asked.
 
 System Two on two clocks: every minute Sonnet gets seconds into the attempt, cells gained, position, the walk's most visited spots and the map product as text, and answers with a bearing, a hold time and a goal (sent as \texttt{EXPLORE\_HINT} and \texttt{SET\_GOAL}). After every episode (death, level finished, or the 3-minute budget spent and the game reset) it gets a \textasciitilde{}2 KB report (outcome, health, damage, cells, distance, stuck ticks, per-head answer distributions with confidence, the walk, the last eight decisions in words) plus the current graph, and returns a revised graph that code validates and versions.
 
 The graph as a table, in the form of the rover demo's decision graphs: what code turns into words, the typed question jev is asked, when, and the rule that consumes the answer. Nothing slower than jev is in the live loop.
 
-\begin{center}\includegraphics[width=\textwidth]{diagrams/decision_graph.png}\end{center}
+\input{decision_graph_table.tex}
 One real decision from the last run, end to end, with the numbers Yamcs delivered, the words code made from them, jev's probabilities and the command that went up:
 
-\begin{center}\includegraphics[width=\textwidth]{diagrams/decision_flow.png}\end{center}
-\begin{center}\includegraphics[width=\textwidth]{images/chart_answers.png}\end{center}
+\input{decision_flow.tex}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{images/chart_answers.png}
+\caption{Answers}
+\end{figure}
+\FloatBarrier
 \section*{6. Results: the stack held, the player did not finish}
 Runs of 22 September 2026 on shareware E1M1, jev live through the whole stack, Sonnet 5 as System Two. Each cycle is run / review / edit / run. Cells are 32-unit map cells the character has stood in.
 
-\begin{center}\small
-\begin{tabular}{p{0.13\textwidth} p{0.13\textwidth} p{0.13\textwidth} p{0.13\textwidth} p{0.13\textwidth} p{0.13\textwidth} p{0.13\textwidth}}
+\begingroup\footnotesize
+\begin{longtable}{L{0.078\textwidth} L{0.192\textwidth} L{0.076\textwidth} L{0.076\textwidth} L{0.076\textwidth} L{0.130\textwidth} L{0.171\textwidth}}
 \toprule
 \textbf{Cycle} & \textbf{Change} & \textbf{Decisions} & \textbf{Cells} & \textbf{Stuck} & \textbf{Reached} & \textbf{Notes} \\
 \midrule
+\endfirsthead
+\toprule
+\textbf{Cycle} & \textbf{Change} & \textbf{Decisions} & \textbf{Cells} & \textbf{Stuck} & \textbf{Reached} & \textbf{Notes} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
 planner v1 & frontier planner over the automap & 687 & 121 & 60 & start room & walked into a fake door repeatedly; turns alternated hard left/right \\ \rowrule
 planner + steer & jev picks the way out when blocked & 202 & 147 & 0 & start room & the planner still sealed its own cell \\ \rowrule
 local 1 & no planner; four directions, prose criteria & 124 & 56 & 1 & start room & "Turn around" 62 times: sides read blocked in every corridor \\ \rowrule
@@ -163,13 +230,19 @@ local 4 & unseen ground is "unexplored", the strongest pull & 155 & 126 & 0 & we
 local 5 & map kept across attempts & 250 & 246 & 7 & whole west + north & the second attempt doubles the map \\ \rowrule
 local 6 & doors on the way in each direction's words & 295 & 275 & 3 & through the silver door into the big room & first door opened (23 Use presses); died to the first monsters, 0 kills \\ \rowrule
 local 7 & aim/dodge whenever an enemy is visible; blocked directions are not "new"; map kept over 7 attempts & 3170 total & 559 & 11 & start, north, west, the door, first kill & Sonnet graph v9..v14; the loop kept re-walking known rooms \\
-\bottomrule
-\end{tabular}
-\end{center}
-\begin{center}\includegraphics[width=\textwidth]{images/chart_exploration.png}\end{center}
-\begin{center}\includegraphics[width=\textwidth]{images/final_map.png}\end{center}
+\end{longtable}
+\endgroup
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.5\textheight,keepaspectratio]{images/chart_exploration.png}
+\caption{Exploration per cycle}
+\end{figure}
+\begin{figure}[htbp]\centering
+\includegraphics[width=\linewidth,height=0.33\textheight,keepaspectratio]{images/final_map.png}
+\caption{Explored map at the end of the day}
+\end{figure}
 Sonnet's revisions were specific and correct about what they saw: "Hold answered 78\%, aligned\_deg too strict, loosened to 50"; "the goal flipped every 4 ticks between explore and add armor, raised to 8"; "the standing order was truncated mid-word" (it was: a validator limit, since fixed); "way flipped nearly every tick, raised the hysteresis margin". None of them could fix what the words did not carry.
 
+\FloatBarrier
 \section*{7. Why the player did not finish, and what to do}
 \begin{enumerate}
   \item \textbf{Sensing errors, not decisions.} Most of the day went into finding that jev's inputs were wrong: depth scale and geometry, the sky as distance zero, the crosshair and player arrow drawn into sensor buffers, barred windows the automap never draws, barrier marks inside the character, a blocked direction reading "new ground". jev answered every wrong input correctly. Each fix moved the character further.
@@ -182,6 +255,7 @@ Sonnet's revisions were specific and correct about what they saw: "Hold answered
 \end{enumerate}
 The handoff for the next pass, with the full list of what made us stuck and the research leads, is \texttt{docs/HANDOFF.md}.
 
+\FloatBarrier
 \section*{8. Sources}
 \begin{itemize}
   \item NASA F\'{} v4.3.0: \url{https://github.com/nasa/fprime}
@@ -196,4 +270,5 @@ The handoff for the next pass, with the full list of what made us stuck and the 
   \item Prior LLM-plays-Doom work: \url{https://adriandewynter.substack.com/p/will-gpt-4-and-5-run-doom}
   \item Graphviz (diagrams), Playwright + Chrome (screenshots, recording), tectonic (PDF), imageio-ffmpeg (video)
 \end{itemize}
+\FloatBarrier
 \end{document}

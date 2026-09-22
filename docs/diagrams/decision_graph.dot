@@ -1,6 +1,6 @@
 digraph G {
   graph [bgcolor="#0f1116", fontname="DejaVu Sans Mono", fontcolor="#d8dde6", labelloc=t, labeljust=l, nodesep=0.35, ranksep=0.25, pad=0.4,
-         label="DOOMSAT . DECISION GRAPH . one narrow typed question per head, over words that code made from telemetry; every answer is consumed by a rule\lmeasured 22 Sep 2026: 5,872 jev decisions through the stack, ~450-520 ms per call with 5-8 heads, ~45 ms to issue the command; Sonnet: a bump per minute, 14 graph versions in the day\l"];
+         label="DOOMSAT . DECISION GRAPH . one narrow typed question per head, over words that code made from telemetry; every answer is consumed by a rule\lMeasured on 22 Sep 2026: 5,872 jev decisions through the stack, about 450-520 ms per call with 5-8 heads, about 45 ms to issue the command; Sonnet: a bump per minute and 14 graph versions in the day.\l"];
   node [shape=box, style="rounded,filled", fillcolor="#161a22", fontname="DejaVu Sans Mono", fontsize=11, fontcolor="#d8dde6", penwidth=1.4, margin="0.18,0.12"];
   edge [color="#4a5160", arrowhead=none, penwidth=1.0];
   { rank=same; h0 [shape=plaintext, fillcolor="#0f1116", fontcolor="#4a5160", label="STATE (what code turns into words)"]; h1 [shape=plaintext, fillcolor="#0f1116", fontcolor="#d9a441", label="JEV . TYPED QUESTION"]; h2 [shape=plaintext, fillcolor="#0f1116", fontcolor="#4f8fd6", label="WHEN ASKED"]; h3 [shape=plaintext, fillcolor="#0f1116", fontcolor="#3fae6a", label="RULE THAT CONSUMES THE ANSWER"] }

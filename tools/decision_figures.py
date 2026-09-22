@@ -1,8 +1,11 @@
-"""Two figures for the report, drawn with Graphviz (dot in the WSL distro):
+"""Figures of jev's decision graph for the README (Graphviz PNG/SVG, dot in the WSL distro) and for the PDF report
+(native LaTeX, so the text is real text and the tables break across pages):
 
-  docs/diagrams/decision_graph.{dot,png,svg}   jev's decision graph as a table: state words -> typed question -> when
-                                               asked -> the code rule that consumes the answer (rover-demo style)
+  docs/diagrams/decision_graph.{dot,png,svg}   the graph as a table: state words -> typed question -> when asked ->
+                                               the code rule that consumes the answer (rover-demo style)
   docs/diagrams/decision_flow.{dot,png,svg}    one real decision end to end, with the numbers and probabilities logged
+  docs/decision_graph_table.tex                the same table as a longtable (\\input by tools/md_to_tex.py)
+  docs/decision_flow.tex                       the same worked decision as stacked boxes
 
     python tools/decision_figures.py
 """
@@ -11,18 +14,29 @@ import subprocess
 import textwrap
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "docs", "diagrams")
+DOCS = os.path.join(HERE, "..", "docs")
+OUT = os.path.join(DOCS, "diagrams")
 BG, CELL, TXT, DIM = "#0f1116", "#161a22", "#d8dde6", "#8b93a1"
 GREY, ORANGE, BLUE, GREEN, PURPLE = "#4a5160", "#d9a441", "#4f8fd6", "#3fae6a", "#8f6fe0"
 FONT = "DejaVu Sans Mono"
 
 
 def cell(text, width=44):
-    """Wrap text and left-justify each line (\\l) for a box label."""
+    """Wrap text and left-justify each line (\\l) for a Graphviz box label."""
     lines = []
     for para in text.split("\n"):
         lines.extend(textwrap.wrap(para, width) or [""])
     return "\\l".join(l.replace('"', '\\"') for l in lines) + "\\l"
+
+
+def tex(s):
+    """Escape LaTeX specials in plain text."""
+    s = s.replace("\\", r"\textbackslash{}")
+    for a, b in (("&", r"\&"), ("%", r"\%"), ("$", r"\$"), ("#", r"\#"), ("_", r"\_"), ("{", r"\{"), ("}", r"\}"),
+                 ("~", r"\textasciitilde{}"), ("^", r"\textasciicircum{}"), ("<", r"\textless{}"), (">", r"\textgreater{}")):
+        s = s.replace(a, b)
+    s = s.replace(r"-\textgreater{}", r"$\rightarrow$").replace(">=", r"$\geq$").replace("´", r"\'{}")
+    return s
 
 
 ROWS = [
@@ -60,7 +74,8 @@ ROWS = [
      "nearest enemy bearing in words",
      "Choice: Hard left / Left / Fine left / Hold / Fine right / Right / Hard right / Turn around",
      "whenever an enemy is in view",
-     "overrides the way's turn with the aim table (turn_deg: 60 / 25 / 8 / 0 / -8 / -25 / -60 / 150 deg); a person does not keep exploring under fire"),
+     "overrides the way's turn with the aim table (turn_deg: 60 / 25 / 8 / 0 / -8 / -25 / -60 / 150 deg); a person "
+     "does not keep exploring under fire"),
     ("7. weapon",
      "weapon in hand, shells, bullets, enemy distance band",
      "Choice: Keep / Pistol / Shotgun",
@@ -86,12 +101,50 @@ ROWS = [
      "jev plays the next attempt with it"),
 ]
 
+FOOTER = ("Measured on 22 Sep 2026: 5,872 jev decisions through the stack, about 450-520 ms per call with 5-8 heads, "
+          "about 45 ms to issue the command; Sonnet: a bump per minute and 14 graph versions in the day.")
 
-def decision_graph():
+# one real decision: request req_01a0c8b54b2c73dd8ec79b57a6f3a1b6, graph v14, episode 7, 22 Sep 2026 10:41:59 UTC
+FLOW = [
+    ("Yamcs parameters (12 Hz), this tick", GREY, [
+        "CLEAR ahead 116, ahead-left 48, left 28, behind-left 20, behind 24, behind-right 248, right 212, ahead-right 120 (units)",
+        "NEW ahead 0, ahead-left 100, left 0, behind-left 0, behind 0, behind-right 14, right 50, ahead-right 33",
+        "AHEAD_KIND NOTHING, EXIT_DIST 0, STUCK false, ENEMY_COUNT 0, HEALTH 100, ARMOR 0, KILLS 0",
+        "POS 1347,-2725, ANGLE 216, EXPLORED_CELLS 544, LEVEL 1, KEYS 0"]),
+    ("telemetry -> words (bands, novelty, direction names); no number reaches jev", None, None),
+    ("State document (code, no model)", GREY, [
+        "ahead: open, walked before, nothing near",
+        "ahead-left: tight, new",
+        "left / behind-left / behind: blocked, walked before",
+        "behind-right: long (a passage or a big room), walked before",
+        "right: open, partly walked; ahead-right: open, partly walked",
+        "exit: not seen; enemy: none in view; health: full; armor: none; goal word: Explore"]),
+    ("HTTPS POST /v1/systemone: the state plus 5 typed questions with their criteria", None, None),
+    ("jev, one request, 469 ms (req_01a0c8b54b2c73dd8ec79b57a6f3a1b6)", ORANGE, [
+        "way (Choice over the 5 open directions): ahead-left 0.82, ahead 0.14, right 0.03, ahead-right 0.01, behind-right 0.00",
+        "advance (Noul): yes 0.75",
+        "fire (Noul): no 0.98",
+        "weapon (Choice): Keep 0.82, Shotgun 0.18, Pistol 0.00",
+        "goal (Choice, this was a goal tick): Add armor 0.86, Explore 0.14"]),
+    ("choices with probabilities, Noul probabilities", None, None),
+    ("Code rules", GREEN, [
+        "way: the previous way 'ahead' holds 0.14; the new one 0.82 >= 0.14 + way_margin, so switch; ahead-left = +45 deg",
+        "a turn of 45 deg or more is issued alone: move = 0 this tick, walking resumes when the turn has landed",
+        "fire 0.98 no -> fire = 0; use was not asked (nothing at arm's length) -> use = 0",
+        "weapon Keep -> no switch",
+        "goal Add armor -> SET_GOAL(ADD_ARMOR) on the goal tick; the word 'Add armor' enters the next documents"]),
+    ("one command per decision", None, None),
+    ("CONTROL(move=0, strafe=0, turn=+45, fire=0, use=0, weapon=no change)", BLUE, [
+        "Yamcs HTTP -> CCSDS TC -> UDP -> F´ CmdDispatcher -> Doom component -> payload turn setpoint (6 deg per tic)",
+        "issued in 50 ms; F´ events: OpCodeDispatched, OpCodeCompleted"]),
+]
+
+
+def decision_graph_dot():
     g = [f'digraph G {{',
          f'  graph [bgcolor="{BG}", fontname="{FONT}", fontcolor="{TXT}", labelloc=t, labeljust=l, nodesep=0.35, ranksep=0.25, pad=0.4,',
          f'         label="DOOMSAT . DECISION GRAPH . one narrow typed question per head, over words that code made from telemetry; every answer is consumed by a rule\\l'
-         f'measured 22 Sep 2026: 5,872 jev decisions through the stack, ~450-520 ms per call with 5-8 heads, ~45 ms to issue the command; Sonnet: a bump per minute, 14 graph versions in the day\\l"];',
+         f'{FOOTER}\\l"];',
          f'  node [shape=box, style="rounded,filled", fillcolor="{CELL}", fontname="{FONT}", fontsize=11, fontcolor="{TXT}", penwidth=1.4, margin="0.18,0.12"];',
          f'  edge [color="{GREY}", arrowhead=none, penwidth=1.0];']
     heads = [("STATE (what code turns into words)", GREY), ("JEV . TYPED QUESTION", ORANGE), ("WHEN ASKED", BLUE), ("RULE THAT CONSUMES THE ANSWER", GREEN)]
@@ -101,10 +154,10 @@ def decision_graph():
     for r, row in enumerate(ROWS):
         name, state, q, when, rule = row
         system_two = name.startswith("System Two")
-        cols = [(f"{name}\\l\\l{cell(state, 46)}", PURPLE if system_two else GREY, 46),
-                (cell(q, 40), PURPLE if system_two else ORANGE, 40), (cell(when, 26), BLUE, 26), (cell(rule, 54), GREEN, 54)]
+        cols = [(f"{name}\\l\\l{cell(state, 46)}", PURPLE if system_two else GREY),
+                (cell(q, 40), PURPLE if system_two else ORANGE), (cell(when, 26), BLUE), (cell(rule, 54), GREEN)]
         ids = []
-        for c, (label, colour, w) in enumerate(cols):
+        for c, (label, colour) in enumerate(cols):
             nid = f"r{r}c{c}"
             ids.append(nid)
             g.append(f'  {nid} [label="{label}", color="{colour}"];')
@@ -116,64 +169,66 @@ def decision_graph():
     return "\n".join(g)
 
 
-def decision_flow():
-    """One real decision: request req_01a0c8b54b2c73dd8ec79b57a6f3a1b6, graph v14, episode 7, 22 Sep 2026."""
-    numbers = cell("Yamcs parameters (12 Hz), this tick:\n"
-                   "CLEAR ahead 116  ahead-left 48  left 28  behind-left 20  behind 24  behind-right 248  right 212  ahead-right 120 (units)\n"
-                   "NEW ahead 0  ahead-left 100  left 0  behind-left 0  behind 0  behind-right 14  right 50  ahead-right 33\n"
-                   "AHEAD_KIND NOTHING  EXIT_DIST 0  STUCK false  ENEMY_COUNT 0  HEALTH 100  ARMOR 0  KILLS 0\n"
-                   "POS 1347,-2725  ANGLE 216  EXPLORED_CELLS 544  LEVEL 1  KEYS 0", 62)
-    words = cell("state document (code, no model):\n"
-                 "ahead: open, walked before, nothing near\n"
-                 "ahead-left: tight, new\n"
-                 "left / behind-left / behind: blocked, walked before\n"
-                 "behind-right: long (a passage or a big room), walked before\n"
-                 "right: open, partly walked\n"
-                 "ahead-right: open, partly walked\n"
-                 "exit: not seen . enemy: none in view . health: full . armor: none\n"
-                 "goal word: Explore", 58)
-    heads = cell("jev, one request, 469 ms, req_01a0c8b54b2c73dd8ec79b57a6f3a1b6:\n"
-                 "way (Choice over the 5 open directions) -> ahead-left 0.82 . ahead 0.14 . right 0.03 . ahead-right 0.01 . behind-right 0.00\n"
-                 "advance (Noul) -> yes 0.75\n"
-                 "fire (Noul) -> no 0.98\n"
-                 "weapon (Choice) -> Keep 0.82 . Shotgun 0.18 . Pistol 0.00\n"
-                 "goal (Choice, this was a goal tick) -> Add armor 0.86 . Explore 0.14", 62)
-    rules = cell("code rules:\n"
-                 "way: previous way 'ahead' held 0.14, new 0.82 >= 0.14 + way_margin -> switch; ahead-left = +45 deg\n"
-                 "a turn of 45 deg or more is issued alone: move = 0 this tick, walking resumes when the turn has landed\n"
-                 "fire 0.98 no -> fire = 0; use not asked (nothing at arm's length) -> use = 0\n"
-                 "weapon Keep -> no switch\n"
-                 "goal Add armor -> SET_GOAL(ADD_ARMOR) on the goal tick; the word 'Add armor' enters the next documents", 62)
-    command = cell("CONTROL(move=0, strafe=0, turn=+45, fire=0, use=0, weapon=no change)\n"
-                   "Yamcs HTTP -> CCSDS TC -> UDP -> F´ CmdDispatcher -> Doom component -> payload turn setpoint (6 deg per tic)\n"
-                   "issued in 50 ms; F´ events: OpCodeDispatched, OpCodeCompleted", 62)
-    return "\n".join([
-        'digraph F {',
-        f'  graph [bgcolor="{BG}", rankdir=TB, fontname="{FONT}", fontcolor="{TXT}", labelloc=t, labeljust=l, nodesep=0.3, ranksep=0.35, pad=0.4,',
-        f'         label="DOOMSAT . ONE DECISION END TO END (episode 7, graph v14, 22 Sep 2026 10:41:59 UTC)\\l"];',
-        f'  node [shape=box, style="rounded,filled", fillcolor="{CELL}", fontname="{FONT}", fontsize=11, fontcolor="{TXT}", penwidth=1.4, margin="0.2,0.12"];',
-        f'  edge [color="{DIM}", fontname="{FONT}", fontsize=10, fontcolor="{DIM}", penwidth=1.2];',
-        f'  n [label="{numbers}", color="{GREY}"];',
-        f'  w [label="{words}", color="{GREY}"];',
-        f'  j [label="{heads}", color="{ORANGE}"];',
-        f'  r [label="{rules}", color="{GREEN}"];',
-        f'  c [label="{command}", color="{BLUE}"];',
-        '  n -> w [label=" telemetry -> words (bands, novelty, direction names); no number reaches jev"];',
-        '  w -> j [label=" HTTPS POST /v1/systemone: state + 5 typed questions with criteria"];',
-        '  j -> r [label=" choices with probabilities, Noul probabilities"];',
-        '  r -> c [label=" one command per decision"];',
-        '}'])
+def decision_flow_dot():
+    g = ['digraph F {',
+         f'  graph [bgcolor="{BG}", rankdir=TB, fontname="{FONT}", fontcolor="{TXT}", labelloc=t, labeljust=l, nodesep=0.3, ranksep=0.35, pad=0.4,',
+         f'         label="DOOMSAT . ONE DECISION END TO END (episode 7, graph v14, 22 Sep 2026 10:41:59 UTC)\\l"];',
+         f'  node [shape=box, style="rounded,filled", fillcolor="{CELL}", fontname="{FONT}", fontsize=11, fontcolor="{TXT}", penwidth=1.4, margin="0.2,0.12"];',
+         f'  edge [color="{DIM}", fontname="{FONT}", fontsize=10, fontcolor="{DIM}", penwidth=1.2];']
+    boxes = [(t, c, body) for t, c, body in FLOW if body]
+    labels = [t for t, c, body in FLOW if not body]
+    for i, (title, colour, body) in enumerate(boxes):
+        g.append(f'  b{i} [label="{cell(title + chr(10) + chr(10).join(body), 62)}", color="{colour}"];')
+    for i, lab in enumerate(labels):
+        g.append(f'  b{i} -> b{i + 1} [label=" {lab}"];')
+    g.append('}')
+    return "\n".join(g)
+
+
+def decision_graph_tex():
+    head = r"\textbf{Head and the words it sees} & \textbf{Typed question} & \textbf{When asked} & \textbf{Rule that consumes the answer} \\"
+    out = [r"\begingroup\footnotesize",
+           r"\begin{longtable}{L{0.27\textwidth} L{0.21\textwidth} L{0.11\textwidth} L{0.29\textwidth}}",
+           r"\caption{jev's decision graph: what code turns into words, the typed question, when it is asked, and the "
+           r"rule that consumes the answer. " + tex(FOOTER) + r"}\\",
+           r"\toprule", head, r"\midrule", r"\endfirsthead",
+           r"\toprule", head, r"\midrule", r"\endhead", r"\bottomrule", r"\endfoot"]
+    body = []
+    for name, state, q, when, rule in ROWS:
+        body.append(r"\textbf{" + tex(name) + r"}\newline " + tex(state) + " & " + tex(q) + " & " + tex(when) + " & " + tex(rule) + r" \\")
+    out.append(" \\rowrule\n".join(body))
+    out += [r"\end{longtable}", r"\endgroup"]
+    return "\n".join(out)
+
+
+def decision_flow_tex():
+    out = [r"\begin{figure}[htbp]\centering\small\setlength{\parskip}{1pt}\setlength{\fboxsep}{5pt}\setlength{\fboxrule}{0.7pt}"]
+    for title, colour, body in FLOW:
+        if body:
+            inner = r"\textbf{" + tex(title) + r"}\par " + r"\par ".join(r"\texttt{" + tex(l) + "}" for l in body)
+            out.append(r"\fcolorbox{black!50}{black!4}{\begin{minipage}{\dimexpr\linewidth-2\fboxsep-2\fboxrule}\raggedright " + inner + r"\end{minipage}}")
+        else:
+            out.append(r"\par\vspace{1pt}$\downarrow$\enspace\emph{" + tex(title) + r"}\par\vspace{1pt}")
+    out.append(r"\caption{One real decision end to end (episode 7, graph v14, 22 September 2026 10:41:59 UTC): the "
+               r"numbers Yamcs delivered, the words code made from them, jev's probabilities, the code rules and the "
+               r"command that went up.}")
+    out.append(r"\end{figure}")
+    return "\n".join(out)
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for name, text in (("decision_graph", decision_graph()), ("decision_flow", decision_flow())):
+    for name, text in (("decision_graph", decision_graph_dot()), ("decision_flow", decision_flow_dot())):
         with open(os.path.join(OUT, name + ".dot"), "w", encoding="utf-8") as f:
             f.write(text)
+    for name, text in (("decision_graph_table.tex", decision_graph_tex()), ("decision_flow.tex", decision_flow_tex())):
+        with open(os.path.join(DOCS, name), "w", encoding="utf-8") as f:
+            f.write(text + "\n")
     wsl_dir = "/mnt/c" + os.path.abspath(OUT).replace("\\", "/")[2:]
-    cmd = " && ".join(f"dot -T{fmt} {n}.dot -o {n}.{fmt}" for n in ("decision_graph", "decision_flow") for fmt in ("png", "svg"))
+    names = ("decision_graph", "decision_flow", "dataflow", "architecture")
+    cmd = " && ".join(f"dot -T{fmt} -Gdpi={dpi} {n}.dot -o {n}.{fmt}" for n in names for fmt, dpi in (("png", 200), ("svg", 96)))
     subprocess.run(["wsl", "-d", "ros2", "bash", "-c", f"cd '{wsl_dir}' && {cmd}"], check=True)
-    print("wrote", OUT)
+    print("wrote", OUT, "and the tex fragments in", DOCS)
 
 
 if __name__ == "__main__":

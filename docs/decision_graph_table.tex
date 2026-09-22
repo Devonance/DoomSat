@@ -1,0 +1,25 @@
+\begingroup\footnotesize
+\begin{longtable}{L{0.27\textwidth} L{0.21\textwidth} L{0.11\textwidth} L{0.29\textwidth}}
+\caption{jev's decision graph: what code turns into words, the typed question, when it is asked, and the rule that consumes the answer. Measured on 22 Sep 2026: 5,872 jev decisions through the stack, about 450-520 ms per call with 5-8 heads, about 45 ms to issue the command; Sonnet: a bump per minute and 14 graph versions in the day.}\\
+\toprule
+\textbf{Head and the words it sees} & \textbf{Typed question} & \textbf{When asked} & \textbf{Rule that consumes the answer} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Head and the words it sees} & \textbf{Typed question} & \textbf{When asked} & \textbf{Rule that consumes the answer} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\textbf{1. way (the navigator)}\newline eight directions around the player, 45 deg apart, each in words: space (blocked / tight / open / long) and ground (unexplored / new / partly walked / walked before / a door on the way at N units); what is at arm's length ahead; where the exit and a key were seen; the goal word & Choice over the directions that are not blocked (2 to 8 options); every option carries what / not\_for / examples criteria plus its own 'now' & every tick (\textasciitilde{}0.5 s), one request with all heads & turn setpoint by direction: 0 / 45 / 90 / 135 / 180 deg (right = negative); the previous way is kept unless P(new) \textgreater{}= P(previous) + way\_margin (hysteresis on the probabilities); 'behind' with open ground behind = one step back instead of a U-turn; a turn of 45 deg or more is issued alone and finishes before the next ask \\ \rowrule
+\textbf{2. advance}\newline the same state document; 'ahead' carries space, ground and what is at arm's length & Noul: walk forward this tick? & every tick & move = 1 if P(yes) \textgreater{}= 0.5; suppressed while an enemy is in view and the aim is off by more than aligned\_deg (35) \\ \rowrule
+\textbf{3. use}\newline at arm's length ahead: door / exit switch / locked door (with the key colour) / wall / nothing; stuck flag & Noul: press Use now? & only when a door, the exit or a locked door is at arm's length, or the player is stuck & use = 1 if P(yes) \textgreater{}= 0.5; the payload marks a door that stays shut after its presses as a barrier for 120 s \\ \rowrule
+\textbf{4. fire}\newline nearest enemy: bearing in words (in the crosshair / left / right / behind), distance band, health, ammo & Noul: shoot now? & every tick & fire = 1 if P(yes) \textgreater{}= 0.5 and the enemy is within fire\_range (450 u) and crosshair\_deg (8); never without ammo \\ \rowrule
+\textbf{5. dodge}\newline nearest enemy bearing and distance band; which sides are open & Choice: Carry on / Dodge left / Dodge right / Dodge back (only the open sides are offered) & whenever an enemy is in view & strafe = -1 / +1, or move = -1 for 'Dodge back'; danger\_dist (180 u) gates the question's 'close' word \\ \rowrule
+\textbf{6. turn (the aim)}\newline nearest enemy bearing in words & Choice: Hard left / Left / Fine left / Hold / Fine right / Right / Hard right / Turn around & whenever an enemy is in view & overrides the way's turn with the aim table (turn\_deg: 60 / 25 / 8 / 0 / -8 / -25 / -60 / 150 deg); a person does not keep exploring under fire \\ \rowrule
+\textbf{7. weapon}\newline weapon in hand, shells, bullets, enemy distance band & Choice: Keep / Pistol / Shotgun & every tick & weapon field of CONTROL; 'Keep' sends no switch \\ \rowrule
+\textbf{8. goal}\newline health and armor bands, ammo, kills, enemies in view, cells walked, exit seen, pickups seen with bearings & Choice: Explore / Kill enemies / Restore health / Stock ammo / Add armor & every goal\_every ticks (8) or when the picture changes & SET\_GOAL command; the goal word enters the next state documents and the payload's pickup targeting \\ \rowrule
+\textbf{System Two: bump (Claude Sonnet 5)}\newline seconds into the attempt, cells gained, position, most visited spots, the map product as text & not jev: a JSON-schema reply with bearing, hold time and an optional goal & every 60 s & EXPLORE\_HINT(bearing, ttl): the payload steers 'ahead' toward the bearing while it lasts; jev still answers every head \\ \rowrule
+\textbf{System Two: after-action (Claude Sonnet 5)}\newline the episode report: outcome, health, damage, cells, distance, stuck ticks, answer distributions per head, the walk, the last eight decisions in words, plus the current graph & not jev: a revised graph (criteria text, thresholds, way\_margin, goal\_every) with a rationale & after every episode: death, level done, or the 180 s budget & code validates (fixed option names, known placeholders, clamped thresholds), stores graph\_v\textless{}N\textgreater{}.json, and jev plays the next attempt with it \\
+\end{longtable}
+\endgroup
