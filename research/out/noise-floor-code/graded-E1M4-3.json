@@ -1,0 +1,51 @@
+{
+ "map": "E1M4",
+ "seed": 3,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "noise-floor-code",
+ "versions": {
+  "commit": "5313412",
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 1,
+  "model": "jev-1.13.0",
+  "track": "t1",
+  "levels_sha": "3adb83edb2a0",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "c56738ddb5c9"
+ },
+ "score": 0.036,
+ "completed": false,
+ "level_time": 180.06,
+ "end_reason": "timeout",
+ "deaths": 1,
+ "progress": 0.04,
+ "progress_best": 0.1071,
+ "start_distance": 6999.6,
+ "remaining_distance": 6719.8,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": true,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 336,
+  "decisions_per_s": 1.878,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.3455,
+  "fallback_rate": 0.6613,
+  "speed_explore": 68.92,
+  "coverage_rate": 11.74,
+  "revisit_fraction": 0.1875,
+  "spin_rate": 0.09502,
+  "idle_fraction": 0.4603,
+  "watchdog_trips": {
+   "recover": 5
+  },
+  "tokens_per_decision": 0.0,
+  "cells": 35,
+  "path_units": 12870.2
+ },
+ "warning": "this map has teleports, which the grader does not model: progress may understate a route that goes through one"
+}

@@ -103,9 +103,39 @@ What it still gets wrong, and says so rather than hiding:
 Checked with `python research/grader/survey.py <wad>`: **6 of 6 dev maps** and **6 of 8 test maps** have a
 usable progress score.
 
-### The noise floor
+### The noise floor, and the problem it exposes
 
-<!--NOISE-FLOOR-->
+Measured as the charter asks: the current pilot, 5 repeats of each of the 6 dev levels, 180 s each, nothing
+changed between them. `research/out/noise-floor-code/`, recorded in `research/noise_floor.json`, which is
+what `ledger.py` divides by.
+
+```
+suite score 0.0391 over 30 attempts (sd 0.0733), 0 completed, 34 deaths
+per-level score sd: E1M1 0.142  E1M2 0.000  E1M3 0.000  E1M4 0.015  E1M5 0.042  E1M6 0.043
+noise floor: mean 0.0404
+```
+
+**The noise floor (0.040) is the same size as the suite score (0.039).** Nothing can be kept on suite score
+until the pilot gets somewhere: the keep rule asks for a paired gain of two standard errors, and at this
+level of performance almost every attempt scores zero, so the measurement is nearly all floor. That is not
+a fault in the keep rule. It is the keep rule correctly reporting that the current pilot has no signal to
+improve on, which is the same thing `revisit_fraction` 0.80 says from the other direction.
+
+Two consequences worth acting on:
+
+- **Two levels have a standard deviation of exactly zero**, because every repeat scored exactly 0.000.
+  A zero denominator would make any change look significant, which is why `ledger.py` divides by the mean
+  of the per-level spreads rather than by each level's own.
+- **`progress` measured at the end of the attempt has almost no resolution here, and `progress_best` has
+  plenty.** Every seed of E1M2 scored 0.000 on where it ended; the same attempts reached between 18% and
+  25% of the way at their closest. Charter 6.4 specifies the end position, deliberately, so that walking
+  away from the exit costs — and that is the right rule for a pilot that can hold a target. For a pilot
+  that thrashes, it quantises almost everything to zero.
+  **Recommendation, not applied:** score unfinished levels on the closest approach rather than the final
+  position, at least until phase 3 gives the pilot a target to hold. It is a one-line change in
+  `frozen_metrics.attempt_score`, it is a change to the ruler, and so it starts a new track and needs the
+  dev set re-measured. Kevin's call, and it should be made before the first experiment rather than after,
+  because every row written under the current definition becomes incomparable when it changes.
 
 ---
 
@@ -178,11 +208,27 @@ both are the same kind of call as the skill level:
 
 ## Next
 
-Phase 2, in the order the charter sets: the INTENT command and its TTL, the onboard executor, running,
+**First, settle the scoring definition** (the `progress_best` recommendation above). Every ledger row
+written before that decision becomes incomparable after it, so it costs nothing now and costs the whole
+ledger later.
+
+Then phase 2, in the order the charter sets: the INTENT command and its TTL, the onboard executor, running,
 weapon slots 1, 4 and 5, and the watchdog invariants. Its exit test is measured on the bench with the code
 decider in the loop, so that a gait result cannot be mistaken for a model result.
 
-Before that, one thing worth doing first because it is cheap and everything downstream depends on it: the
-map ray and the range camera still disagree by 150 units or more on 32% of ticks and `ahead` takes the
-worse of the two. The charter's hypothesis is that two-sided lines (steps, ledges) are being treated as
-walls, and the way to find out is to log the line class of every collapsed ray.
+Two things are worth doing inside phase 2 rather than after it, because they are cheap and everything
+downstream rests on them:
+
+- **The map ray and the range camera still disagree by 150 units or more on 32% of ticks**, and `ahead`
+  takes the worse of the two. The charter's hypothesis is that two-sided lines (steps, ledges) are being
+  treated as walls; the way to find out is to log the line class of every collapsed ray.
+- **34 deaths in 30 dev attempts at skill 3.** That is a little over one per attempt, and under the charter's
+  retry rule each one costs the clock without moving the player. It may be the skill decision (8.2), it may
+  be that the pilot has no retreat, and it is cheap to tell the two apart: run the same 30 attempts at
+  skill 2 and compare. That *is* a legitimate first use of the ledger, because it is a question about the
+  harness rather than about the pilot.
+
+What is deliberately **not** run yet: a jev baseline on the dev set. With the noise floor as large as the
+score, a code-versus-jev comparison would be inconclusive by construction, and it would cost around ten
+million input tokens to learn that. It becomes worth running the moment phase 2 gives the score some
+resolution.

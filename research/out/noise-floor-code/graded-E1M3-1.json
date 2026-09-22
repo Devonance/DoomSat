@@ -1,0 +1,51 @@
+{
+ "map": "E1M3",
+ "seed": 1,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "noise-floor-code",
+ "versions": {
+  "commit": "5313412",
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 1,
+  "model": "jev-1.13.0",
+  "track": "t1",
+  "levels_sha": "3adb83edb2a0",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "c56738ddb5c9"
+ },
+ "score": 0.0,
+ "completed": false,
+ "level_time": 180.26,
+ "end_reason": "timeout",
+ "deaths": 2,
+ "progress": 0.0,
+ "progress_best": 0.0,
+ "start_distance": null,
+ "remaining_distance": null,
+ "exit_reachable_from_start": false,
+ "level_has_teleport": false,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 336,
+  "decisions_per_s": 1.876,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.5549,
+  "fallback_rate": 0.4483,
+  "speed_explore": 56.52,
+  "coverage_rate": 10.05,
+  "revisit_fraction": 0.2798,
+  "spin_rate": 0.12287,
+  "idle_fraction": 0.5075,
+  "watchdog_trips": {
+   "recover": 4
+  },
+  "tokens_per_decision": 0.0,
+  "cells": 30,
+  "path_units": 11673.0
+ },
+ "warning": "no walkable route from the start to a normal exit in the grader's model, so progress is meaningless for this map: score on completed only"
+}

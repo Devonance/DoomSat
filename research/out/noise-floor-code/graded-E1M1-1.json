@@ -1,0 +1,50 @@
+{
+ "map": "E1M1",
+ "seed": 1,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "noise-floor-code",
+ "versions": {
+  "commit": "5313412",
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 1,
+  "model": "jev-1.13.0",
+  "track": "t1",
+  "levels_sha": "3adb83edb2a0",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "c56738ddb5c9"
+ },
+ "score": 0.0257,
+ "completed": false,
+ "level_time": 180.09,
+ "end_reason": "timeout",
+ "deaths": 2,
+ "progress": 0.0285,
+ "progress_best": 0.4137,
+ "start_distance": 3231.3,
+ "remaining_distance": 3139.1,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": false,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 336,
+  "decisions_per_s": 1.878,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.4387,
+  "fallback_rate": 0.5833,
+  "speed_explore": 63.93,
+  "coverage_rate": 6.37,
+  "revisit_fraction": 0.2827,
+  "spin_rate": 0.06708,
+  "idle_fraction": 0.4593,
+  "watchdog_trips": {
+   "recover": 7
+  },
+  "tokens_per_decision": 0.0,
+  "cells": 19,
+  "path_units": 10585.8
+ }
+}

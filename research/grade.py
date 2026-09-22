@@ -11,6 +11,7 @@ import json
 import os
 import statistics
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -124,7 +125,7 @@ def main(argv=None):
         if thin:
             print("  refusing: %s have fewer than 3 repeats, which is not a spread" % ", ".join(thin))
             return 1
-        floor = {"measured": summary["run_dir"], "when": summary.get("when"),
+        floor = {"measured": summary["run_dir"], "when": time.strftime("%Y-%m-%dT%H:%M:%S"),
                  "decider": graded[0].get("decider"), "tier": graded[0].get("tier"),
                  "track": (graded[0].get("versions") or {}).get("track"),
                  "commit": (graded[0].get("versions") or {}).get("commit"),
