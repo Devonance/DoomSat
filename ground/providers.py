@@ -114,6 +114,22 @@ class ClaudeCli:
         self.model = model
         self.exe = exe or os.environ.get("CLAUDE_EXE", "claude")
 
+    def structured(self, system, prompt, schema):
+        """One schema-constrained call with no tools: the plain CLI path uses Sonnet only."""
+        cmd = [self.exe, "-p", "--model", self.model, "--no-session-persistence", "--output-format", "json",
+               "--json-schema", json.dumps(schema), "--system-prompt", system]
+        env = dict(os.environ, CLAUDECODE="", DISABLE_NON_ESSENTIAL_MODEL_CALLS="1", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1")
+        out = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8", timeout=300, env=env)
+        if out.returncode != 0:
+            raise RuntimeError(f"claude exited {out.returncode}: {out.stderr[-400:]}")
+        result = json.loads(out.stdout)
+        data = result.get("structured_output") or json.loads(result.get("result", "{}"))
+        usage = result.get("modelUsage", {})
+        data["model"] = ",".join(usage.keys()) or self.model
+        data["cost_usd"] = result.get("total_cost_usd")
+        data["tokens"] = {m: [u.get("inputTokens", 0) + u.get("cacheReadInputTokens", 0) + u.get("cacheCreationInputTokens", 0), u.get("outputTokens", 0)] for m, u in usage.items()}
+        return data
+
     def plan(self, situation, image_path=None):
         prompt = "SITUATION (telemetry as words):\n" + json.dumps(situation, indent=1)
         cmd = [self.exe, "-p", "--model", self.model, "--no-session-persistence", "--output-format", "json",
@@ -144,6 +160,21 @@ class AnthropicApi:
     def __init__(self, api_key, model="claude-sonnet-5"):
         self.api_key, self.model = api_key, model
 
+    def structured(self, system, prompt, schema):
+        tool = {"name": "reply", "description": "Return the structured reply", "input_schema": schema}
+        r = requests.post("https://api.anthropic.com/v1/messages",
+                          headers={"x-api-key": self.api_key, "anthropic-version": "2023-06-01"},
+                          json={"model": self.model, "max_tokens": 4000, "system": system, "tools": [tool],
+                                "tool_choice": {"type": "tool", "name": "reply"},
+                                "messages": [{"role": "user", "content": prompt}]}, timeout=180)
+        r.raise_for_status()
+        body = r.json()
+        data = next(b["input"] for b in body["content"] if b["type"] == "tool_use")
+        data["model"] = body.get("model", self.model)
+        u = body.get("usage", {})
+        data["tokens"] = {self.model: [u.get("input_tokens", 0), u.get("output_tokens", 0)]}
+        return data
+
     def plan(self, situation, image_path=None):
         content = [{"type": "text", "text": "SITUATION (telemetry as words):\n" + json.dumps(situation, indent=1)}]
         if image_path and os.path.exists(image_path):
@@ -168,6 +199,16 @@ class OpenAIChat:
 
     def __init__(self, base_url, api_key="none", model="gpt-4o-mini"):
         self.base_url, self.api_key, self.model = base_url.rstrip("/"), api_key, model
+
+    def structured(self, system, prompt, schema):
+        r = requests.post(f"{self.base_url}/chat/completions", headers={"Authorization": f"Bearer {self.api_key}"},
+                          json={"model": self.model, "temperature": 0.2,
+                                "response_format": {"type": "json_schema", "json_schema": {"name": "reply", "schema": schema}},
+                                "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}]}, timeout=180)
+        r.raise_for_status()
+        data = json.loads(r.json()["choices"][0]["message"]["content"])
+        data["model"] = self.model
+        return data
 
     def plan(self, situation, image_path=None):
         content = [{"type": "text", "text": "SITUATION (telemetry as words):\n" + json.dumps(situation, indent=1)

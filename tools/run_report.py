@@ -29,7 +29,16 @@ if raw:
 hp = [r["health"] for r in ctrl if r.get("health") is not None]
 if hp:
     print(f"  health: start {hp[0]} min {min(hp)} end {hp[-1]}")
-print(f"System Two: {len(plans)} plans, {len(errors)} errors")
+reviews = [r for r in rows if r.get("kind") == "after_action"]
+rerr = [r for r in rows if r.get("kind") == "after_action_error"]
+print(f"System Two: {len(reviews)} after-action reviews, {len(rerr)} errors" + (f"; {len(plans)} live plans (old mode)" if plans else ""))
+for r in reviews:
+    tok = " ".join(f"{m.split('-')[1]}:{v[0]}in/{v[1]}out" for m, v in (r.get("tokens") or {}).items())
+    print(f"  [{r.get('outcome')}] -> graph v{r.get('graph_version')} {r.get('latency_ms')} ms ${r.get('cost_usd') or 0:.3f} {tok}")
+    print(f"     {str(r.get('rationale'))[:220]}")
+    for c in (r.get("changes") or [])[:8]:
+        print(f"     - {c}")
+
 for r in plans:
     tok = r.get("tokens") or {}
     tk = " ".join(f"{m.split('-')[1]}:{v[0]}in/{v[1]}out" for m, v in tok.items())

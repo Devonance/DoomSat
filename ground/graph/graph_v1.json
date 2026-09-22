@@ -1,0 +1,99 @@
+{
+ "version": 1,
+ "standing_order": "Find the level exit alive; fight what blocks the way; pick up supplies when they are needed.",
+ "goal_every": 4,
+ "thresholds": {
+  "aligned_deg": 35,
+  "crosshair_deg": 8,
+  "fire_range": 450,
+  "danger_dist": 180,
+  "blocked_units": 45,
+  "tight_units": 70,
+  "health_critical": 35,
+  "health_low": 50
+ },
+ "turn_deg": {
+  "Hard left": 60,
+  "Left": 25,
+  "Fine left": 8,
+  "Hold": 0,
+  "Fine right": -8,
+  "Right": -25,
+  "Hard right": -60,
+  "Turn around": 150
+ },
+ "questions": {
+  "dodge": {
+   "question": "Sidestep away from an enemy? Threat: {threat} ({enemy_where}). Space left: {left}, right: {right}, behind: {behind}.",
+   "criteria": {
+    "Carry on": "Threat is safe. Do not dodge just because an enemy exists.",
+    "Dodge left": "Threat is danger and space left is clear.",
+    "Dodge right": "Threat is danger, left is not clear, space right is clear.",
+    "Dodge back": "Threat is danger, sides not clear, space behind is clear."
+   }
+  },
+  "move": {
+   "question": "Advance now? Route aligned ahead: {aligned}. Space ahead: {ahead}. Stuck: {stuck}. Space behind: {behind}.",
+   "criteria": {
+    "Forward": "Route aligned ahead is yes and space ahead is clear or tight. Also forward to close on a distant enemy.",
+    "Hold": "Route aligned ahead is no (turn first), or space ahead is blocked, or the destination is here, or stuck with nothing known clear around (turn instead).",
+    "Backward": "Stuck is yes and space behind is clear."
+   }
+  },
+  "strafe": {
+   "question": "Recovery sidestep? Stuck: yes. Space left: {left}, right: {right}.",
+   "criteria": {
+    "Hold": "Neither side is known clear: turn instead.",
+    "Strafe left": "Space left is clear.",
+    "Strafe right": "Left is blocked, space right is clear."
+   }
+  },
+  "turn": {
+   "question": "Turn to put {aim_target} in the crosshair. It is now: {aim}.",
+   "criteria": {
+    "Hard left": "It is far left.",
+    "Left": "It is left.",
+    "Fine left": "It is slightly left or just left of the crosshair.",
+    "Hold": "It is centered.",
+    "Fine right": "It is slightly right or just right of the crosshair.",
+    "Right": "It is right.",
+    "Hard right": "It is far right.",
+    "Turn around": "It is behind."
+   }
+  },
+  "fire": {
+   "question": "Pull the trigger? Living enemy in the crosshair: {in_crosshair} ({enemy_where}). Equipped ammunition: {equipped_ammo}. Never shoot at the route waypoint.",
+   "criteria": {
+    "Fire": "Enemy in the crosshair is yes and equipped ammunition is more than zero.",
+    "Hold fire": "Enemy in the crosshair is no, or equipped ammunition is zero."
+   }
+  },
+  "weapon": {
+   "question": "Which weapon? Equipped: {equipped}. Shotgun shells: {shells}. Pistol bullets: {bullets}. Owns shotgun: {owns_shotgun}.",
+   "criteria": {
+    "Keep": "The equipped weapon still has ammunition.",
+    "Pistol": "Shotgun shells are zero and pistol bullets remain.",
+    "Shotgun": "Owns a shotgun with shells and the pistol is equipped."
+   }
+  },
+  "use": {
+   "question": "Press use (open a door, flip a switch)? Route blocked at arm length: {blocked_route}. Stuck: {stuck}. Walls in this game are often doors.",
+   "criteria": {
+    "Use": "Route blocked at arm length is yes, or stuck is yes: try the door or switch.",
+    "Wait": "Neither: nothing to operate."
+   }
+  },
+  "goal": {
+   "question": "Immediate priority? Health: {health}. Threat: {threat} ({enemy_where}). Ammunition: {ammo}. Armor: {armor}. Nearby pickups: health {health_pickup}, ammo {ammo_pickup}, armor {armor_pickup}. Unexplored frontiers: {frontiers}.",
+   "criteria": {
+    "Kill enemies": "An enemy is visible at close or mid range, health is not critical and ammunition is ready.",
+    "Restore health": "Health is critical, or low with a health pickup seen and no close enemy.",
+    "Stock ammo": "Ammunition is empty or scarce and an ammo pickup was seen.",
+    "Add armor": "Armor is none, an armor pickup was seen, health fine, no close enemy.",
+    "Explore": "No close enemy, health fine, ammunition ready: keep exploring toward the nearest frontier to find the exit.",
+    "Scout": "The nearest frontier is exhausted or the player keeps getting stuck: head for a far unexplored part of the map.",
+    "Upgrade weapon": "No shotgun owned, a weapon was seen, no close enemy."
+   }
+  }
+ }
+}
