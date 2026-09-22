@@ -1,0 +1,18 @@
+{
+ "run_id": "baseline-flight-20260922-e1m1-900s",
+ "tier": "flight",
+ "versions": {
+  "commit": "6d1a2f1",
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 1,
+  "model": "jev-1.13.0",
+  "track": "t1",
+  "levels_sha": "3adb83edb2a0",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "c56738ddb5c9"
+ },
+ "attempts": [
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/baseline-flight-20260922-e1m1-900s/attempt-E1M1-0.json"
+ ]
+}

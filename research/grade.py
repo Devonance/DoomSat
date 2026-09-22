@@ -82,6 +82,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--write-noise-floor", action="store_true",
+                    help="this run is repeats of the same levels with nothing changed: record its "
+                         "per-level spread as the noise floor the keep rule divides by (charter phase 1)")
     a = ap.parse_args(argv)
     conf = yaml.safe_load(open(HERE / "levels.yaml", encoding="utf-8"))
     paths = sorted(glob.glob(os.path.join(a.run_dir, "attempt-*.json")))
@@ -116,6 +119,20 @@ def main(argv=None):
               % (", ".join("%s %.3f" % (m, v["sd"]) for m, v in summary["per_level"].items() if v["sd"] is not None),
                  statistics.fmean(sds)))
     print("wrote %s" % os.path.join(a.run_dir, "summary.json"))
+    if a.write_noise_floor:
+        thin = [m for m, v in summary["per_level"].items() if v["n"] < 3]
+        if thin:
+            print("  refusing: %s have fewer than 3 repeats, which is not a spread" % ", ".join(thin))
+            return 1
+        floor = {"measured": summary["run_dir"], "when": summary.get("when"),
+                 "decider": graded[0].get("decider"), "tier": graded[0].get("tier"),
+                 "track": (graded[0].get("versions") or {}).get("track"),
+                 "commit": (graded[0].get("versions") or {}).get("commit"),
+                 "per_level": summary["per_level"],
+                 "note": ("the spread of repeats of the same level with nothing changed. ledger.py divides "
+                          "by this, so a change has to beat the harness before it counts as a change.")}
+        json.dump(floor, open(HERE / "noise_floor.json", "w", encoding="utf-8"), indent=1)
+        print("  wrote %s" % (HERE / "noise_floor.json"))
     return 0
 
 

@@ -78,13 +78,22 @@ def wsl_processes(distro):
     return rows
 
 
-def find_orphans(distro, mine=()):
+def find_orphans(distro, expect=()):
+    """Every pilot, runner, payload or game process that is not one this run expects.
+
+    `expect` is a list of substrings -- a run id, usually -- so that starting a run does not report the
+    run as its own orphan. Everything else is fair game: the first time this was pointed at the machine
+    it found eighteen ViZDoom instances left over from earlier sessions, one of which had been holding a
+    directory handle that blocked a folder rename for an hour.
+    """
     out = []
     for where, rows in (("windows", windows_processes()), ("wsl", wsl_processes(distro))):
         for pid, cmd in rows:
-            if pid in mine or pid == os.getpid():
+            if pid == os.getpid() or "preflight.py" in cmd:
                 continue
-            if any(p in cmd for p in ORPHAN_PATTERNS) and "preflight.py" not in cmd:
+            if any(e and e in cmd for e in expect):
+                continue
+            if any(p in cmd for p in ORPHAN_PATTERNS):
                 out.append((where, pid, cmd[:110]))
     return out
 
@@ -172,6 +181,9 @@ def main(argv=None):
     ap.add_argument("--force-lock", action="store_true", help="take the lock even if one is held")
     ap.add_argument("--require-fresh-payload", action="store_true",
                     help="fail unless Yamcs reports EXPLORED_CELLS == 1 (charter 2.2)")
+    ap.add_argument("--expect", nargs="*", default=[],
+                    help="substrings of command lines that belong to this run, e.g. its run id, so that "
+                         "starting a run does not report the run as its own orphan")
     ap.add_argument("--distro", default="ros2")
     ap.add_argument("--yamcs", default="http://localhost:8090")
     ap.add_argument("--instance", default="fprime-project")
@@ -190,7 +202,7 @@ def main(argv=None):
     print("  canaries: %d planted leaks, all caught" % len(honesty.CANARIES) if not bad else "")
 
     print("\norphans (trap 2: a stale pilot appending to the same log)")
-    orphans = find_orphans(a.distro)
+    orphans = find_orphans(a.distro, a.expect)
     if not orphans:
         print("  none")
     for where, pid, cmd in orphans:

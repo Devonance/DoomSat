@@ -1,0 +1,50 @@
+{
+ "map": "E1M1",
+ "seed": 0,
+ "tier": "flight",
+ "decider": "jev",
+ "run_id": "baseline-flight-20260922-e1m1-900s",
+ "versions": {
+  "commit": "6d1a2f1",
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 1,
+  "model": "jev-1.13.0",
+  "track": "t1",
+  "levels_sha": "3adb83edb2a0",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "c56738ddb5c9"
+ },
+ "score": 0.0,
+ "completed": false,
+ "level_time": 899.61,
+ "end_reason": "timeout",
+ "deaths": 0,
+ "progress": 0.0,
+ "progress_best": 0.1971,
+ "start_distance": 4759.5,
+ "remaining_distance": 4773.9,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": false,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 1094,
+  "decisions_per_s": 1.216,
+  "decision_age_p50_ms": 528.0,
+  "decision_age_p95_ms": 638.0,
+  "decision_age_complete": 0.0,
+  "jev_share": 0.5443,
+  "fallback_rate": 0.4303,
+  "speed_explore": 65.56,
+  "coverage_rate": 3.8,
+  "revisit_fraction": 0.8016,
+  "spin_rate": 0.00111,
+  "idle_fraction": 0.4096,
+  "watchdog_trips": {
+   "recover": 21
+  },
+  "tokens_per_decision": 2225.5,
+  "cells": 57,
+  "path_units": 75194.7
+ }
+}

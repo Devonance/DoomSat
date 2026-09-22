@@ -84,6 +84,31 @@ class TestTheBenchSpeaksTheSameLanguageAsFlight(unittest.TestCase):
         self.assertEqual(runner.telemetry_from({"ahead_kind": 99})["AHEAD_KIND"], "NOTHING")
 
 
+class TestTheTwoTiersPlayTheSameGame(unittest.TestCase):
+    """A bench result and a flight result are only comparable if the game is set up the same way.
+
+    The flight launcher used to take the payload's own default skill (2) while the harness ran the bench
+    at the skill in levels.yaml (3). Nothing would have failed; the two tiers would simply have been
+    measuring different games, and charter 6.3 step 7 would have read the disagreement as a pilot result.
+    """
+
+    def setUp(self):
+        import yaml
+        self.conf = yaml.safe_load(open(os.path.join(ROOT, "research", "levels.yaml"), encoding="utf-8"))
+        self.launcher = open(os.path.join(ROOT, "scripts", "wsl_run_flight.sh"), encoding="utf-8").read()
+
+    def test_the_flight_launcher_starts_the_payload_at_the_harness_skill(self):
+        skills = set(re.findall(r"--skill \$\{SKILL:-(\d+)\}", self.launcher))
+        self.assertTrue(skills, "the flight launcher does not set --skill at all")
+        self.assertEqual(skills, {str(self.conf["run"]["skill"])},
+                         "the flight stack and the bench are playing at different difficulties")
+
+    def test_every_payload_launch_in_the_script_sets_it(self):
+        launches = self.launcher.count("doom_payload.py --fps")
+        self.assertEqual(self.launcher.count("--skill ${SKILL:-"), launches,
+                         "one of the payload launches does not set the skill")
+
+
 class TestTheCodeBaseline(unittest.TestCase):
     """Charter phase 2 measures the executor with this in the loop, so a gait result is not a model result."""
 
