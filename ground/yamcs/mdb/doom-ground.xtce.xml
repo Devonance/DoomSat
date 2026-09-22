@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SpaceSystem xmlns="http://www.omg.org/spec/XTCE/20180204" name="DoomGround">
+  <LongDescription>Ground-side software parameters for the Doom pilot (set through the Yamcs API, not downlinked). DoomFrame carries the URL of the last reassembled image product in the Yamcs bucket "doomframes"; the OpenMCT:type alias makes openmct-yamcs show it as imagery.</LongDescription>
+  <TelemetryMetaData>
+    <ParameterTypeSet>
+      <StringParameterType name="url_t">
+        <StringDataEncoding>
+          <SizeInBits>
+            <Fixed>
+              <FixedValue>2048</FixedValue>
+            </Fixed>
+          </SizeInBits>
+        </StringDataEncoding>
+      </StringParameterType>
+      <StringParameterType name="text_t">
+        <StringDataEncoding>
+          <SizeInBits>
+            <Fixed>
+              <FixedValue>4096</FixedValue>
+            </Fixed>
+          </SizeInBits>
+        </StringDataEncoding>
+      </StringParameterType>
+      <IntegerParameterType name="count_t" signed="false">
+        <IntegerDataEncoding sizeInBits="32"></IntegerDataEncoding>
+      </IntegerParameterType>
+      <FloatParameterType name="ms_t">
+        <FloatDataEncoding sizeInBits="32"></FloatDataEncoding>
+      </FloatParameterType>
+    </ParameterTypeSet>
+    <ParameterSet>
+      <Parameter name="DoomFrame" parameterTypeRef="url_t">
+        <AliasSet>
+          <Alias nameSpace="OpenMCT:type" alias="yamcs.image"></Alias>
+        </AliasSet>
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="FrameSeq" parameterTypeRef="count_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="FramesComplete" parameterTypeRef="count_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="FramesIncomplete" parameterTypeRef="count_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="SystemOneLatencyMs" parameterTypeRef="ms_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="SystemTwoLatencyMs" parameterTypeRef="ms_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="ControlCommands" parameterTypeRef="count_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="Plan" parameterTypeRef="text_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="Controls" parameterTypeRef="text_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+    </ParameterSet>
+  </TelemetryMetaData>
+</SpaceSystem>

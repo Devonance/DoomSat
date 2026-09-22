@@ -1,0 +1,123 @@
+services:
+  - class: org.yamcs.archive.XtceTmRecorder
+  - class: org.yamcs.archive.ParameterRecorder
+  - class: org.yamcs.archive.AlarmRecorder
+  - class: org.yamcs.archive.EventRecorder
+  - class: org.yamcs.archive.ReplayServer
+  - class: org.yamcs.parameter.SystemParametersService
+    args:
+      producers:
+        - fs
+        - jvm
+  - class: org.yamcs.ProcessorCreatorService
+    args:
+      name: realtime
+      type: realtime
+  - class: org.yamcs.archive.CommandHistoryRecorder
+  - class: org.yamcs.parameterarchive.ParameterArchive
+    args:
+      realtimeFiller:
+        enabled: true
+  # Instantiated explicitly to bound its parameter cache; the implicit default
+  # caches every processed value without limit and can exhaust the heap.
+  # cacheAll false: only parameters actually retrieved get cached, so
+  # high-rate realtime-only telemetry just flows through uncached.
+  - class: org.yamcs.parameter.ParameterRetrievalService
+    args:
+      parameterCache:
+        cacheAll: false
+        maxNumEntries: 32
+        duration: 60
+  - class: org.yamcs.plists.ParameterListService
+  - class: org.yamcs.timeline.TimelineService
+  - class: org.yamcs.ProcessRunner
+    args:
+      command: ["fprime-yamcs-events"]
+      restart: "always"
+      logLevel: INFO
+  # Splits aggregate Svc.TlmChan packets (APID 1) into single-record packets re-injected
+  # on UDP_TM_SPLIT_IN, so YAMCS decodes every channel record rather than only the first.
+  - class: org.yamcs.ProcessRunner
+    args:
+      command: ["fprime-yamcs-tlmchan"]
+      restart: "always"
+      logLevel: INFO
+  # Reassembles Fw::FilePacket downlinks (APID 3) into the fprimeFilesIn bucket.
+  
+  # Environment variables to set before starting YAMCS
+  # FPRIME_UPLINK_CHUNK_SIZE - Bytes per uplink data packet
+  # Set by: export FPRIME_UPLINK_CHUNK_SIZE=1024
+  # FPRIME_DOWNLINK_DIR - Directory to mirror downloaded files
+  # Set by: export FPRIME_DOWNLINK_DIR=/custom/downlink/path
+
+  - class: com.example.myproject.FprimeFilePacketService
+    args:
+      inStream: tm_realtime
+      bucket: fprimeFilesIn
+      fileApid: 3
+      downloadTimeoutMs: 8000
+      uplinkChunkSize: ${FPRIME_UPLINK_CHUNK_SIZE:512}
+      downlinkMirrorDir: ${FPRIME_DOWNLINK_DIR:/tmp/runner/fprime-downlink}
+      
+dataLinks:
+  - name: UDP_TM_IN
+    class: org.yamcs.tctm.ccsds.UdpTmFrameLink
+    port: 50000
+    frameType: "TM"
+    spacecraftId: 68
+    frameLength: 1024
+    errorDetection: CRC16
+    virtualChannels:
+      - vcId: 1
+        ocfPresent: false
+        service: "PACKET"
+        maxPacketLength: 65542  # CCSDS Space Packet maximum: 65536 data bytes + 6 header bytes
+        packetPreprocessorClassName: com.example.myproject.FprimePacketPreprocessor
+        stream: "tm_realtime"
+
+  - name: UDP_TM_SPLIT_IN
+    class: org.yamcs.tctm.UdpTmDataLink
+    stream: tm_realtime
+    port: 50002
+    packetPreprocessorClassName: com.example.myproject.FprimePacketPreprocessor
+
+  - name: UDP_TC_OUT
+    class: org.yamcs.tctm.ccsds.UdpTcFrameLink
+    host: localhost
+    port: 50001
+    spacecraftId: 68
+    maxFrameLength: 1024
+    errorDetection: CRC16
+    virtualChannels:
+      - vcId: 1
+        ocfPresent: false
+        service: "PACKET"
+        priority: 1
+        commandPostprocessorClassName: com.example.myproject.FprimeCommandPostprocessor
+        stream: "tc_realtime"
+        useCop1: false
+
+mdb:
+  # Configuration of the active loaders
+  # Valid loaders are: sheet, xtce or fully qualified name of the class
+  - type: xtce
+    args:
+      file: mdb/fprime.xtce.xml
+  # Ground-side (software) parameters for the Doom pilot: reassembled image products for Open MCT
+  - type: xtce
+    args:
+      file: mdb/doom-ground.xtce.xml
+
+# Configuration for streams created at server startup
+streamConfig:
+  tm:
+    - name: "tm_realtime"
+      processor: "realtime"
+    - name: "tm_dump"
+  cmdHist: ["cmdhist_realtime", "cmdhist_dump"]
+  event: ["events_realtime", "events_dump"]
+  param: ["pp_realtime", "pp_dump", "sys_param", "proc_param"]
+  parameterAlarm: ["alarms_realtime"]
+  tc:
+    - name: "tc_realtime"
+      processor: "realtime"
