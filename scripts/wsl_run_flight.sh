@@ -17,7 +17,7 @@ case "${1:-start}" in
   payload)
     pkill -f "doom_payloa[d].py --fps" 2>/dev/null; sleep 1
     cd $PROJ
-    nohup /root/doom/payload-venv/bin/python $REPO/payload/doom_payload.py --fps ${FPS:-10} --quality ${QUALITY:-45} --wad ${WAD:-doom1.wad} --map ${MAP:-E1M1} --map-png /mnt/c/Users/Kevin/Genai/doom-mission/out/payload_map.png > $RUN/payload.log 2>&1 &
+    setsid -f bash -c "/root/doom/payload-venv/bin/python $REPO/payload/doom_payload.py --fps ${FPS:-10} --quality ${QUALITY:-45} --wad ${WAD:-doom1.wad} --map ${MAP:-E1M1} --map-png /mnt/c/Users/Kevin/Genai/doom-mission/out/payload_map.png > $RUN/payload.log 2>&1" < /dev/null
     echo "payload restarted" ;;
   status)
     ps aux | grep -E "doom_payloa[d]|fprime_yamc[s]|YamcsServe[r]|bin/DoomSa[t]" | awk '{print $11, $12, $13}' | sort | uniq -c
@@ -25,11 +25,9 @@ case "${1:-start}" in
   start)
     stop
     cd $PROJ
-    nohup /root/doom/payload-venv/bin/python $REPO/payload/doom_payload.py --fps ${FPS:-10} --quality ${QUALITY:-45} --wad ${WAD:-doom1.wad} --map ${MAP:-E1M1} --map-png /mnt/c/Users/Kevin/Genai/doom-mission/out/payload_map.png > $RUN/payload.log 2>&1 &
+    setsid -f bash -c "/root/doom/payload-venv/bin/python $REPO/payload/doom_payload.py --fps ${FPS:-10} --quality ${QUALITY:-45} --wad ${WAD:-doom1.wad} --map ${MAP:-E1M1} --map-png /mnt/c/Users/Kevin/Genai/doom-mission/out/payload_map.png > $RUN/payload.log 2>&1" < /dev/null
     . fprime-venv/bin/activate
     export FPRIME_DOWNLINK_DIR=$RUN/downlink
-    nohup fprime-yamcs --deployment build-artifacts/Linux/DoomSat --skip-browser-open \
-        --yamcs-config-dir $REPO/ground/yamcs --yamcs-data-dir $RUN/yamcs-data \
-        --yamcs-realtime-only-channels "DoomSat.doom.FRAME_CHUNK" > $RUN/yamcs.log 2>&1 &
+    setsid -f bash -c "cd $PROJ && . fprime-venv/bin/activate && export FPRIME_DOWNLINK_DIR=$RUN/downlink && fprime-yamcs --deployment build-artifacts/Linux/DoomSat --skip-browser-open --yamcs-config-dir $REPO/ground/yamcs --yamcs-data-dir $RUN/yamcs-data --yamcs-realtime-only-channels DoomSat.doom.FRAME_CHUNK > $RUN/yamcs.log 2>&1" < /dev/null
     echo "started; logs in $RUN" ;;
 esac
