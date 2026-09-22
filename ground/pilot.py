@@ -1,16 +1,20 @@
 """The ground pilot: plays Doom through Yamcs.
 
-Live play (every ~0.6 s):
-  telemetry (Yamcs WebSocket) -> words -> jev (System One): control heads, goal head every few ticks
-  -> CONTROL / SET_GOAL commands (Yamcs -> F Prime -> payload)
+Live play (every ~0.5 s):
+  telemetry (Yamcs WebSocket) -> a structured state -> jev (System One): one Score per open sector, a
+  danger Score when an enemy is in view, a goal Choice every few ticks -> code picks the direction, the
+  mode and the buttons -> CONTROL / SET_GOAL commands (Yamcs -> F Prime -> payload)
   frames (FRAME_CHUNK records) -> reassembled JPEG -> Yamcs bucket + DoomFrame parameter (Open MCT)
 Between episodes (death, level finished, run end):
   code writes an after-action report -> Claude Sonnet 5 (System Two) revises the decision graph
-  jev plays with (wording, criteria, thresholds, turn sizes, standing order) -> next episode uses it.
+  jev plays with (question wording, rubric levels, thresholds, selection numbers) -> next episode uses it.
 
-Code owns the loop, the thresholds, the option menus and the command mapping; jev judges, Sonnet reviews.
+Code owns the loop, the mode machine, the thresholds, the hysteresis and the command mapping; jev judges,
+Sonnet reviews. Every row of the decision log carries the exact state jev saw, so a run can be replayed
+against a new graph without the game (tools/replay.py).
 """
 import argparse
+import hashlib
 import json
 import os
 import struct
@@ -36,11 +40,18 @@ STATUS_CHANNELS = ["HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGU
                    "HEALTH_BEARING", "AMMO_BEARING", "ARMOR_BEARING", "STUCK", "DOOR_AHEAD", "GOAL", "TIC", "EPISODE", "DEAD",
                    "LEVEL_DONE", "EXPLORED_CELLS", "LEVEL", "KEYS", "HINT_ACTIVE", "HINT_REL",
                    "CLEAR_AL", "CLEAR_AR", "CLEAR_BL", "CLEAR_BR", "NEW_AL", "NEW_AR", "NEW_BL", "NEW_BR",
+                   "DOOR_FWD", "DOOR_AL", "DOOR_LEFT", "DOOR_BL", "DOOR_BACK", "DOOR_BR", "DOOR_RIGHT", "DOOR_AR",
                    "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED"]
 CHUNK_HEADER = struct.Struct("!IHHH")  # seq, index, count, length (then 960 data bytes)
+# Everything build_state reads, so a logged row can be replayed exactly (verification step 1).
 RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL", "CLEAR_AR", "CLEAR_BL", "CLEAR_BR",
-            "NEW_FWD", "NEW_LEFT", "NEW_RIGHT", "NEW_BACK", "NEW_AL", "NEW_AR", "NEW_BL", "NEW_BR", "AHEAD_KIND",
-            "AHEAD_DIST", "EXIT_DIST", "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "EXPLORED_CELLS", "LEVEL", "KEYS", "HINT_ACTIVE")
+            "CLEAR_MAP_FWD", "NEW_FWD", "NEW_LEFT", "NEW_RIGHT", "NEW_BACK", "NEW_AL", "NEW_AR", "NEW_BL", "NEW_BR",
+            "DOOR_FWD", "DOOR_AL", "DOOR_LEFT", "DOOR_BL", "DOOR_BACK", "DOOR_BR", "DOOR_RIGHT", "DOOR_AR",
+            "AHEAD_KIND", "AHEAD_DIST", "EXIT_DIST", "EXIT_BEARING", "KEY_DIST", "KEY_BEARING",
+            "HEALTH_ITEM_DIST", "HEALTH_BEARING", "AMMO_ITEM_DIST", "AMMO_BEARING", "ARMOR_ITEM_DIST", "ARMOR_BEARING",
+            "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "ENEMY_BEARING", "ENEMY_DIST",
+            "HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGUN",
+            "EXPLORED_CELLS", "LEVEL", "LEVEL_DONE", "KEYS", "HINT_ACTIVE", "HINT_REL")
 
 
 class FrameAssembler:
@@ -100,9 +111,11 @@ class Pilot:
         self.instance = args.instance
         self.processor = self.client.get_processor(args.instance, "realtime")
         self.pub_processor = self.pub_client.get_processor(args.instance, "realtime")
+        self.cfg = gc.load()
+        # The graph carries the System One version its numbers were tuned against; the flag still overrides it.
+        args.system_one_model = args.system_one_model or self.cfg.get("model")
         self.system_one = make_system_one(args.system_one, args)
         self.system_two = make_system_two(args.system_two, args) if args.after_action else None
-        self.cfg = gc.load()
         self.telemetry = {}
         self.telemetry_time = 0.0
         self.subscription = None
@@ -112,7 +125,10 @@ class Pilot:
         self.control_count = 0
         self.last_cmd_ms = 0
         self.pending_turn, self.pending_turn_t, self.angle_at_cmd = 0.0, 0.0, None
-        self.nav_memory = {}
+        self.nav_memory = dg.NavMemory(self.cfg)
+        self.mode = "EXPLORE"
+        self.skipped_mid_turn = 0
+        self.code_only_ticks = 0
         self.last_publish = 0.0
         self.last_stats = 0.0
         self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
@@ -231,51 +247,67 @@ class Pilot:
         if time.time() - self.telemetry_time > 2.0:
             return None  # stale telemetry: the payload holds the last controls, then its own uplink timeout releases them
         t = dict(self.telemetry)
-        # A big turn takes the payload most of a second (6 degrees per tic): do not ask for a new direction while the
-        # heading is still swinging, or every half second re-issues a fresh 180 and the player spins in place.
-        if abs(self.pending_turn) >= 60 and time.time() - self.pending_turn_t < 1.3 and "ANGLE" in t and self.angle_at_cmd is not None:
-            done = (t["ANGLE"] - self.angle_at_cmd + 180) % 360 - 180
-            if abs(done) < 0.8 * abs(self.pending_turn):
-                return None
-        # A turn commanded less than a second ago may still be executing or not yet in the telemetry: judge the
-        # bearings as they will be once it lands, but only by the part of the turn the heading does not show yet
-        # (subtracting the whole turn after it already landed made jev turn straight back).
-        if self.pending_turn and time.time() - self.pending_turn_t < 1.0 and "ANGLE" in t and self.angle_at_cmd is not None:
-            done = (t["ANGLE"] - self.angle_at_cmd + 180) % 360 - 180
-            remaining = self.pending_turn - done
-            if remaining * self.pending_turn < 0 or abs(remaining) < 4:
-                remaining = 0.0
-            for key in ("ROUTE_BEARING", "ENEMY_BEARING"):
-                if key in t:
-                    t[key] = (t[key] - remaining + 180) % 360 - 180
         cfg = self.cfg
-        state = dg.build_state(t, self.goal, cfg)
-        questions = dg.control_questions(t, self.goal, cfg)
-        if n % cfg["goal_every"] == 0:
-            questions.update(dg.goal_question(t, cfg))
-        reply = self.system_one.ask(state, questions)
-        answers = reply["answers"]
-        cargs = dg.control_args(answers, cfg, t, self.nav_memory)
+        # Never judge the sectors while a commanded turn is still swinging. Every sector is named relative to
+        # the heading, so a decision taken mid-turn is a decision about a world that has already moved; the old
+        # code only waited for turns of 60 degrees or more and compensated a bearing nothing subscribed to.
+        settle = float(cfg["thresholds"]["turn_settle_deg"])
+        if abs(self.pending_turn) > settle and self.angle_at_cmd is not None and "ANGLE" in t:
+            done = (t["ANGLE"] - self.angle_at_cmd + 180) % 360 - 180
+            if abs(self.pending_turn - done) > settle and time.time() - self.pending_turn_t < 1.5:
+                self.skipped_mid_turn += 1
+                return None
+        self.pending_turn = 0.0
+
+        mem = self.nav_memory
+        mem.step()
+        state = dg.build_state(t, self.goal, cfg, mem)
+        mode = dg.next_mode(state, t, mem, cfg)
+        state["here"]["mode"] = mode.lower()
+        self.mode = mode
+        offered = dg.offered_sectors(state)
+        ask_goal = cfg["goal_every"] and n % cfg["goal_every"] == 0
+        questions = dg.questions_for(state, cfg, mode, ask_goal=ask_goal, offered=offered)
+        answers, reply = {}, {"latency_ms": 0}
+        sent = dg.state_for(state, questions)  # only the blocks this tick's heads inspect
+        if questions:
+            reply = self.system_one.ask(sent, questions)
+            answers = reply["answers"]
+        else:
+            self.code_only_ticks += 1          # OPERATE / RECOVER / DONE: exact rules, nothing to judge
+        pick, detail = None, {}
+        if mode in dg.JUDGED_MODES:
+            pos = (t["POS_X"], t["POS_Y"]) if t.get("POS_X") is not None else None
+            pick, detail = dg.pick_sector(answers, state, cfg, mem, float(t.get("ANGLE", 0.0) or 0.0),
+                                          self.goal, offered, pos)
+        cargs = dg.control_args(state, t, cfg, mem, mode, answers, pick)
         self.command("CONTROL", cargs)
         self.pending_turn, self.pending_turn_t, self.angle_at_cmd = cargs["turn"], time.time(), t.get("ANGLE")
         self.control_count += 1
         if "goal" in answers:
-            self.set_goal(dg.GOAL_FROM_CHOICE.get(answers["goal"]["choice"], self.goal))
+            self.set_goal(dg.GOAL_FROM_CHOICE.get(answers["goal"].get("choice"), self.goal))
         row = {"t": time.time(), "kind": "control", "episode": self.episode, "graph_version": cfg.get("version"),
-               "latency_ms": reply["latency_ms"], "model": reply.get("model"), "request_id": reply.get("request_id"),
-               "usage": reply.get("usage"), "cmd_ms": self.last_cmd_ms,
+               "pinned_model": cfg.get("model"), "latency_ms": reply.get("latency_ms", 0),
+               "model": reply.get("model"), "request_id": reply.get("request_id"), "usage": reply.get("usage"),
+               "cmd_ms": self.last_cmd_ms, "mode": mode, "goal": self.goal, "pick": pick, "select": detail,
                "answers": {k: dg.answer_label(v) for k, v in answers.items()},
                "confidence": {k: round(dg.answer_confidence(v), 2) for k, v in answers.items()},
-               "probabilities": {k: {o: round(float(pv), 2) for o, pv in (v.get("probabilities") or {}).items()} for k, v in answers.items() if v.get("probabilities")},
-               "control": cargs, "goal": self.goal, "health": t.get("HEALTH"), "kills": t.get("KILLS"), "tic": t.get("TIC"),
-               "seen": state["surroundings"] | {"exit": state["seen"]["exit"], "enemy_where": state["combat"]["enemy_where"]},
+               "probabilities": {k: {o: round(float(pv), 2) for o, pv in (v.get("probabilities") or {}).items()}
+                                 for k, v in answers.items() if isinstance(v, dict) and v.get("probabilities")},
+               "control": cargs, "health": t.get("HEALTH"), "kills": t.get("KILLS"), "tic": t.get("TIC"),
+               # exactly what jev saw, so the run can be replayed against another graph (verification step 1)
+               "state": sent, "here": state["here"], "seen": state["sectors"],
+               "questions_sha": hashlib.sha1(json.dumps(questions, sort_keys=True).encode()).hexdigest()[:12],
                "raw": {k: t.get(k) for k in RAW_KEYS}}
+        if self.args.log_questions:
+            row["questions"] = questions
         self.log.write(json.dumps(row) + "\n")
         self.rows.append(row)
         if time.time() - self.last_stats > 1.0:
             self.last_stats = time.time()
-            self.set_ground({"SystemOneLatencyMs": float(reply["latency_ms"]), "ControlCommands": self.control_count,
-                             "Controls": " ".join(f"{k}={dg.answer_label(v)}" for k, v in answers.items())})
+            self.set_ground({"SystemOneLatencyMs": float(reply.get("latency_ms", 0)), "ControlCommands": self.control_count,
+                             "Controls": f"{mode} {pick or '-'} | " +
+                                         " ".join(f"{k}={dg.answer_label(v)}" for k, v in answers.items())})
         return row
 
     def set_goal(self, goal):
@@ -438,7 +470,7 @@ class Pilot:
                     self.episode_boundary()
                 self.episode = ep
                 self.goal = "EXPLORE"
-                self.nav_memory = {}
+                self.nav_memory = dg.NavMemory(self.cfg)
                 self.level_start_t = time.time()   # a new life is a new attempt: a fresh budget
             lv = self.telemetry.get("LEVEL")
             if lv is not None and lv != self.level:
@@ -460,13 +492,14 @@ class Pilot:
             if n % 20 == 0:
                 self.check_stall()
             if row and n % 10 == 0:
-                print(f"[pilot] #{n} jev {row['latency_ms']} ms cmd {row['cmd_ms']} ms  hp={row['health']} goal={self.goal} "
+                print(f"[pilot] #{n} jev {row['latency_ms']} ms cmd {row['cmd_ms']} ms  hp={row['health']} "
+                      f"{row['mode']} goal={self.goal} pick={row['pick']} "
                       f"{' '.join(f'{k}={v}' for k, v in row['answers'].items())} -> {row['control']['move']}/{row['control']['turn']:.0f}  "
                       f"frames ok={self.frames.complete} lost={self.frames.incomplete}", flush=True)
             remaining = self.args.period - (time.time() - t0)
             if remaining > 0:
                 time.sleep(remaining)
-        self.command("CONTROL", dg.control_args({}, self.cfg))
+        self.command("CONTROL", dict(dg.STOP))   # an explicit stop, not whatever a default-filled answer set means
         self.episode_boundary()
         while self.review_busy:
             time.sleep(1.0)
@@ -488,6 +521,7 @@ def main():
     p.add_argument("--period", type=float, default=0.25, help="seconds between control decisions (lower bound)")
     p.add_argument("--bump-every", type=float, default=60.0, help="seconds between System Two progress checks (0 = never)")
     p.add_argument("--level-budget", type=float, default=180.0, help="seconds per level attempt before a reset and a review (0 = none)")
+    p.add_argument("--log-questions", action="store_true", help="log the full question set on every row (large)")
     p.add_argument("--fps", type=int, default=10)
     p.add_argument("--quality", type=int, default=45)
     p.add_argument("--duration", type=float, default=0.0, help="stop after this many seconds (0 = run forever)")

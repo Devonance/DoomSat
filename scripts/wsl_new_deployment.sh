@@ -1,7 +1,7 @@
 #!/bin/bash
 # Create the DoomSat deployment (TcpClient com driver) inside the bootstrapped F´ project and run a baseline build.
 set -e
-cd /root/doom/doom-mission
+cd /root/doom/DoomSat
 . fprime-venv/bin/activate
 if [ ! -d DoomSat ]; then
   printf "DoomSat\n\n1\nyes\n" | fprime-util new --deployment

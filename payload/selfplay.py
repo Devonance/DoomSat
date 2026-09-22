@@ -12,7 +12,7 @@ import doom_payload as dp
 
 tics = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
 args = argparse.Namespace(port=0, wad=sys.argv[2] if len(sys.argv) > 2 else "doom1.wad", map=sys.argv[3] if len(sys.argv) > 3 else "E1M1",
-                          skill=2, seed=7, fps=0, quality=45, status_every=3, map_png="/mnt/c/Users/Kevin/Genai/doom-mission/out/selfplay_map.png")
+                          skill=2, seed=7, fps=0, quality=45, status_every=3, map_png="/mnt/c/Users/Kevin/Genai/DoomSat/out/selfplay_map.png")
 p = dp.Payload(args)
 escape, n_escapes, escape_move = 0, 0, (-1, 0)
 t0 = time.time()
@@ -54,16 +54,16 @@ for tic in range(tics):
         from PIL import Image
         import numpy as np
         d = state.depth_buffer
-        Image.fromarray(np.clip(d.astype(np.int32) * 3, 0, 255).astype(np.uint8)).save("/mnt/c/Users/Kevin/Genai/doom-mission/out/dn1_depth.png")
-        Image.fromarray(state.screen_buffer).save("/mnt/c/Users/Kevin/Genai/doom-mission/out/dn1_screen.png")
+        Image.fromarray(np.clip(d.astype(np.int32) * 3, 0, 255).astype(np.uint8)).save("/mnt/c/Users/Kevin/Genai/DoomSat/out/dn1_depth.png")
+        Image.fromarray(state.screen_buffer).save("/mnt/c/Users/Kevin/Genai/DoomSat/out/dn1_screen.png")
         print("DN1 DUMP at tic", tic, "pos", (round(o["x"]), round(o["y"])), "heading", round(o["angle"]), "near per 32 cols:", [int(near_dbg[c]) for c in range(0, 640, 32)], "labels:", [(l.object_name, l.x, l.y, l.width, l.height) for l in state.labels][:6], flush=True)
         globals()["dumped1"] = True
     if o["frontiers"] == 0 and dp.NAV_MODES[o["nav_mode"]] == "idle" and not globals().get("dumped"):
         from PIL import Image
         import numpy as np
         d = state.depth_buffer
-        Image.fromarray(np.clip(d.astype(np.int32) * 3, 0, 255).astype(np.uint8)).save("/mnt/c/Users/Kevin/Genai/doom-mission/out/collapse_depth.png")
-        Image.fromarray(state.screen_buffer).save("/mnt/c/Users/Kevin/Genai/doom-mission/out/collapse_screen.png")
+        Image.fromarray(np.clip(d.astype(np.int32) * 3, 0, 255).astype(np.uint8)).save("/mnt/c/Users/Kevin/Genai/DoomSat/out/collapse_depth.png")
+        Image.fromarray(state.screen_buffer).save("/mnt/c/Users/Kevin/Genai/DoomSat/out/collapse_screen.png")
         near = d[196:222].min(axis=0)
         print("DUMP at tic", tic, "near-band min per 32 cols:", [int(near[c]) for c in range(0, 640, 32)], "labels:", [(l.object_name, l.x, l.y, l.width, l.height) for l in state.labels][:8], flush=True)
         globals()["dumped"] = True

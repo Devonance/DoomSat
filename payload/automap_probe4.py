@@ -54,5 +54,5 @@ for (x, y, ang, tag, seg) in spots[m]:
     row = am[240]
     print(tag, "at", px, py, "segment px", (u1, v1), (u2, v2), "colours on it:", top(win), "whole map:", top(am, 10))
     print("   row 240 non-black:", [(u, tuple(int(v) for v in row[u])) for u in range(640) if row[u].max() > 30][:30])
-    Image.fromarray(am).save(f"/mnt/c/Users/Kevin/Genai/doom-mission/out/automap/p4_{tag.replace(' ', '_')}.png")
+    Image.fromarray(am).save(f"/mnt/c/Users/Kevin/Genai/DoomSat/out/automap/p4_{tag.replace(' ', '_')}.png")
 g.close()

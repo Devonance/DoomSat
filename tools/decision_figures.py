@@ -40,105 +40,99 @@ def tex(s):
 
 
 ROWS = [
-    ("1. way (the navigator)",
-     "eight directions around the player, 45 deg apart, each in words: space (blocked / tight / open / long) and "
-     "ground (unexplored / new / partly walked / walked before / a door on the way at N units); what is at arm's "
-     "length ahead; where the exit and a key were seen; the goal word",
-     "Choice over the directions that are not blocked (2 to 8 options); every option carries what / not_for / "
-     "examples criteria plus its own 'now'",
-     "every tick (~0.5 s), one request with all heads",
-     "turn setpoint by direction: 0 / 45 / 90 / 135 / 180 deg (right = negative); the previous way is kept unless "
-     "P(new) >= P(previous) + way_margin (hysteresis on the probabilities); 'behind' with open ground behind = one "
-     "step back instead of a U-turn; a turn of 45 deg or more is issued alone and finishes before the next ask"),
-    ("2. advance",
-     "the same state document; 'ahead' carries space, ground and what is at arm's length",
-     "Noul: walk forward this tick?",
-     "every tick",
-     "move = 1 if P(yes) >= 0.5; suppressed while an enemy is in view and the aim is off by more than aligned_deg (35)"),
-    ("3. use",
-     "at arm's length ahead: door / exit switch / locked door (with the key colour) / wall / nothing; stuck flag",
-     "Noul: press Use now?",
-     "only when a door, the exit or a locked door is at arm's length, or the player is stuck",
-     "use = 1 if P(yes) >= 0.5; the payload marks a door that stays shut after its presses as a barrier for 120 s"),
-    ("4. fire",
-     "nearest enemy: bearing in words (in the crosshair / left / right / behind), distance band, health, ammo",
-     "Noul: shoot now?",
-     "every tick",
-     "fire = 1 if P(yes) >= 0.5 and the enemy is within fire_range (450 u) and crosshair_deg (8); never without ammo"),
-    ("5. dodge",
-     "nearest enemy bearing and distance band; which sides are open",
-     "Choice: Carry on / Dodge left / Dodge right / Dodge back (only the open sides are offered)",
-     "whenever an enemy is in view",
-     "strafe = -1 / +1, or move = -1 for 'Dodge back'; danger_dist (180 u) gates the question's 'close' word"),
-    ("6. turn (the aim)",
-     "nearest enemy bearing in words",
-     "Choice: Hard left / Left / Fine left / Hold / Fine right / Right / Hard right / Turn around",
-     "whenever an enemy is in view",
-     "overrides the way's turn with the aim table (turn_deg: 60 / 25 / 8 / 0 / -8 / -25 / -60 / 150 deg); a person "
-     "does not keep exploring under fire"),
-    ("7. weapon",
-     "weapon in hand, shells, bullets, enemy distance band",
-     "Choice: Keep / Pistol / Shotgun",
-     "every tick",
-     "weapon field of CONTROL; 'Keep' sends no switch"),
-    ("8. goal",
-     "health and armor bands, ammo, kills, enemies in view, cells walked, exit seen, pickups seen with bearings",
-     "Choice: Explore / Kill enemies / Restore health / Stock ammo / Add armor",
-     "every goal_every ticks (8) or when the picture changes",
-     "SET_GOAL command; the goal word enters the next state documents and the payload's pickup targeting"),
+    ("1. sector (the navigator)",
+     "that one sector's words: space (blocked / tight / open / long), ground (never explored / new / partly "
+     "walked / walked before / unknown), door (none or a distance band), and whether the exit, a key, the "
+     "ground hint or a pickup lies there. Every bearing in the state is binned into the same eight labels",
+     "Score on a shared four-level rubric: dead end / leads on but old / worth a look / the way on",
+     "once per open direction, every tick (~0.5 s), in EXPLORE and APPROACH; a blocked direction and one "
+     "with missing telemetry are not offered",
+     "code ranks the scores, adds the goal's weight and subtracts a level from a direction just held "
+     "without getting anywhere, then keeps the committed WORLD BEARING unless another sector beats it by "
+     "sector_margin (capped below one rubric level, so a whole level always wins); a top-two gap under "
+     "unsure_gap (0.10, calibrated from replay) goes to the named frontier fallback"),
+    ("2. danger",
+     "the nearest enemy in the sector vocabulary with a distance band, how many are in view, health and "
+     "ammunition bands, and which sides are open",
+     "Score on four levels: no danger / a fight to win / under fire / get out",
+     "whenever an enemy is in view, in any mode",
+     "at or above danger_sidestep (1.5) code strafes into the open side, preferring a long passage; at or "
+     "above danger_retreat (2.5) it backs off. Firing, the weapon and the aim are not asked: they are exact "
+     "rules over numbers code already has"),
+    ("3. goal",
+     "health, armor, ammunition, the enemy, and where the exit, a key and each pickup were seen -- all in "
+     "the same eight direction labels; the standing order rides on this question, not in the state",
+     "Choice: Explore / Scout / Kill enemies / Restore health / Stock ammo / Add armor",
+     "every goal_every ticks (10)",
+     "SET_GOAL, and a real effect on the next decisions: goal_bonus levels are added to the sector holding "
+     "that goal's pickup, and SCOUT weights never-explored ground"),
+    ("Code: the mode machine",
+     "stuck, what is at arm's length, whether an enemy is in view, whether the level is finished",
+     "not jev: an explicit state machine, every transition an exact rule",
+     "every tick, before jev is asked",
+     "EXPLORE / APPROACH ask jev; OPERATE (press Use, give up after door_tries), RECOVER (back out until "
+     "64 units moved) and DONE are pure code, so those ticks make no model call at all"),
+    ("Code: the reflex layer",
+     "the same state, plus the turn still in flight",
+     "not jev: invariants that hold under every mode",
+     "on every command, last",
+     "never fire at zero ammo; never walk into a known wall (unless it is a door to walk up to); never "
+     "re-command a turn still swinging; clamp the turn to max_turn_deg"),
     ("System Two: bump (Claude Sonnet 5)",
      "seconds into the attempt, cells gained, position, most visited spots, the map product as text",
      "not jev: a JSON-schema reply with bearing, hold time and an optional goal",
      "every 60 s",
-     "EXPLORE_HINT(bearing, ttl): the payload steers 'ahead' toward the bearing while it lasts; jev still answers "
-     "every head"),
+     "EXPLORE_HINT(bearing, ttl): the payload steers 'ahead' toward the bearing while it lasts, and the "
+     "sector it falls in reads hint_here yes; jev still scores every open direction"),
     ("System Two: after-action (Claude Sonnet 5)",
-     "the episode report: outcome, health, damage, cells, distance, stuck ticks, answer distributions per head, "
-     "the walk, the last eight decisions in words, plus the current graph",
-     "not jev: a revised graph (criteria text, thresholds, way_margin, goal_every) with a rationale",
+     "the episode report, built from the heads the episode actually asked: outcome, health, damage, cells, "
+     "distance, spin windows, the score distribution per head, what the selection did (held, fallbacks, "
+     "gaps), the modes, the last eight decisions, plus the current graph and the bounds code enforces",
+     "not jev: a revised graph (question wording, rubric levels, thresholds, selection numbers) with a "
+     "rationale",
      "after every episode: death, level done, or the 180 s budget",
-     "code validates (fixed option names, known placeholders, clamped thresholds), stores graph_v<N>.json, and "
-     "jev plays the next attempt with it"),
+     "code validates and REJECTS anything out of bounds -- overlong text, a number out of range, an "
+     "unknown head or option, a criterion naming a state field that does not exist -- and hands the reason "
+     "back for one more try, then stores graph_v<N>.json"),
 ]
 
-FOOTER = ("Measured on 22 Sep 2026: 5,872 jev decisions through the stack, about 450-520 ms per call with 5-8 heads, "
-          "about 45 ms to issue the command; Sonnet: a bump per minute and 14 graph versions in the day.")
+FOOTER = ("Three heads, all judgments with no exact rule behind them; everything else is code. Replaying 120 logged "
+          "states on 22 Sep 2026: 2,263 median input tokens per call, 461 ms median, and jev's own ranking "
+          "reproducible between identical passes on every state where the top two sat 0.10 rubric levels apart "
+          "or more (0 of 51), against 30% flipping below that.")
 
-# one real decision: request req_01a0c8b54b2c73dd8ec79b57a6f3a1b6, graph v14, episode 7, 22 Sep 2026 10:41:59 UTC
+# one real decision, replayed live against graph v1: request req_01a0ca7e70fd7c8289c901853c0bd2d7,
+# jev-1.13.0, 330 ms, 2452 input tokens (runs/2026-09-22/worked_decision.json)
 FLOW = [
     ("Yamcs parameters (12 Hz), this tick", GREY, [
-        "CLEAR ahead 116, ahead-left 48, left 28, behind-left 20, behind 24, behind-right 248, right 212, ahead-right 120 (units)",
-        "NEW ahead 0, ahead-left 100, left 0, behind-left 0, behind 0, behind-right 14, right 50, ahead-right 33",
-        "AHEAD_KIND NOTHING, EXIT_DIST 0, STUCK false, ENEMY_COUNT 0, HEALTH 100, ARMOR 0, KILLS 0",
-        "POS 1347,-2725, ANGLE 216, EXPLORED_CELLS 544, LEVEL 1, KEYS 0"]),
-    ("telemetry -> words (bands, novelty, direction names); no number reaches jev", None, None),
-    ("State document (code, no model)", GREY, [
-        "ahead: open, walked before, nothing near",
-        "ahead-left: tight, new",
-        "left / behind-left / behind: blocked, walked before",
-        "behind-right: long (a passage or a big room), walked before",
-        "right: open, partly walked; ahead-right: open, partly walked",
-        "exit: not seen; enemy: none in view; health: full; armor: none; goal word: Explore"]),
-    ("HTTPS POST /v1/systemone: the state plus 5 typed questions with their criteria", None, None),
-    ("jev, one request, 469 ms (req_01a0c8b54b2c73dd8ec79b57a6f3a1b6)", ORANGE, [
-        "way (Choice over the 5 open directions): ahead-left 0.82, ahead 0.14, right 0.03, ahead-right 0.01, behind-right 0.00",
-        "advance (Noul): yes 0.75",
-        "fire (Noul): no 0.98",
-        "weapon (Choice): Keep 0.82, Shotgun 0.18, Pistol 0.00",
-        "goal (Choice, this was a goal tick): Add armor 0.86, Explore 0.14"]),
-    ("choices with probabilities, Noul probabilities", None, None),
+        "CLEAR ahead 143, ahead-left 192, left 348, behind-left 400, behind 400, behind-right 400, right 284, ahead-right 328 (units)",
+        "NEW ahead 100, ahead-left 255, left 100, behind-left 100, behind 100, behind-right 88, right 100, ahead-right 238",
+        "DOOR all 0 except ahead-right (a door on that ray); AHEAD_KIND NOTHING, EXIT_DIST 0, STUCK false, ENEMY_COUNT 0",
+        "POS 1056,-3034, ANGLE 90, EXPLORED_CELLS 19, LEVEL 1, KEYS 0"]),
+    ("telemetry -> words: bands, novelty, one door field, one direction vocabulary; no number reaches jev", None, None),
+    ("State document (code, no model). Only `sectors` is sent: nothing else is inspected this tick", GREY, [
+        "ahead: space open, ground new",
+        "ahead-left: space open, ground never explored",
+        "left / behind-left / behind / behind-right / right: space long, ground new",
+        "ahead-right: space long, ground unknown, door mid-range",
+        "every sector also carries exit_here, key_here, item_here, hint_here, tried_recently (all no here)"]),
+    ("HTTPS POST /v1/systemone: the state plus one Score question per open direction, same rubric", None, None),
+    ("jev, one request, 330 ms, 2452 input tokens (req_01a0ca7e70fd7c8289c901853c0bd2d7)", ORANGE, [
+        "s_ahead-left  2.98 (confidence 0.98)   <- the only never-explored direction",
+        "s_behind 2.06, s_left 2.04, s_behind-right 2.04, s_behind-left 2.03",
+        "s_right 2.02, s_ahead 2.01, s_ahead-right 1.97",
+        "the goal head was not asked this tick (every 10th); the danger head only when an enemy is in view"]),
+    ("eight scores on a four-level rubric, and a confidence each", None, None),
     ("Code rules", GREEN, [
-        "way: the previous way 'ahead' holds 0.14; the new one 0.82 >= 0.14 + way_margin, so switch; ahead-left = +45 deg",
-        "a turn of 45 deg or more is issued alone: move = 0 this tick, walking resumes when the turn has landed",
-        "fire 0.98 no -> fire = 0; use was not asked (nothing at arm's length) -> use = 0",
-        "weapon Keep -> no switch",
-        "goal Add armor -> SET_GOAL(ADD_ARMOR) on the goal tick; the word 'Add armor' enters the next documents"]),
+        "top two 2.98 vs 2.06: a gap of 0.92 levels, well clear of unsure_gap (0.20), so jev's ranking stands",
+        "no commitment yet this episode, so no hysteresis to apply; commit the WORLD bearing 90+45 = 135 degrees",
+        "ahead-left is not straight on: turn 45 degrees and do not walk this tick",
+        "reflex: ammunition is zero so fire stays off; the turn is inside max_turn_deg; no turn is in flight"]),
     ("one command per decision", None, None),
-    ("CONTROL(move=0, strafe=0, turn=+45, fire=0, use=0, weapon=no change)", BLUE, [
-        "Yamcs HTTP -> CCSDS TC -> UDP -> F´ CmdDispatcher -> Doom component -> payload turn setpoint (6 deg per tic)",
-        "issued in 50 ms; F´ events: OpCodeDispatched, OpCodeCompleted"]),
+    ("CONTROL(move=0, strafe=0, turn=+45, fire=0, use=0, weapon=FIST meaning keep)", BLUE, [
+        "Yamcs HTTP -> CCSDS TC -> UDP -> F Prime CmdDispatcher -> Doom component -> payload turn setpoint (6 deg per tic)",
+        "the next tick will not be judged until that turn has landed, so the sectors are never read mid-swing"]),
 ]
-
 
 def decision_graph_dot():
     g = [f'digraph G {{',
@@ -172,7 +166,7 @@ def decision_graph_dot():
 def decision_flow_dot():
     g = ['digraph F {',
          f'  graph [bgcolor="{BG}", rankdir=TB, fontname="{FONT}", fontcolor="{TXT}", labelloc=t, labeljust=l, nodesep=0.3, ranksep=0.35, pad=0.4,',
-         f'         label="DOOMSAT . ONE DECISION END TO END (episode 7, graph v14, 22 Sep 2026 10:41:59 UTC)\\l"];',
+         f'         label="DOOMSAT . ONE DECISION END TO END (graph v1, jev-1.13.0, 22 Sep 2026)\\l"];',
          f'  node [shape=box, style="rounded,filled", fillcolor="{CELL}", fontname="{FONT}", fontsize=11, fontcolor="{TXT}", penwidth=1.4, margin="0.2,0.12"];',
          f'  edge [color="{DIM}", fontname="{FONT}", fontsize=10, fontcolor="{DIM}", penwidth=1.2];']
     boxes = [(t, c, body) for t, c, body in FLOW if body]
@@ -209,7 +203,7 @@ def decision_flow_tex():
             out.append(r"\fcolorbox{black!50}{black!4}{\begin{minipage}{\dimexpr\linewidth-2\fboxsep-2\fboxrule}\raggedright " + inner + r"\end{minipage}}")
         else:
             out.append(r"\par\vspace{1pt}$\downarrow$\enspace\emph{" + tex(title) + r"}\par\vspace{1pt}")
-    out.append(r"\caption{One real decision end to end (episode 7, graph v14, 22 September 2026 10:41:59 UTC): the "
+    out.append(r"\caption{One real decision end to end (graph v1, jev-1.13.0, 22 September 2026): the "
                r"numbers Yamcs delivered, the words code made from them, jev's probabilities, the code rules and the "
                r"command that went up.}")
     out.append(r"\end{figure}")

@@ -1,10 +1,12 @@
+![DoomSat: playing Doom through a real mission stack](docs/images/doomsat-header.png)
+
 # DoomSat: playing Doom through a real mission stack
 
 Doom runs as a **payload** behind an **F´ (F Prime) flight computer**. Telemetry and image products go
 down through **CCSDS frames** into **Yamcs** (via `fprime-yamcs`; the XTCE mission database is generated from
 the F´ dictionary) and are displayed in the **Yamcs web UI**, **Open MCT** and a small mission dashboard. A
-ground pilot plays the game by uplinking commands: **jev** (TypeSafe's System One model) classifies the situation
-every half second and picks the direction, whether to walk, press Use, fire and which weapon; **Claude Sonnet 5**
+ground pilot plays the game by uplinking commands: **jev** (TypeSafe's System One model) scores how promising
+each open direction is, every half second, and code turns those scores into one command; **Claude Sonnet 5**
 (System Two) nudges exploration once a minute and, after each attempt, rewrites the questions jev plays with.
 Code owns the loop and never reads the level file.
 
@@ -38,12 +40,41 @@ developer check for choosing levels and verifying results; the payload never imp
 
 There is no route planner onboard. The payload (`payload/doom_payload.py`) stamps the automap into a world raster,
 sweeps the floor it has seen with the range camera, remembers where it has walked, and reports eight directions
-around the player (every 45 degrees): how far the way is open on the map, and whether the ground that way is
-unexplored, new, or walked before. It also reports what is at arm's length ahead (a wall, a door, the exit switch,
-a locked door, something the map does not show), where an exit line, a key or a pickup was seen, and whether the
-player is stuck. Obstacles the automap does not draw (window bars, fake doors, barrels) are learned by pushing
-against them once. jev picks the direction from those words every ~0.5 s; every number is bucketed before jev
-sees it. The map of a level is kept across attempts, as a player remembers a layout; the game itself restarts.
+around the player (every 45 degrees): how far the way is open on the map, whether the ground that way is
+unexplored, new, or walked before, and — on its own channel — how far off a door lies that way. It also reports
+what is at arm's length ahead (a wall, a door, the exit switch, a locked door, something the map does not show),
+where an exit line, a key or a pickup was seen, and whether the player is stuck. Obstacles the automap does not
+draw (window bars, fake doors, barrels) are learned by pushing against them once. jev scores those words every
+~0.5 s; every number is bucketed before jev sees it. The map of a level is kept across attempts, as a player
+remembers a layout; the game itself restarts.
+
+## The decision graph
+
+jev classifies. It does not reason, plan or remember, so the graph asks it only the judgments that have no
+exact rule behind them, and code does the rest:
+
+| Head | Type | Asked | What code does with it |
+|---|---|---|---|
+| `sector` | Score, 4 levels | once per open direction, every tick in EXPLORE and APPROACH | ranks the directions, applies hysteresis on a **world bearing**, falls back to a named rule when the top two are too close |
+| `danger` | Score, 4 levels | whenever an enemy is in view | sidestep, or back off |
+| `goal` | Choice | every `goal_every` ticks | `SET_GOAL`, and a weight on the sector holding that goal's pickup |
+
+Walking, doors, firing, weapon selection, aiming and the mode machine (EXPLORE, APPROACH, OPERATE, FIGHT,
+RECOVER, DONE) are exact rules, so they live in `ground/decision_graph.py`, not in a question. Four things
+follow from jev being stateless and literal, and code holds all four:
+
+1. every fact a criterion mentions exists as a field of the state — `decision_graph.lint` refuses a graph
+   that names one that does not, and checks the question text **as rendered**, after `{dir}` substitution;
+2. anything that depends on the past is computed by code and written as a present-tense field (`NavMemory`):
+   the committed direction is kept as a world bearing, so "keep going left" cannot mean a new direction
+   after every turn;
+3. any rule code can compute exactly stays in code;
+4. every threshold on an answer has an unsure band and a **named** fallback, so a near-tie is never a coin flip.
+
+`ground/graph_config.py` **rejects** a revision it cannot accept rather than trimming it, and hands the
+reason back to System Two for one more try. The old version silently cut every string to 700 characters and
+clamped the hysteresis margin, so ten of the last eleven reviews re-diagnosed the same truncation and every
+tuning of the margin was a no-op. See `docs/audit-2026-09-22.md`.
 
 ## What is proven
 
@@ -54,8 +85,10 @@ sees it. The map of a level is kept across attempts, as a player remembers a lay
   (`/DoomGround/DoomFrame` carries the URL for Open MCT and the dashboard).
 - Uplink: CONTROL commands every ~0.5 s; the F´ command dispatcher, the Doom component and the payload all
   report them (events `OpCodeDispatched/Completed`, `GoalSet`, `LevelStarted`, `KeyPickedUp`).
-- jev: 7 control heads per request, ~450 ms median including the Yamcs round trip; every decision row in
-  `out/decisions.jsonl` carries the TypeSafe request id.
+- jev: one request per decision carrying a Score for each open direction (plus `danger` and, every 10th tick,
+  `goal`), ~460 ms median including the Yamcs round trip; every decision row in `out/decisions.jsonl` carries
+  the TypeSafe request id **and the exact state that was sent**, so a run can be replayed against a new graph
+  without the game (`tools/replay.py`).
 - Claude Sonnet 5 via the `claude` CLI as the after-action reviewer: one tool-free schema call per episode,
   returning the revised graph. The CLI runs with `DISABLE_NON_ESSENTIAL_MODEL_CALLS=1`, so no helper-model calls;
   `--system-two anthropic` uses the API directly.
@@ -78,22 +111,25 @@ Integration findings worth keeping:
 
 | Path | What |
 |---|---|
-| `flight/Components/Doom/` | F´ component: commands, 56 telemetry channels, events, FrameChunk downlink (frames and the map product) (FPP + C++) |
+| `flight/Components/Doom/` | F´ component: commands, 64 telemetry channels, events, FrameChunk downlink (frames and the map product) (FPP + C++) |
 | `flight/DoomSat/Top/`, `flight/config/` | topology/instances/rate groups, com-buffer override (copied into the WSL project) |
 | `payload/doom_payload.py` | the game as an instrument: automap (seen lines) + range camera + labels, local sensing in eight directions, map memory, level progression |
 | `payload/selfplay.py`, `payload/nav_probe.py` | code-only drivers of the navigator (no models) for fast iteration |
 | `ground/pilot.py` | the loop: Yamcs subscriptions, frame reassembly, jev control step, after-action reviews, commands |
-| `ground/decision_graph.py`, `ground/graph_config.py` | telemetry -> words, the seven control heads + goal head, the graph as data (versioned in `ground/graph/`) |
-| `ground/after_action.py` | the episode report and the System Two review call |
+| `ground/decision_graph.py` | telemetry -> a structured state, the three heads, the mode machine, the selection rules, the reflex layer, the criteria linter |
+| `ground/graph_config.py` | the graph as data, with bounds code enforces by rejecting (versioned in `ground/graph/`) |
+| `ground/metrics.py` | one frozen definition per number the runs are compared on, shared by the report and the replay |
+| `ground/after_action.py` | the episode report (built from the heads actually asked) and the System Two review call |
 | `ground/providers.py` | System One: TypeSafe (jev) or any OpenAI-compatible endpoint; System Two: Claude CLI, Anthropic API or OpenAI-compatible |
 | `ground/yamcs/`, `ground/openmct/`, `ground/dashboard/` | Yamcs config + ground XTCE, Open MCT config, the mission dashboard page |
 | `docs/` | diagrams (Graphviz sources + renders), report (`doomsat-report.md/.tex/.pdf`), handoff (`HANDOFF.md`), images, charts, `video/` |
-| `runs/<date>/` | the day's decision logs (one row per jev decision: state words, answers, probabilities, request id, latency, telemetry), pilot log, final graph, map |
-| `scripts/`, `tools/` | start/stop/build helpers (WSL), run report, charts, decision-graph figures, screenshots/recording, developer probes |
+| `runs/<date>/` | the day's decision logs (one row per jev decision: **the exact state sent**, the answers, the selection detail, request id, latency, telemetry), pilot log, final graph, map, replay results |
+| `tests/` | `python -m unittest discover -s tests` — 71 tests, no network and no game: the state, the selection, the modes, the reflex layer, the graph contract and the report's head coverage |
+| `scripts/`, `tools/` | start/stop/build helpers (WSL), replay and boundary-set tools, run report, charts, decision-graph figures, screenshots/recording, developer probes |
 
 ## Running it
 
-Prerequisites on this machine: WSL distro `ros2` with `/root/doom/doom-mission` (F´ v4.3.0 bootstrap +
+Prerequisites on this machine: WSL distro `ros2` with `/root/doom/DoomSat` (F´ v4.3.0 bootstrap +
 `fprime-yamcs`), `/root/doom/payload-venv` (ViZDoom 1.3.0), the shareware `doom1.wad` in `/root/doom/wads`
 (`tools/get_doom1.sh`; Freedoom is bundled with ViZDoom as a fallback: `WAD=freedoom2.wad MAP=MAP01`),
 `ground/.venv` (yamcs-client), `external/openmct-yamcs` with an Open MCT build, the `claude` CLI, and the day's
@@ -109,6 +145,9 @@ scripts/start_pilot.sh --duration 1800     # jev plays; Sonnet bumps every 60 s,
 scripts/start_pilot.sh --bump-every 0 --level-budget 0   # no bumps, no budget: jev + graph only
 scripts/start_pilot.sh --no-after-action   # jev + code only, graph frozen at ground/graph/graph_current.json
 python tools/run_report.py                 # what each layer did in the last run (levels, decisions, reviews)
+python -m unittest discover -s tests       # the graph's contract and behaviour, no network, no game
+python tools/boundary_set.py --log runs/2026-09-22/decisions.jsonl --out runs/boundary_set.jsonl
+python tools/replay.py --pilots code,jev --cases 120 --passes 3    # the gate: jev against a code-only baseline
 node tools/dashboard_record.mjs out/dashrec 120         # 1080p dashboard capture (frames); python tools/stack_video.py --frames out/dashrec out/dash.mp4
 node tools/stack_record.mjs out/stackrec 120            # dashboard + Yamcs telemetry + Yamcs commands + Open MCT; python tools/stack_video.py out/stackrec out/stack.mp4
 python tools/charts.py                     # charts for the report from out/decisions*.jsonl
@@ -122,25 +161,55 @@ After editing anything under `flight/`: `scripts/flight.sh build` (incremental) 
 
 | Layer | Runs | Decides |
 |---|---|---|
-| Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, the map, the route, the target (exit line > key > goal item > frontier > walls to try), door/switch attempts |
-| System One: jev | every ~0.5 s, live | one narrow typed question per head over a structured state: `way` (which of the open directions), `advance` (Noul), `use` (Noul), `fire` (Noul), `dodge`, `turn` (aim at an enemy), `weapon`, and every 8th tick the `goal`; options carry what / not_for / examples criteria and code uses the option probabilities for hysteresis |
-| System Two: Claude Sonnet 5 | every minute, and after an episode | every minute: reads the map product and the recent walk and pushes exploration in a direction (`EXPLORE_HINT`, optionally `SET_GOAL`); after an episode (death, level finished, or the 3-minute level budget spent -> `RESET_GAME`): reads the condensed after-action report and revises the decision graph jev plays with next |
+| Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, the map, the eight-sector sensing, door and barrier memory, door/switch attempts |
+| Ground code (the pilot) | every ~0.5 s | the mode machine and every transition in it, walking, doors, firing, weapon selection, aiming, sidestepping, the hysteresis, the unsure fallback, and a reflex layer that never fires at zero ammo, never walks into a known wall and never re-commands a turn still in flight |
+| System One: jev | every ~0.5 s, live | the judgments with no exact rule behind them: one Score per open direction (how promising it is for reaching the exit) on a shared 4-level rubric, one Score for how dangerous the scene is when an enemy is in view, and every 10th tick the `goal` Choice |
+| System Two: Claude Sonnet 5 | every minute, and after an episode | every minute: reads the map product and the recent walk and pushes exploration in a direction (`EXPLORE_HINT`, optionally `SET_GOAL`); after an episode (death, level finished, or the 3-minute level budget spent -> `RESET_GAME`): reads the after-action report and revises the graph — wording, rubric levels and the numbers in `thresholds` and `select`. A revision outside the bounds is rejected with the reason and it gets one more try |
 
 ![Decision graph](docs/diagrams/decision_graph.png)
 
 ![One decision end to end](docs/diagrams/decision_flow.png)
 
 Nothing slower than jev sits in the live loop. The graph is data (`ground/graph_config.py`); every revision is
-validated by code (fixed option names, known placeholders, numeric ranges) and stored as
-`ground/graph/graph_v<N>.json` with Sonnet's rationale in `ground/graph/CHANGELOG.md`.
+validated by code (fixed head names and types, bounded text, numeric ranges, and a lint of every state field
+the criteria name) and stored as `ground/graph/graph_v<N>.json` with Sonnet's rationale in
+`ground/graph/CHANGELOG.md`. The System One model is **pinned** to `jev-1.13.0` rather than `jev-latest`,
+because the numbers in `select` are tuned against one version.
 
 ## Status (22 September 2026)
 
 The stack works end to end under load and every layer is measured; the autonomous player explores, opens the
 first door and dies honestly, but does not yet finish E1M1. The report `docs/doomsat-report.md` (also `.tex`
 and `.pdf`) has the numbers, the data flow, the results per cycle and the reasons. `docs/HANDOFF.md` is the
-handoff for the next pass: what made us stuck and the research leads (a vision decision model for "what is this
-surface", direction scoring, combat, height). `python tools/run_report.py` prints the current run.
+handoff for the next pass. `python tools/run_report.py` prints the current run.
+
+Later the same day, an audit of the decision graph found fourteen issues — most of them in the code around jev,
+not in jev's answers — and the graph was rewritten against them. **`docs/audit-2026-09-22.md` is the record:**
+what changed per issue, what the replay measured, and what it did not settle. The short version:
+
+- Every System Two edit had been silently cut at 700 characters and the hysteresis margin silently clamped, so
+  ten of the last eleven reviews re-diagnosed the same truncation and every tuning of the margin was a no-op.
+  Code now rejects a revision it cannot accept and hands the reason back for one more try.
+- The direction commitment was the *word* "left", which names a new direction after every turn. It is now a
+  world bearing, so holding a direction becomes walking rather than another 90 degrees.
+- Four of the eight heads were asking jev to re-derive rules code already had. They are code now, and the
+  `danger` Score — a judgment with no exact rule — took their place.
+- The unsure band was first written as "a near tie **and** low confidence" and never fired once in 116 replayed
+  states: each sector is scored by its own isolated question, so its `confidence` says nothing about how it
+  ranks against the others. The band is on the gap, and the threshold (0.10 rubric levels) comes from replay:
+  below it jev's own ranking flips ~30% between identical passes; at or above it, 0 of 51 states flipped.
+- The honest check the audit asked for is now a gate, not a footnote: `tools/replay.py --pilots code,jev` runs
+  the same states through jev and through a code-only function that encodes the rubric exactly. The rubric as
+  written is close to a function of four enum fields, so jev reproduces it and adds little. That is the
+  argument for the next pass — evidence no rule can read (the surface classifier), not a different question.
+- **The new graph was flown, and it walked worse than the old one.** 150 seconds each: 0.32 spin windows per
+  decision against 0.07, 25 cells against 29, on 2,063 median input tokens against 2,654. One run each, so
+  the difference is not established, but it is what was measured. The cause is measurable and it is not the
+  model: on decision pairs where the state was byte-identical, jev's scores moved by a median of 0.01 rubric
+  levels. Between consecutive half-second decisions, **3.4 of 8 sectors change their `space` word and 3.0
+  change their `ground` word**, and the median sector keeps the same `ground` word for one tick. The pilot is
+  committing to a direction on evidence that is re-rolled every tick. Stabilising the sector words is the
+  next job, and it belongs in the payload, not in the graph.
 
 Recordings of the last run of the day, 1080p, jev live through the stack:
 

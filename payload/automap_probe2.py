@@ -35,7 +35,7 @@ def colours(am):
     order = np.argsort(-counts)
     return [(tuple(int(v) for v in cols[i]), int(counts[i])) for i in order[:14]]
 
-out = "/mnt/c/Users/Kevin/Genai/doom-mission/out/automap"
+out = "/mnt/c/Users/Kevin/Genai/DoomSat/out/automap"
 wad = sys.argv[1]; m = sys.argv[2]; tag = sys.argv[3]
 spots = [tuple(float(v) for v in s.split(",")) for s in sys.argv[4:]]   # x,y,angle
 g = setup(wad, m)

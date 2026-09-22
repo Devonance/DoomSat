@@ -1,0 +1,311 @@
+{
+ "telemetry": {
+  "AHEAD_DIST": 0,
+  "AHEAD_KIND": "NOTHING",
+  "ANGLE": 90.0,
+  "CLEAR_AL": 192,
+  "CLEAR_AR": 328,
+  "CLEAR_BACK": 400,
+  "CLEAR_BL": 400,
+  "CLEAR_BR": 400,
+  "CLEAR_FWD": 143,
+  "CLEAR_LEFT": 348,
+  "CLEAR_RIGHT": 284,
+  "ENEMY_COUNT": 0,
+  "EXIT_DIST": 0,
+  "EXPLORED_CELLS": 19,
+  "HINT_ACTIVE": false,
+  "KEYS": 0,
+  "LEVEL": 1,
+  "NEW_AL": 255,
+  "NEW_AR": 238,
+  "NEW_BACK": 100,
+  "NEW_BL": 100,
+  "NEW_BR": 88,
+  "NEW_FWD": 100,
+  "NEW_LEFT": 100,
+  "NEW_RIGHT": 100,
+  "POS_X": 1056.0,
+  "POS_Y": -3034.29931640625,
+  "STUCK": false
+ },
+ "state_sent": {
+  "sectors": {
+   "ahead": {
+    "space": "open",
+    "ground": "new",
+    "door": "none",
+    "exit_here": "no",
+    "key_here": "no",
+    "item_here": "none",
+    "hint_here": "no",
+    "tried_recently": "no"
+   },
+   "ahead-left": {
+    "space": "open",
+    "ground": "never explored",
+    "door": "none",
+    "exit_here": "no",
+    "key_here": "no",
+    "item_here": "none",
+    "hint_here": "no",
+    "tried_recently": "no"
+   },
+   "left": {
+    "space": "long",
+    "ground": "new",
+    "door": "none",
+    "exit_here": "no",
+    "key_here": "no",
+    "item_here": "none",
+    "hint_here": "no",
+    "tried_recently": "no"
+   },
+   "behind-left": {
+    "space": "long",
+    "ground": "new",
+    "door": "none",
+    "exit_here": "no",
+    "key_here": "no",
+    "item_here": "none",
+    "hint_here": "no",
+    "tried_recently": "no"
+   },
+   "behind": {
+    "space": "long",
+    "ground": "new",
+    "door": "none",
+    "exit_here": "no",
+    "key_here": "no",
+    "item_here": "none",
+    "hint_here": "no",
+    "tried_recently": "no"
+   },
+   "behind-right": {
+    "space": "long",
+    "ground": "new",
+    "door": "none",
+    "exit_here": "no",
+    "key_here": "no",
+    "item_here": "none",
+    "hint_here": "no",
+    "tried_recently": "no"
+   },
+   "right": {
+    "space": "long",
+    "ground": "new",
+    "door": "none",
+    "exit_here": "no",
+    "key_here": "no",
+    "item_here": "none",
+    "hint_here": "no",
+    "tried_recently": "no"
+   },
+   "ahead-right": {
+    "space": "long",
+    "ground": "unknown",
+    "door": "mid-range",
+    "exit_here": "no",
+    "key_here": "no",
+    "item_here": "none",
+    "hint_here": "no",
+    "tried_recently": "no"
+   }
+  }
+ },
+ "questions_sent": {
+  "s_ahead": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the ahead sector for reaching the level exit?",
+    "inspect": "`sectors.ahead`"
+   },
+   "criteria": [
+    "dead end: `sectors.ahead.space` blocked or tight, `sectors.ahead.ground` walked before",
+    "leads on but old: `sectors.ahead.ground` walked or partly walked, `sectors.ahead.space` open or long",
+    "worth a look: `sectors.ahead.ground` new, or `sectors.ahead.door` close, or `sectors.ahead.hint_here` yes",
+    "the way on: `sectors.ahead.ground` never explored, or `sectors.ahead.exit_here` or `sectors.ahead.key_here` yes"
+   ]
+  },
+  "s_ahead-left": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the ahead-left sector for reaching the level exit?",
+    "inspect": "`sectors.ahead-left`"
+   },
+   "criteria": [
+    "dead end: `sectors.ahead-left.space` blocked or tight, `sectors.ahead-left.ground` walked before",
+    "leads on but old: `sectors.ahead-left.ground` walked or partly walked, `sectors.ahead-left.space` open or long",
+    "worth a look: `sectors.ahead-left.ground` new, or `sectors.ahead-left.door` close, or `sectors.ahead-left.hint_here` yes",
+    "the way on: `sectors.ahead-left.ground` never explored, or `sectors.ahead-left.exit_here` or `sectors.ahead-left.key_here` yes"
+   ]
+  },
+  "s_left": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the left sector for reaching the level exit?",
+    "inspect": "`sectors.left`"
+   },
+   "criteria": [
+    "dead end: `sectors.left.space` blocked or tight, `sectors.left.ground` walked before",
+    "leads on but old: `sectors.left.ground` walked or partly walked, `sectors.left.space` open or long",
+    "worth a look: `sectors.left.ground` new, or `sectors.left.door` close, or `sectors.left.hint_here` yes",
+    "the way on: `sectors.left.ground` never explored, or `sectors.left.exit_here` or `sectors.left.key_here` yes"
+   ]
+  },
+  "s_behind-left": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the behind-left sector for reaching the level exit?",
+    "inspect": "`sectors.behind-left`"
+   },
+   "criteria": [
+    "dead end: `sectors.behind-left.space` blocked or tight, `sectors.behind-left.ground` walked before",
+    "leads on but old: `sectors.behind-left.ground` walked or partly walked, `sectors.behind-left.space` open or long",
+    "worth a look: `sectors.behind-left.ground` new, or `sectors.behind-left.door` close, or `sectors.behind-left.hint_here` yes",
+    "the way on: `sectors.behind-left.ground` never explored, or `sectors.behind-left.exit_here` or `sectors.behind-left.key_here` yes"
+   ]
+  },
+  "s_behind": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the behind sector for reaching the level exit?",
+    "inspect": "`sectors.behind`"
+   },
+   "criteria": [
+    "dead end: `sectors.behind.space` blocked or tight, `sectors.behind.ground` walked before",
+    "leads on but old: `sectors.behind.ground` walked or partly walked, `sectors.behind.space` open or long",
+    "worth a look: `sectors.behind.ground` new, or `sectors.behind.door` close, or `sectors.behind.hint_here` yes",
+    "the way on: `sectors.behind.ground` never explored, or `sectors.behind.exit_here` or `sectors.behind.key_here` yes"
+   ]
+  },
+  "s_behind-right": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the behind-right sector for reaching the level exit?",
+    "inspect": "`sectors.behind-right`"
+   },
+   "criteria": [
+    "dead end: `sectors.behind-right.space` blocked or tight, `sectors.behind-right.ground` walked before",
+    "leads on but old: `sectors.behind-right.ground` walked or partly walked, `sectors.behind-right.space` open or long",
+    "worth a look: `sectors.behind-right.ground` new, or `sectors.behind-right.door` close, or `sectors.behind-right.hint_here` yes",
+    "the way on: `sectors.behind-right.ground` never explored, or `sectors.behind-right.exit_here` or `sectors.behind-right.key_here` yes"
+   ]
+  },
+  "s_right": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the right sector for reaching the level exit?",
+    "inspect": "`sectors.right`"
+   },
+   "criteria": [
+    "dead end: `sectors.right.space` blocked or tight, `sectors.right.ground` walked before",
+    "leads on but old: `sectors.right.ground` walked or partly walked, `sectors.right.space` open or long",
+    "worth a look: `sectors.right.ground` new, or `sectors.right.door` close, or `sectors.right.hint_here` yes",
+    "the way on: `sectors.right.ground` never explored, or `sectors.right.exit_here` or `sectors.right.key_here` yes"
+   ]
+  },
+  "s_ahead-right": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the ahead-right sector for reaching the level exit?",
+    "inspect": "`sectors.ahead-right`"
+   },
+   "criteria": [
+    "dead end: `sectors.ahead-right.space` blocked or tight, `sectors.ahead-right.ground` walked before",
+    "leads on but old: `sectors.ahead-right.ground` walked or partly walked, `sectors.ahead-right.space` open or long",
+    "worth a look: `sectors.ahead-right.ground` new, or `sectors.ahead-right.door` close, or `sectors.ahead-right.hint_here` yes",
+    "the way on: `sectors.ahead-right.ground` never explored, or `sectors.ahead-right.exit_here` or `sectors.ahead-right.key_here` yes"
+   ]
+  }
+ },
+ "mode": "EXPLORE",
+ "offered": [
+  "ahead",
+  "ahead-left",
+  "left",
+  "behind-left",
+  "behind",
+  "behind-right",
+  "right",
+  "ahead-right"
+ ],
+ "answers": {
+  "s_ahead": {
+   "score": 2.01,
+   "confidence": 0.94
+  },
+  "s_ahead-left": {
+   "score": 2.98,
+   "confidence": 0.98
+  },
+  "s_left": {
+   "score": 2.04,
+   "confidence": 0.95
+  },
+  "s_behind-left": {
+   "score": 2.03,
+   "confidence": 0.96
+  },
+  "s_behind": {
+   "score": 2.06,
+   "confidence": 0.93
+  },
+  "s_behind-right": {
+   "score": 2.04,
+   "confidence": 0.95
+  },
+  "s_right": {
+   "score": 2.02,
+   "confidence": 0.97
+  },
+  "s_ahead-right": {
+   "score": 1.97,
+   "confidence": 0.85
+  }
+ },
+ "latency_ms": 330,
+ "request_id": "req_01a0ca7e70fd7c8289c901853c0bd2d7",
+ "usage": {
+  "input_tokens": 2452,
+  "output_tokens": 126
+ },
+ "model": "jev-1.13.0",
+ "select": {
+  "offered": [
+   "ahead",
+   "ahead-left",
+   "left",
+   "behind-left",
+   "behind",
+   "behind-right",
+   "right",
+   "ahead-right"
+  ],
+  "scores": {
+   "ahead": 2.01,
+   "ahead-left": 2.98,
+   "left": 2.04,
+   "behind-left": 2.03,
+   "behind": 2.06,
+   "behind-right": 2.04,
+   "right": 2.02,
+   "ahead-right": 1.97
+  },
+  "fallback": null,
+  "held": false,
+  "gap": 0.92,
+  "confidence": 0.98,
+  "margin": null,
+  "pick": "ahead-left"
+ },
+ "control": {
+  "move": 0,
+  "strafe": 0,
+  "turn": 45.0,
+  "fire": false,
+  "use": false,
+  "weapon": "FIST"
+ },
+ "note": "replayed from runs/2026-09-22/decisions.jsonl against graph v1; an ordinary tick, so only `sectors` is sent"
+}

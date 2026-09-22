@@ -1,0 +1,209 @@
+{
+ "version": 2,
+ "standing_order": "Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch.",
+ "goal_every": 8,
+ "thresholds": {
+  "aligned_deg": 35,
+  "crosshair_deg": 8,
+  "fire_range": 450,
+  "danger_dist": 180,
+  "blocked_units": 48,
+  "tight_units": 90,
+  "health_critical": 35,
+  "health_low": 50
+ },
+ "turn_deg": {
+  "Hard left": 60,
+  "Left": 25,
+  "Fine left": 8,
+  "Hold": 0,
+  "Fine right": -8,
+  "Right": -25,
+  "Hard right": -60,
+  "Turn around": 150
+ },
+ "way_margin": 0.15,
+ "questions": {
+  "way": {
+   "type": "choice",
+   "instructions": {
+    "question": "Which of the offered directions should the player go now? Each option is a direction around the player, with what the map says there under `now`.",
+    "inspect": "surroundings, seen.exit, seen.key, seen.ground_hint, stuck",
+    "focus": "Prefer the direction of the exit, then a door, then unexplored ground (never seen), then long space with new ground, then open new ground. A walked-before direction only when nothing else is offered."
+   },
+   "criteria": {
+    "direction": {
+     "what": "go {dir}: best when its ground is unexplored, or its space is long or open with new ground, or the exit, a door, the key or ground_hint lies {dir}",
+     "not_for": "its ground is walked before while another offered direction is unexplored or new",
+     "examples": [
+      "{dir}: ground unexplored (never seen)",
+      "{dir}: space long, ground new",
+      "exit {dir}"
+     ]
+    }
+   }
+  },
+  "advance": {
+   "type": "noul",
+   "instructions": {
+    "question": "Should the player walk forward right now?",
+    "inspect": "surroundings.ahead, stuck"
+   },
+   "criteria": {
+    "true": {
+     "what": "surroundings.ahead.space is open or tight, or a door or the exit switch is at arm's length ahead (walk up to it)",
+     "examples": [
+      "ahead open",
+      "ahead tight",
+      "a door at arm's length"
+     ]
+    },
+    "false": {
+     "what": "surroundings.ahead.space is blocked by a wall, bars, a barrel or a monster at point blank, or the player is stuck",
+     "examples": [
+      "ahead blocked, a wall at arm's length",
+      "stuck yes"
+     ]
+    }
+   }
+  },
+  "use": {
+   "type": "noul",
+   "instructions": {
+    "question": "Is there something to operate at arm's length ahead?",
+    "inspect": "surroundings.ahead.at_arms_length, stuck"
+   },
+   "criteria": {
+    "true": {
+     "what": "a door, the exit switch or a locked door is at arm's length ahead, or the player is stuck (try the wall)",
+     "examples": [
+      "a door at arm's length",
+      "the exit switch at arm's length"
+     ]
+    },
+    "false": {
+     "what": "nothing near, or a plain wall, bars or a monster ahead",
+     "examples": [
+      "nothing near",
+      "a wall"
+     ]
+    }
+   }
+  },
+  "fire": {
+   "type": "noul",
+   "instructions": {
+    "question": "Should the trigger be pulled?",
+    "inspect": "combat, player.equipped_ammo"
+   },
+   "criteria": {
+    "true": {
+     "what": "combat.enemy_in_crosshair is yes and player.equipped_ammo is more than zero"
+    },
+    "false": {
+     "what": "no enemy in the crosshair, or equipped ammunition is zero"
+    }
+   }
+  },
+  "dodge": {
+   "type": "choice",
+   "instructions": {
+    "question": "Sidestep to avoid the enemy?",
+    "inspect": "combat, surroundings"
+   },
+   "criteria": {
+    "Carry on": {
+     "what": "combat.threat is safe",
+     "not_for": "a close enemy attacking"
+    },
+    "Dodge left": {
+     "what": "combat.threat is danger and surroundings.left is open"
+    },
+    "Dodge right": {
+     "what": "combat.threat is danger, left not open, surroundings.right open"
+    },
+    "Dodge back": {
+     "what": "combat.threat is danger, sides not open, surroundings.behind open"
+    }
+   }
+  },
+  "turn": {
+   "type": "choice",
+   "instructions": {
+    "question": "Turn to put the enemy in the crosshair. Where is it now?",
+    "inspect": "combat.enemy_where"
+   },
+   "criteria": {
+    "Hard left": {
+     "what": "far left"
+    },
+    "Left": {
+     "what": "left"
+    },
+    "Fine left": {
+     "what": "slightly left or just left of the crosshair"
+    },
+    "Hold": {
+     "what": "centered"
+    },
+    "Fine right": {
+     "what": "slightly right or just right of the crosshair"
+    },
+    "Right": {
+     "what": "right"
+    },
+    "Hard right": {
+     "what": "far right"
+    },
+    "Turn around": {
+     "what": "behind"
+    }
+   }
+  },
+  "weapon": {
+   "type": "choice",
+   "instructions": {
+    "question": "Which weapon?",
+    "inspect": "player"
+   },
+   "criteria": {
+    "Keep": {
+     "what": "the equipped weapon still has ammunition"
+    },
+    "Pistol": {
+     "what": "shotgun shells are zero and pistol bullets remain"
+    },
+    "Shotgun": {
+     "what": "owns a shotgun with shells and the pistol is equipped"
+    }
+   }
+  },
+  "goal": {
+   "type": "choice",
+   "instructions": {
+    "question": "What is the immediate priority?",
+    "inspect": "player, combat, seen"
+   },
+   "criteria": {
+    "Kill enemies": {
+     "what": "an enemy visible at close or mid range, health not critical, ammunition ready"
+    },
+    "Restore health": {
+     "what": "health critical, or low with a health pickup seen close and no close enemy"
+    },
+    "Stock ammo": {
+     "what": "ammunition empty or scarce and an ammo pickup seen close"
+    },
+    "Add armor": {
+     "what": "armor none, an armor pickup seen close, health fine, no close enemy, exit not seen yet"
+    },
+    "Explore": {
+     "what": "otherwise: keep exploring toward new ground and the exit",
+     "examples": [
+      "no enemy, health fine, exit not seen"
+     ]
+    }
+   }
+  }
+ }
+}

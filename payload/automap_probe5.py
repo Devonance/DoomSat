@@ -32,7 +32,7 @@ for tic in range(120):
     if tic < 5 or n_wall > 3000 or tic % 20 == 0:
         print(f"tic {tic}: bright px {bright} classified {n_any} wall {n_wall} door {n_door} step {n_step}")
     if n_wall > 3000 and bad < 2:
-        Image.fromarray(s.automap_buffer).save(f"/mnt/c/Users/Kevin/Genai/doom-mission/out/automap/bad_{tic}.png")
+        Image.fromarray(s.automap_buffer).save(f"/mnt/c/Users/Kevin/Genai/DoomSat/out/automap/bad_{tic}.png")
         bad += 1
     g.make_action([0, 0, 2 if tic % 2 else 0, 0, 0, 0, 0], 1)
 g.close()

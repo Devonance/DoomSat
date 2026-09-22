@@ -6,4 +6,4 @@ for u in "https://deb.debian.org/debian/pool/non-free/d/doom-wad-shareware/doom-
 done
 ls -la /root/doom/wads/doom1.wad && md5sum /root/doom/wads/doom1.wad
 PY=/root/doom/payload-venv/bin/python
-$PY /mnt/c/Users/Kevin/Genai/doom-mission/tools/wad_stats.py /root/doom/wads/doom1.wad E1M1 E1M2 E1M3
+$PY /mnt/c/Users/Kevin/Genai/DoomSat/tools/wad_stats.py /root/doom/wads/doom1.wad E1M1 E1M2 E1M3

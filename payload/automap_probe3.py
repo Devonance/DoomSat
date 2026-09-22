@@ -89,6 +89,6 @@ for (x, y, ang, tag) in [(-620, 384, 180, "red key door"), (740, 0, 0, "plain do
     # colours within 40 px of the centre, in front
     win = am[int(cy) - 40:int(cy) + 40, int(cx) - 40:int(cx) + 40]
     print(tag, "pos", g.get_game_variable(vzd.GameVariable.POSITION_X), g.get_game_variable(vzd.GameVariable.POSITION_Y), "near colours", top(win, 8))
-    Image.fromarray(am).save(f"/mnt/c/Users/Kevin/Genai/doom-mission/out/automap/p3_{tag.replace(' ', '_')}.png")
-    Image.fromarray(s.screen_buffer).save(f"/mnt/c/Users/Kevin/Genai/doom-mission/out/automap/p3_{tag.replace(' ', '_')}_screen.png")
+    Image.fromarray(am).save(f"/mnt/c/Users/Kevin/Genai/DoomSat/out/automap/p3_{tag.replace(' ', '_')}.png")
+    Image.fromarray(s.screen_buffer).save(f"/mnt/c/Users/Kevin/Genai/DoomSat/out/automap/p3_{tag.replace(' ', '_')}_screen.png")
 g.close()

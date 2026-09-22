@@ -50,7 +50,7 @@ for tic in range(int(sys.argv[1]) if len(sys.argv) > 1 else 300):
                   int((ex.raster[max(0, ex.wpx(x, y)[1] - 10):ex.wpx(x, y)[1] + 10, max(0, ex.wpx(x, y)[0] - 10):ex.wpx(x, y)[0] + 10] > 0).sum()))
             img = ex.render(x, y, ang, None, None)
             if img is not None:
-                img.save(f"/mnt/c/Users/Kevin/Genai/doom-mission/out/automap/tiny_{tic}.png")
+                img.save(f"/mnt/c/Users/Kevin/Genai/DoomSat/out/automap/tiny_{tic}.png")
         # steer toward the nearest frontier
         fr = sorted(p["frontier"])
         target = ex.xy(fr[0][1]) if fr else None

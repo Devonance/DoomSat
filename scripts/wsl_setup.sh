@@ -8,4 +8,4 @@ rm -rf payload-venv bootstrap-venv doom-mission
 python3 -m venv payload-venv && ./payload-venv/bin/pip install -q --upgrade pip && ./payload-venv/bin/pip install -q vizdoom==1.3.0 numpy pillow && echo PAYLOAD_VENV_OK
 python3 -m venv bootstrap-venv && ./bootstrap-venv/bin/pip install -q fprime-bootstrap && echo BOOTSTRAP_OK
 printf "doom-mission\nDoomMission\n" | ./bootstrap-venv/bin/fprime-bootstrap project --path /root/doom --tag v4.3.0 && echo PROJECT_OK
-cd /root/doom/doom-mission && . fprime-venv/bin/activate && pip install -q fprime-yamcs && pip list 2>/dev/null | grep -i -E "fprime|yamcs" && echo YAMCS_PIP_OK
+cd /root/doom/DoomSat && . fprime-venv/bin/activate && pip install -q fprime-yamcs && pip list 2>/dev/null | grep -i -E "fprime|yamcs" && echo YAMCS_PIP_OK

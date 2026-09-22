@@ -1,0 +1,24 @@
+run span 150 s, 185 decisions (1.24/s)
+System One (jev-1.13.0, graph v1): latency median 452 ms p95 525 ms; command issue median 48 ms p95 55 ms; input tokens median 2063
+  sector   asked   783  score min 0.00 median 2.54 max 2.99
+  goal     asked    18  Explore 17, Add armor 1
+  danger   asked     1  score min 0.00 median 0.00 max 0.00
+  (code)   31 ticks decided by code alone (OPERATE / RECOVER / DONE: exact rules)
+  modes: EXPLORE 142, RECOVER 26, APPROACH 7, FIGHT 6, OPERATE 4
+  directions: ahead 57, ahead-left 34, ahead-right 22, behind 14, right 7, left 6, behind-left 5, behind-right 4
+  selection: 33 ticks held by hysteresis, fallbacks {'unsure gap': 80}
+  player: x 105..1168  y -3630..-2896  path ~6613 units  25 distinct 128-unit cells  spin_windows_8tick_300deg_under64u 60  stuck 9/185
+  health: start 100 min 100 end 102
+  at arm's length: NOTHING 71, BARRIER 67, WALL 43, DOOR 4
+  System Two bumps: 2 (median 7232 ms): 220 deg/20 s; 215 deg/20 s
+  levels finished: 0 ; episodes played: 1
+System Two: 1 after-action reviews, 0 errors
+  [run ended] -> graph v2 169475 ms $0.151 sonnet:69105in/6413out (2 attempts)
+     Fixed the hard constraint: sector_margin(0.55)+commit_bonus(0.35)=0.9, under the 1.0 cap.
+
+Two AAR-driven changes:
+1. Sector rubric's "dead end" tier now checks `sectors.{dir}.tried_recently` (previously unused field). r
+     - select.sector_margin: 0.6 -> 0.55
+     - select.commit_bonus: 0.3 -> 0.35
+     - select.tried_penalty: 1.0 -> 1.8
+     - questions.sector rubric rewritten (4 -> 4 levels)

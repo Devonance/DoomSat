@@ -1,6 +1,6 @@
 #!/bin/bash
 PY=/root/doom/payload-venv/bin/python
-cd /mnt/c/Users/Kevin/Genai/doom-mission/tools
+cd /mnt/c/Users/Kevin/Genai/DoomSat/tools
 $PY - <<'PY'
 import wad_stats as w, math, struct
 data, ls = w.lumps("/root/doom/wads/doom1.wad")

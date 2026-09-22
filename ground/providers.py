@@ -37,7 +37,7 @@ def load_env_key(name, extra_files=()):
 class TypeSafeSystemOne:
     name = "jev"
 
-    def __init__(self, api_key, model="jev-latest"):
+    def __init__(self, api_key, model="jev-1.13.0"):
         self.api_key, self.model = api_key, model
 
     def ask(self, state, questions):
@@ -236,7 +236,8 @@ def make_system_one(kind, args):
         key = load_env_key("TYPESAFE_API_KEY", args.env_files)
         if not key:
             raise SystemExit("TYPESAFE_API_KEY not set (env or .env)")
-        return TypeSafeSystemOne(key, args.system_one_model or "jev-latest")
+        # Pinned, not an alias: thresholds in the graph are tuned against one version, and `jev-latest` moves.
+        return TypeSafeSystemOne(key, getattr(args, "system_one_model", None) or "jev-1.13.0")
     if kind == "openai":
         return OpenAISystemOne(args.openai_base_url, load_env_key("OPENAI_API_KEY", args.env_files) or "none",
                                args.system_one_model or "gpt-4o-mini")

@@ -2,7 +2,14 @@
 
 Kevin Horton, 22 September 2026. Built with Claude Code, TypeSafe's *jev*, NASA F´, Yamcs, NASA Open MCT and ViZDoom.
 
-Repository: https://github.com/Devonance/claude-jev-fprime-yamcs-openmct-doom
+Repository: https://github.com/Devonance/DoomSat
+
+> **Addendum, later the same day.** An audit of the decision graph found fourteen issues, most of them in the
+> code around jev rather than in jev's answers: every System Two edit was being silently truncated, the
+> hysteresis margin silently clamped, the after-action report was summarising heads that no longer existed,
+> and the direction memory was egocentric, which is what produced the spin described in section 6. The graph
+> has been rewritten against all fourteen. This report is left as it was written, because it is the record of
+> what happened on the day; **`audit-2026-09-22.md` is what changed and what the replay measured.**
 
 ## 1. What this is
 

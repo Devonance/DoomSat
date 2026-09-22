@@ -32,7 +32,7 @@ for c in ['am_backcolor "00 00 00"', 'am_wallcolor "ff 00 00"', 'am_fdwallcolor 
           'am_secretsectorcolor "ff 00 00"', 'am_notseencolor "00 00 00"', 'am_gridcolor "00 00 00"', 'am_showgrid 0']:
     g.send_game_command(c)
 g.new_episode()
-out = "/mnt/c/Users/Kevin/Genai/doom-mission/out/automap"
+out = "/mnt/c/Users/Kevin/Genai/DoomSat/out/automap"
 os.makedirs(out, exist_ok=True)
 def dump(tag):
     s = g.get_state()

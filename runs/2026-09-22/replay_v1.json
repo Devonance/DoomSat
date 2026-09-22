@@ -1,0 +1,3051 @@
+{
+ "log": "runs/2026-09-22/decisions.jsonl",
+ "graph_version": 1,
+ "model": "jev-1.13.0",
+ "select": {
+  "sector_margin": 0.6,
+  "commit_bonus": 0.3,
+  "commit_ticks": 6,
+  "unsure_gap": 0.1,
+  "unsure_conf": 0.5,
+  "goal_bonus": 1.0,
+  "tried_penalty": 1.0,
+  "tried_cooldown": 40,
+  "danger_sidestep": 1.5,
+  "danger_retreat": 2.5,
+  "operate_units": 80.0,
+  "door_tries": 4,
+  "recover_ticks": 12,
+  "fight_linger_ticks": 6
+ },
+ "cases": 150,
+ "pilots": {
+  "code": {
+   "pilot": "code",
+   "cases": 144,
+   "passes": 1,
+   "median_input_tokens": 0,
+   "median_latency_ms": 0,
+   "picks": {
+    "ahead": 43,
+    "ahead-right": 26,
+    "ahead-left": 24,
+    "left": 15,
+    "right": 12,
+    "behind": 9,
+    "behind-left": 8,
+    "behind-right": 4,
+    "null": 3
+   },
+   "fallbacks": {
+    "unsure gap": 113
+   },
+   "median_top_two_gap": 0.0,
+   "gap_under_unsure_gap": 141,
+   "cases_that_flipped_between_identical_passes": 0
+  },
+  "jev": {
+   "pilot": "jev",
+   "cases": 144,
+   "passes": 3,
+   "median_input_tokens": 2261,
+   "median_latency_ms": 463,
+   "picks": {
+    "ahead": 39,
+    "ahead-right": 31,
+    "ahead-left": 23,
+    "left": 15,
+    "right": 14,
+    "behind": 10,
+    "behind-left": 7,
+    "null": 3,
+    "behind-right": 2
+   },
+   "fallbacks": {
+    "unsure gap": 79,
+    "unsure answer": 1
+   },
+   "median_top_two_gap": 0.06,
+   "gap_under_unsure_gap": 141,
+   "cases_that_flipped_between_identical_passes": 6
+  }
+ },
+ "metric_definitions": {
+  "spin": "spin_windows_8tick_300deg_under64u",
+  "unsure_band": [
+   0.35,
+   0.65
+  ],
+  "cell_units": 128
+ },
+ "calibration": {
+  "buckets": [
+   {
+    "gap_from": 0.0,
+    "gap_to": 0.05,
+    "states": 67,
+    "ranking_flipped": 23,
+    "flip_rate": 0.34
+   },
+   {
+    "gap_from": 0.05,
+    "gap_to": 0.1,
+    "states": 12,
+    "ranking_flipped": 7,
+    "flip_rate": 0.58
+   },
+   {
+    "gap_from": 0.1,
+    "gap_to": 0.2,
+    "states": 11,
+    "ranking_flipped": 0,
+    "flip_rate": 0.0
+   },
+   {
+    "gap_from": 0.2,
+    "gap_to": 0.4,
+    "states": 11,
+    "ranking_flipped": 0,
+    "flip_rate": 0.0
+   },
+   {
+    "gap_from": 0.4,
+    "gap_to": 0.8,
+    "states": 12,
+    "ranking_flipped": 0,
+    "flip_rate": 0.0
+   },
+   {
+    "gap_from": 0.8,
+    "gap_to": 99.0,
+    "states": 28,
+    "ranking_flipped": 0,
+    "flip_rate": 0.0
+   }
+  ],
+  "flipped": 30,
+  "states": 141,
+  "flip_rate": 0.213,
+  "current_unsure_gap": 0.1,
+  "sweep": [
+   {
+    "unsure_gap": 0.0,
+    "states_the_model_decides": 141,
+    "commands_that_differ_between_identical_passes": 30
+   },
+   {
+    "unsure_gap": 0.05,
+    "states_the_model_decides": 74,
+    "commands_that_differ_between_identical_passes": 14
+   },
+   {
+    "unsure_gap": 0.1,
+    "states_the_model_decides": 62,
+    "commands_that_differ_between_identical_passes": 5
+   },
+   {
+    "unsure_gap": 0.2,
+    "states_the_model_decides": 51,
+    "commands_that_differ_between_identical_passes": 2
+   },
+   {
+    "unsure_gap": 0.4,
+    "states_the_model_decides": 40,
+    "commands_that_differ_between_identical_passes": 1
+   },
+   {
+    "unsure_gap": 0.8,
+    "states_the_model_decides": 28,
+    "commands_that_differ_between_identical_passes": 0
+   }
+  ]
+ },
+ "code_vs_jev": {
+  "compared": 141,
+  "agreement_overall": 0.901,
+  "states_the_model_decided": 61,
+  "agreement_where_the_model_decided": 0.787,
+  "states_handed_to_the_fallback": 80,
+  "agreement_on_those": 0.988
+ },
+ "per_case": {
+  "code": [
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": null,
+    "raw_pick": null,
+    "gap": null,
+    "confidence": null,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "ahead",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "behind",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "ahead",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind-left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "behind-left",
+    "fallback_pick": "behind-left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind-left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "ahead",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "behind-right",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-right",
+    "raw_pick": "behind-left",
+    "fallback_pick": "behind-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": null,
+    "raw_pick": null,
+    "gap": null,
+    "confidence": null,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 4.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-right",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "behind-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-right",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "behind-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "behind",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "ahead",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "behind-left",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "left",
+    "gap": 1.0,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "ahead",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": null,
+    "raw_pick": null,
+    "gap": null,
+    "confidence": null,
+    "fallback": null,
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "behind",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind-left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 0,
+    "latency": 0
+   }
+  ],
+  "jev": [
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.01,
+    "confidence": 0.94,
+    "fallback": "unsure gap",
+    "tokens": 2458,
+    "latency": 396
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "right",
+    "fallback_pick": "ahead",
+    "gap": 0.03,
+    "confidence": 0.87,
+    "fallback": "unsure gap",
+    "tokens": 2454,
+    "latency": 418
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead",
+    "gap": 0.1,
+    "confidence": 0.61,
+    "fallback": null,
+    "tokens": 1854,
+    "latency": 401
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "behind",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 0.81,
+    "fallback": "unsure gap",
+    "tokens": 2046,
+    "latency": 360
+   },
+   {
+    "pick": null,
+    "raw_pick": null,
+    "gap": null,
+    "confidence": null,
+    "fallback": null,
+    "tokens": 1221,
+    "latency": 334
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 0.12,
+    "confidence": 0.76,
+    "fallback": null,
+    "tokens": 2459,
+    "latency": 367
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2458,
+    "latency": 361
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 0.09,
+    "confidence": 0.85,
+    "fallback": "unsure gap",
+    "tokens": 2052,
+    "latency": 351
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.01,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2457,
+    "latency": 477
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 0.79,
+    "fallback": "unsure gap",
+    "tokens": 2255,
+    "latency": 461
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.16,
+    "confidence": 0.83,
+    "fallback": null,
+    "tokens": 2261,
+    "latency": 519
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.01,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2453,
+    "latency": 480
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.01,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2264,
+    "latency": 496
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.04,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2264,
+    "latency": 427
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 0.01,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2264,
+    "latency": 497
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.09,
+    "confidence": 0.96,
+    "fallback": "unsure gap",
+    "tokens": 2083,
+    "latency": 401
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.6,
+    "confidence": 0.99,
+    "fallback": null,
+    "tokens": 2261,
+    "latency": 453
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.65,
+    "confidence": 0.97,
+    "fallback": null,
+    "tokens": 2085,
+    "latency": 490
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.76,
+    "confidence": 0.99,
+    "fallback": null,
+    "tokens": 2458,
+    "latency": 439
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.95,
+    "confidence": 0.99,
+    "fallback": null,
+    "tokens": 1855,
+    "latency": 439
+   },
+   {
+    "pick": "left",
+    "raw_pick": "right",
+    "fallback_pick": "left",
+    "gap": 0.07,
+    "confidence": 0.8,
+    "fallback": "unsure gap",
+    "tokens": 2058,
+    "latency": 464
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.01,
+    "confidence": 0.72,
+    "fallback": "unsure gap",
+    "tokens": 2452,
+    "latency": 460
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 0.03,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2456,
+    "latency": 397
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.45,
+    "confidence": 0.72,
+    "fallback": null,
+    "tokens": 1870,
+    "latency": 475
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 1.85,
+    "confidence": 0.85,
+    "fallback": null,
+    "tokens": 2464,
+    "latency": 464
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 1.86,
+    "confidence": 0.86,
+    "fallback": null,
+    "tokens": 1679,
+    "latency": 454
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 1.76,
+    "confidence": 0.79,
+    "fallback": null,
+    "tokens": 1861,
+    "latency": 487
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 1499,
+    "latency": 459
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.16,
+    "confidence": 0.85,
+    "fallback": null,
+    "tokens": 1859,
+    "latency": 483
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 1681,
+    "latency": 450
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "behind-right",
+    "fallback_pick": "behind-left",
+    "gap": 0.05,
+    "confidence": 0.82,
+    "fallback": "unsure gap",
+    "tokens": 2456,
+    "latency": 569
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 0.27,
+    "confidence": 0.68,
+    "fallback": null,
+    "tokens": 2066,
+    "latency": 464
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.27,
+    "confidence": 0.82,
+    "fallback": null,
+    "tokens": 2458,
+    "latency": 463
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "left",
+    "fallback_pick": "ahead",
+    "gap": 0.04,
+    "confidence": 0.81,
+    "fallback": "unsure gap",
+    "tokens": 2050,
+    "latency": 407
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 0.0,
+    "confidence": 0.79,
+    "fallback": "unsure gap",
+    "tokens": 1675,
+    "latency": 478
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.01,
+    "confidence": 0.74,
+    "fallback": "unsure gap",
+    "tokens": 2253,
+    "latency": 459
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 0.81,
+    "fallback": "unsure gap",
+    "tokens": 2458,
+    "latency": 438
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-left",
+    "gap": 0.02,
+    "confidence": 0.53,
+    "fallback": "unsure gap",
+    "tokens": 2280,
+    "latency": 454
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "behind-left",
+    "gap": 1.75,
+    "confidence": 0.78,
+    "fallback": null,
+    "tokens": 1885,
+    "latency": 458
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.08,
+    "confidence": 0.78,
+    "fallback": "unsure gap",
+    "tokens": 2460,
+    "latency": 632
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.23,
+    "confidence": 0.77,
+    "fallback": null,
+    "tokens": 2255,
+    "latency": 438
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.02,
+    "confidence": 0.75,
+    "fallback": "unsure gap",
+    "tokens": 2257,
+    "latency": 460
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.54,
+    "confidence": 0.79,
+    "fallback": null,
+    "tokens": 2052,
+    "latency": 432
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.39,
+    "confidence": 0.65,
+    "fallback": null,
+    "tokens": 2052,
+    "latency": 545
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.03,
+    "confidence": 0.7,
+    "fallback": "unsure gap",
+    "tokens": 2052,
+    "latency": 473
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 1681,
+    "latency": 502
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 441
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 0.04,
+    "confidence": 0.95,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 520
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 1.57,
+    "confidence": 0.57,
+    "fallback": null,
+    "tokens": 1691,
+    "latency": 445
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.35,
+    "confidence": 0.35,
+    "fallback": "unsure answer",
+    "tokens": 2261,
+    "latency": 442
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.12,
+    "confidence": 0.73,
+    "fallback": null,
+    "tokens": 2087,
+    "latency": 433
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 1.52,
+    "confidence": 0.52,
+    "fallback": null,
+    "tokens": 2066,
+    "latency": 471
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.04,
+    "confidence": 0.92,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 467
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead-left",
+    "gap": 0.16,
+    "confidence": 0.86,
+    "fallback": null,
+    "tokens": 2463,
+    "latency": 465
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2261,
+    "latency": 465
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2452,
+    "latency": 553
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 0.88,
+    "fallback": "unsure gap",
+    "tokens": 2450,
+    "latency": 604
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "right",
+    "fallback_pick": "ahead",
+    "gap": 0.01,
+    "confidence": 0.8,
+    "fallback": "unsure gap",
+    "tokens": 2274,
+    "latency": 518
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.02,
+    "confidence": 0.83,
+    "fallback": "unsure gap",
+    "tokens": 2454,
+    "latency": 586
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "behind-left",
+    "fallback_pick": "behind-left",
+    "gap": 0.99,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 2454,
+    "latency": 537
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "behind",
+    "fallback_pick": "behind-left",
+    "gap": 0.03,
+    "confidence": 0.83,
+    "fallback": "unsure gap",
+    "tokens": 2094,
+    "latency": 452
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.01,
+    "confidence": 0.78,
+    "fallback": "unsure gap",
+    "tokens": 2253,
+    "latency": 454
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "behind",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 0.78,
+    "fallback": "unsure gap",
+    "tokens": 2454,
+    "latency": 458
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2452,
+    "latency": 466
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 0.95,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 2254,
+    "latency": 471
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.01,
+    "confidence": 0.81,
+    "fallback": "unsure gap",
+    "tokens": 2452,
+    "latency": 561
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "behind-left",
+    "fallback_pick": "ahead",
+    "gap": 0.03,
+    "confidence": 0.88,
+    "fallback": "unsure gap",
+    "tokens": 2450,
+    "latency": 454
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.01,
+    "confidence": 0.82,
+    "fallback": "unsure gap",
+    "tokens": 2458,
+    "latency": 453
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.01,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 2455,
+    "latency": 450
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.06,
+    "confidence": 0.8,
+    "fallback": "unsure gap",
+    "tokens": 2078,
+    "latency": 452
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.98,
+    "confidence": 0.99,
+    "fallback": null,
+    "tokens": 2455,
+    "latency": 526
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.04,
+    "confidence": 0.86,
+    "fallback": "unsure gap",
+    "tokens": 2457,
+    "latency": 461
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 0.99,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 2066,
+    "latency": 463
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.93,
+    "confidence": 1.0,
+    "fallback": null,
+    "tokens": 2066,
+    "latency": 458
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 0.88,
+    "fallback": "unsure gap",
+    "tokens": 2257,
+    "latency": 447
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead",
+    "gap": 0.08,
+    "confidence": 0.65,
+    "fallback": "unsure gap",
+    "tokens": 2079,
+    "latency": 443
+   },
+   {
+    "pick": "right",
+    "raw_pick": "behind-right",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 1496,
+    "latency": 439
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 0.77,
+    "fallback": "unsure gap",
+    "tokens": 2064,
+    "latency": 567
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.04,
+    "confidence": 0.74,
+    "fallback": "unsure gap",
+    "tokens": 2270,
+    "latency": 540
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind-right",
+    "gap": 0.14,
+    "confidence": 0.73,
+    "fallback": null,
+    "tokens": 2463,
+    "latency": 487
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "behind",
+    "fallback_pick": "behind-left",
+    "gap": 0.08,
+    "confidence": 0.77,
+    "fallback": "unsure gap",
+    "tokens": 2454,
+    "latency": 439
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 0.66,
+    "confidence": 0.71,
+    "fallback": null,
+    "tokens": 1673,
+    "latency": 446
+   },
+   {
+    "pick": null,
+    "raw_pick": null,
+    "gap": null,
+    "confidence": null,
+    "fallback": null,
+    "tokens": 1230,
+    "latency": 2575
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "behind-right",
+    "fallback_pick": "ahead",
+    "gap": 0.02,
+    "confidence": 0.82,
+    "fallback": "unsure gap",
+    "tokens": 2265,
+    "latency": 496
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "right",
+    "gap": 1.85,
+    "confidence": 0.86,
+    "fallback": null,
+    "tokens": 1867,
+    "latency": 499
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.03,
+    "confidence": 0.94,
+    "fallback": "unsure gap",
+    "tokens": 1880,
+    "latency": 529
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 1.29,
+    "confidence": 0.68,
+    "fallback": null,
+    "tokens": 2464,
+    "latency": 494
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "behind-left",
+    "fallback_pick": "ahead",
+    "gap": 0.02,
+    "confidence": 0.87,
+    "fallback": "unsure gap",
+    "tokens": 2455,
+    "latency": 526
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 1.16,
+    "confidence": 0.83,
+    "fallback": null,
+    "tokens": 2464,
+    "latency": 451
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.77,
+    "confidence": 0.68,
+    "fallback": null,
+    "tokens": 2081,
+    "latency": 469
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 1.8,
+    "confidence": 0.81,
+    "fallback": null,
+    "tokens": 2058,
+    "latency": 449
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.06,
+    "confidence": 0.8,
+    "fallback": "unsure gap",
+    "tokens": 2461,
+    "latency": 454
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 0.37,
+    "confidence": 0.77,
+    "fallback": null,
+    "tokens": 2077,
+    "latency": 468
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-left",
+    "gap": 0.74,
+    "confidence": 0.61,
+    "fallback": null,
+    "tokens": 2464,
+    "latency": 456
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 1.19,
+    "confidence": 0.78,
+    "fallback": null,
+    "tokens": 2464,
+    "latency": 475
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 1486,
+    "latency": 453
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead",
+    "fallback_pick": "right",
+    "gap": 0.01,
+    "confidence": 0.95,
+    "fallback": "unsure gap",
+    "tokens": 2263,
+    "latency": 460
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.03,
+    "confidence": 0.97,
+    "fallback": "unsure gap",
+    "tokens": 1509,
+    "latency": 452
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 1.73,
+    "confidence": 0.73,
+    "fallback": null,
+    "tokens": 2464,
+    "latency": 573
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.94,
+    "confidence": 0.79,
+    "fallback": null,
+    "tokens": 2093,
+    "latency": 484
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 1.82,
+    "confidence": 0.82,
+    "fallback": null,
+    "tokens": 2261,
+    "latency": 474
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-left",
+    "gap": 0.01,
+    "confidence": 0.97,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 478
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 4.0,
+    "confidence": 0.71,
+    "fallback": null,
+    "tokens": 1103,
+    "latency": 524
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-right",
+    "gap": 1.51,
+    "confidence": 0.52,
+    "fallback": null,
+    "tokens": 2465,
+    "latency": 553
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 1498,
+    "latency": 458
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.12,
+    "confidence": 0.8,
+    "fallback": null,
+    "tokens": 2462,
+    "latency": 492
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.02,
+    "confidence": 0.97,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 482
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.02,
+    "confidence": 0.97,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 470
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.02,
+    "confidence": 0.97,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 435
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.02,
+    "confidence": 0.97,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 456
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.91,
+    "confidence": 0.89,
+    "fallback": null,
+    "tokens": 2466,
+    "latency": 433
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 1666,
+    "latency": 466
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.01,
+    "confidence": 0.98,
+    "fallback": "unsure gap",
+    "tokens": 2286,
+    "latency": 476
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead",
+    "gap": 1.89,
+    "confidence": 0.9,
+    "fallback": null,
+    "tokens": 2465,
+    "latency": 517
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 0.9,
+    "confidence": 0.88,
+    "fallback": null,
+    "tokens": 2466,
+    "latency": 450
+   },
+   {
+    "pick": "behind-right",
+    "raw_pick": "behind-right",
+    "fallback_pick": "behind-right",
+    "gap": 0.25,
+    "confidence": 0.78,
+    "fallback": null,
+    "tokens": 1876,
+    "latency": 440
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.05,
+    "confidence": 0.95,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 455
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "behind",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 1687,
+    "latency": 532
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 2060,
+    "latency": 439
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.01,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 2466,
+    "latency": 519
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead-right",
+    "gap": 0.83,
+    "confidence": 0.83,
+    "fallback": null,
+    "tokens": 1892,
+    "latency": 433
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "ahead",
+    "fallback_pick": "behind-left",
+    "gap": 0.0,
+    "confidence": 0.99,
+    "fallback": "unsure gap",
+    "tokens": 1892,
+    "latency": 462
+   },
+   {
+    "pick": "behind-left",
+    "raw_pick": "behind-left",
+    "fallback_pick": "behind-left",
+    "gap": 0.41,
+    "confidence": 0.79,
+    "fallback": null,
+    "tokens": 2272,
+    "latency": 446
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.12,
+    "confidence": 0.85,
+    "fallback": null,
+    "tokens": 2052,
+    "latency": 481
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 1509,
+    "latency": 452
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-left",
+    "gap": 0.27,
+    "confidence": 0.52,
+    "fallback": null,
+    "tokens": 2463,
+    "latency": 503
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "left",
+    "gap": 1.24,
+    "confidence": 0.75,
+    "fallback": null,
+    "tokens": 2273,
+    "latency": 485
+   },
+   {
+    "pick": "behind-right",
+    "raw_pick": "behind-right",
+    "fallback_pick": "behind-right",
+    "gap": 0.47,
+    "confidence": 0.8,
+    "fallback": null,
+    "tokens": 2280,
+    "latency": 638
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "ahead-left",
+    "gap": 0.77,
+    "confidence": 0.57,
+    "fallback": null,
+    "tokens": 2464,
+    "latency": 454
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "ahead-right",
+    "fallback_pick": "left",
+    "gap": 0.3,
+    "confidence": 0.62,
+    "fallback": null,
+    "tokens": 2259,
+    "latency": 479
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead-right",
+    "gap": 0.05,
+    "confidence": 0.62,
+    "fallback": "unsure gap",
+    "tokens": 1888,
+    "latency": 501
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "ahead-left",
+    "gap": 0.26,
+    "confidence": 0.55,
+    "fallback": null,
+    "tokens": 2272,
+    "latency": 462
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "behind",
+    "fallback_pick": "ahead-left",
+    "gap": 0.09,
+    "confidence": 0.84,
+    "fallback": "unsure gap",
+    "tokens": 2256,
+    "latency": 516
+   },
+   {
+    "pick": "behind",
+    "raw_pick": "behind",
+    "fallback_pick": "behind",
+    "gap": 0.47,
+    "confidence": 0.62,
+    "fallback": null,
+    "tokens": 2462,
+    "latency": 484
+   },
+   {
+    "pick": null,
+    "raw_pick": null,
+    "gap": null,
+    "confidence": null,
+    "fallback": null,
+    "tokens": 1230,
+    "latency": 460
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "behind-right",
+    "fallback_pick": "ahead-left",
+    "gap": 0.02,
+    "confidence": 0.61,
+    "fallback": "unsure gap",
+    "tokens": 2462,
+    "latency": 444
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.02,
+    "confidence": 0.97,
+    "fallback": "unsure gap",
+    "tokens": 2275,
+    "latency": 482
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.24,
+    "confidence": 0.67,
+    "fallback": null,
+    "tokens": 2068,
+    "latency": 458
+   },
+   {
+    "pick": "ahead-left",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "right",
+    "gap": 0.14,
+    "confidence": 0.52,
+    "fallback": null,
+    "tokens": 2259,
+    "latency": 501
+   },
+   {
+    "pick": "right",
+    "raw_pick": "right",
+    "fallback_pick": "ahead",
+    "gap": 1.8,
+    "confidence": 0.8,
+    "fallback": null,
+    "tokens": 2465,
+    "latency": 432
+   },
+   {
+    "pick": "ahead",
+    "raw_pick": "ahead",
+    "fallback_pick": "ahead",
+    "gap": 0.1,
+    "confidence": 0.9,
+    "fallback": null,
+    "tokens": 2466,
+    "latency": 502
+   },
+   {
+    "pick": "right",
+    "raw_pick": "ahead-left",
+    "fallback_pick": "right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 1869,
+    "latency": 453
+   },
+   {
+    "pick": "ahead-right",
+    "raw_pick": "behind-left",
+    "fallback_pick": "ahead-right",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 2072,
+    "latency": 504
+   },
+   {
+    "pick": "left",
+    "raw_pick": "left",
+    "fallback_pick": "left",
+    "gap": 0.0,
+    "confidence": 1.0,
+    "fallback": "unsure gap",
+    "tokens": 2072,
+    "latency": 473
+   }
+  ]
+ }
+}

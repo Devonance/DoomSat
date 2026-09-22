@@ -1,7 +1,7 @@
 """Developer-side level map (never used by the agent): draw a level's lines with doors, exit, start and things."""
 import struct, sys, math
 from PIL import Image, ImageDraw
-sys.path.insert(0, "/mnt/c/Users/Kevin/Genai/doom-mission/tools")
+sys.path.insert(0, "/mnt/c/Users/Kevin/Genai/DoomSat/tools")
 import wad_stats as w
 path, name, out = sys.argv[1], sys.argv[2], sys.argv[3]
 data, ls = w.lumps(path)

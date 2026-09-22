@@ -155,6 +155,16 @@ module DoomMission {
         telemetry NEW_AR: U8 id 59
         telemetry NEW_BL: U8 id 60
         telemetry NEW_BR: U8 id 61
+        # Door distance per sector in 8-unit steps, 0 = no door on the way. Separate from NEW_*, which is
+        # novelty only: overloading one channel with both lost the novelty wherever a door was seen.
+        telemetry DOOR_FWD: U8 id 62 @< door on the forward ray, distance / 8 units (0 = none)
+        telemetry DOOR_AL: U8 id 63
+        telemetry DOOR_LEFT: U8 id 64
+        telemetry DOOR_BL: U8 id 65
+        telemetry DOOR_BACK: U8 id 66
+        telemetry DOOR_BR: U8 id 67
+        telemetry DOOR_RIGHT: U8 id 68
+        telemetry DOOR_AR: U8 id 69
 
         # ----------------------------------------------------------------------
         # Events

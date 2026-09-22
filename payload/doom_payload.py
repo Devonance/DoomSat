@@ -43,7 +43,7 @@ import vizdoom as vzd
 from PIL import Image, ImageDraw
 
 TICRATE = 35
-STATUS_FMT = "!hhhhBBHfffBfHHHHHHHHBBBBBHfHfHHHHfffBBBIHBBHBBBhHHHHBBBB"   # 112 bytes, 56 fields (see pack_status)
+STATUS_FMT = "!hhhhBBHfffBfHHHHHHHHBBBBBHfHfHHHHfffBBBIHBBHBBBhHHHHBBBBBBBBBBBB"   # 120 bytes, 64 fields (see pack_status)
 GOALS = ["EXPLORE", "KILL_ENEMY", "STOCK_AMMO", "RESTORE_HEALTH", "ADD_ARMOR", "UPGRADE_WEAPON", "SCOUT", "HOLD"]
 AHEAD_KINDS = ["nothing", "wall", "door", "exit", "locked", "barrier", "thing"]
 ENEMIES = {"DoomImp", "Zombieman", "ShotgunGuy", "Demon", "Spectre", "ChaingunGuy", "Cacodemon", "HellKnight",
@@ -476,9 +476,10 @@ class Payload:
         rays["fwd"], nov["fwd"] = ex.sector(x, y, angle, now)
         for name, off in dirs[1:]:
             rays[name], nov[name] = ex.sector(x, y, angle + off, now)
-        for name in rays:   # a door on the way is worth more than novelty: NEW_* 200..254 = door at (v-200)*8 units
-            if rays[name][1] and rays[name][1] < 440:
-                nov[name] = 200 + min(54, int(rays[name][1]) // 8)
+        # A door on the way used to overwrite the novelty value, so the ground could not tell whether a door
+        # led anywhere new. Doors now ride their own channel: distance / 8 units, 0 = no door (issue 9).
+        doors = {name: (max(1, min(254, int(rays[name][1]) // 8)) if rays[name][1] and rays[name][1] < 440 else 0)
+                 for name in rays}
         # what is at arm's length ahead, from the camera's range and the map's category there
         ahead_kind, ahead_dist = "nothing", 0
         if clear_fwd < 120:
@@ -505,7 +506,8 @@ class Payload:
         # a door on the forward ray counts as "door ahead" when close, even if the camera looks past its frame
         if ahead_kind == "nothing" and rays["fwd"][1] and rays["fwd"][1] < 100:
             ahead_kind, ahead_dist = "door", rays["fwd"][1]
-        return dict(rays=rays, nov=nov, ahead_kind=ahead_kind, ahead_dist=ahead_dist, exit_seen=ex.nearest_exit(x, y, now))
+        return dict(rays=rays, nov=nov, doors=doors, ahead_kind=ahead_kind, ahead_dist=ahead_dist,
+                    exit_seen=ex.nearest_exit(x, y, now))
 
     def observe(self, state):
         x, y, angle = self.var("POSITION_X"), self.var("POSITION_Y"), self.var("ANGLE")
@@ -582,7 +584,7 @@ class Payload:
         item_d = lambda k: int(min(item(k)[0], 65535)) if item(k) else 0
         hint = ex.hint if ex.hint and now < ex.hint[1] else None
         exit_b = bearing_deg(x, y, angle, s["exit_seen"][0], s["exit_seen"][1]) if s["exit_seen"] else 0.0
-        rays, nov = s["rays"], s["nov"]
+        rays, nov, doors = s["rays"], s["nov"], s["doors"]
         return dict(
             health=int(self.var("HEALTH")), armor=int(self.var("ARMOR")),
             shells=int(self.var("AMMO3")), bullets=int(self.var("AMMO2")),
@@ -608,7 +610,9 @@ class Payload:
             hint_active=int(hint is not None),
             hint_rel=int(round(((hint[0] - angle + 180) % 360) - 180)) if hint else 0,
             clear_al=min(rays["al"][0], 65535), clear_ar=min(rays["ar"][0], 65535), clear_bl=min(rays["bl"][0], 65535), clear_br=min(rays["br"][0], 65535),
-            new_al=nov["al"], new_ar=nov["ar"], new_bl=nov["bl"], new_br=nov["br"])
+            new_al=nov["al"], new_ar=nov["ar"], new_bl=nov["bl"], new_br=nov["br"],
+            door_fwd=doors["fwd"], door_al=doors["al"], door_left=doors["left"], door_bl=doors["bl"],
+            door_back=doors["back"], door_br=doors["br"], door_right=doors["right"], door_ar=doors["ar"])
 
     @staticmethod
     def pack_status(o):
@@ -620,7 +624,9 @@ class Payload:
                            o["health_item"], o["ammo_item"], o["armor_item"], o["health_bearing"], o["ammo_bearing"], o["armor_bearing"],
                            o["stuck"], o["door_ahead"], o["goal"], o["tic"], o["episode"], o["dead"], o["level_done"], o["explored"],
                            o["level"], o["keys"], o["hint_active"], o["hint_rel"],
-                           o["clear_al"], o["clear_ar"], o["clear_bl"], o["clear_br"], o["new_al"], o["new_ar"], o["new_bl"], o["new_br"])
+                           o["clear_al"], o["clear_ar"], o["clear_bl"], o["clear_br"], o["new_al"], o["new_ar"], o["new_bl"], o["new_br"],
+                           o["door_fwd"], o["door_al"], o["door_left"], o["door_bl"],
+                           o["door_back"], o["door_br"], o["door_right"], o["door_ar"])
 
     # ------------------------------------------------------------------ uplink
     def handle(self, kind, body):

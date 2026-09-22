@@ -1,8 +1,8 @@
 #!/bin/bash
 # Copy the flight-side sources from the Windows repo into the F´ project in WSL.
 set -e
-SRC=/mnt/c/Users/Kevin/Genai/doom-mission/flight
-DST=/root/doom/doom-mission
+SRC=/mnt/c/Users/Kevin/Genai/DoomSat/flight
+DST=/root/doom/DoomSat
 mkdir -p $DST/DoomMission/Components/Doom $DST/DoomMission/config
 cp $SRC/Components/Doom/Doom.fpp $SRC/Components/Doom/Doom.hpp $SRC/Components/Doom/Doom.cpp $SRC/Components/Doom/CMakeLists.txt $DST/DoomMission/Components/Doom/
 cp $SRC/DoomSat/Top/topology.fpp $SRC/DoomSat/Top/instances.fpp $SRC/DoomSat/Top/DoomSatTopology.cpp $DST/DoomSat/Top/

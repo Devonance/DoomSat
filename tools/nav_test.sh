@@ -3,7 +3,7 @@
 # Usage: nav_test.sh <seconds> [wad] [map]
 SECS=${1:-300}; WAD=${2:-doom1.wad}; MAP=${3:-E1M1}
 PY=/root/doom/payload-venv/bin/python
-REPO=/mnt/c/Users/Kevin/Genai/doom-mission
+REPO=/mnt/c/Users/Kevin/Genai/DoomSat
 mkdir -p /root/doom/run $REPO/out
 fuser -k 4243/tcp >/dev/null 2>&1; sleep 0.5
 cd $REPO/payload

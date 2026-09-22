@@ -3,6 +3,25 @@
 For whoever picks this up next (a research pass is welcome): what was built, what works, what does not, why, and
 what to try.
 
+> **Update, later the same day.** An audit of the decision graph found fourteen issues, most of them in the code
+> around jev rather than in jev's answers, and the graph has been rewritten against them. The heads are now one
+> Score per open direction, one danger Score and the goal Choice; walking, doors, firing, the weapon, the aim,
+> the sidestep and the mode machine are code. `validate` rejects a System Two revision it cannot accept instead
+> of silently trimming it. The direction commitment is a world bearing. Doors have their own telemetry channels.
+> **`docs/audit-2026-09-22.md` is the record**: issue by issue, with the replay numbers and with what it did not
+> settle. The sections below are the state before that pass, kept because the reasons in them are still the
+> reasons; where a lead has been taken, it is marked.
+>
+> **The one thing to pick up first.** The new graph was flown for 150 s and walked *worse* than the old one
+> (0.32 spin windows per decision against 0.07, 25 cells against 29). The cause is measured and it is not the
+> model: where the state was byte-identical, jev's scores moved 0.01 rubric levels. Between consecutive
+> half-second decisions **3.4 of 8 sectors change their `space` word and 3.0 change their `ground` word**, and
+> the median sector keeps its `ground` word for a single tick. The pilot commits to a direction on evidence
+> that is re-rolled every tick. Fix the jitter where it is — hold a sector's word until the underlying reading
+> has moved by more than its band's width, in `payload/doom_payload.py` or in `NavMemory` — then re-run
+> `python tools/replay.py --pilots code,jev --passes 3` and the 150 s comparison. That is item 1 of the honest
+> list below, with a number on it at last.
+
 ## The goal
 
 Play Doom through a real mission stack as a stress test and a demonstration of the System One / System Two split:
@@ -68,15 +87,20 @@ has already seen.
 
 ## What to try next (research leads)
 
-- **A vision decision model for "what is this surface".** The one thing the automap cannot give is what a wall
-  *is*: plain wall, door, switch, exit sign, lift. Section 7 of the report sketches reducing the screen patch at
-  arm's length to a few numbers and asking jev; a small vision model that classifies the patch directly (door /
-  switch / exit sign / wall / monster / pickup) would replace both the switch hunting and the reliance on automap
-  door colouring. Kevin mentioned a new "Laya" vision decision model as a candidate. The payload already knows
-  which screen columns and depth belong to the surface at arm's length (`slow_sense` in `payload/doom_payload.py`).
-- **Exploration as a Score, not only a Choice.** Ask jev to score each of the eight directions ("how promising is
-  this direction for finding the exit") and let code pick the argmax with hysteresis; composite scoring is the
-  documented System One pattern and may beat the single Choice with eight options.
+- **A vision decision model for "what is this surface".** *(Now the highest-value lead, for a new reason.)* The
+  one thing the automap cannot give is what a wall *is*: plain wall, door, switch, exit sign, lift. Section 7 of
+  the report sketches reducing the screen patch at arm's length to a few numbers and asking jev; a small vision
+  model that classifies the patch directly (door / switch / exit sign / wall / monster / pickup) would replace
+  both the switch hunting and the reliance on automap door colouring. Kevin mentioned a new "Laya" vision
+  decision model as a candidate. The payload already knows which screen columns and depth belong to the surface
+  at arm's length (`slow_sense` in `payload/doom_payload.py`). The audit pass gives this a sharper motivation:
+  every field jev currently judges is an enum code computed, so a code rule can reproduce its answers. Evidence
+  a rule cannot read is what makes the System One head worth its half second.
+- **Exploration as a Score, not only a Choice.** *(Done — `ground/decision_graph.py`.)* Each open direction gets
+  its own Score on a shared four-level rubric and code picks with hysteresis on a world bearing. Replay says the
+  rubric as written is close to an exact function of four enum fields, so jev reproduces it faithfully and adds
+  little: the next real gain is softer evidence in the state, not a different question shape. Numbers in
+  `docs/audit-2026-09-22.md`.
 - **Better door handling.** A door that does not open after N presses is treated as a wall for 2 minutes; locked
   doors need the key of their colour (the automap shows it); E1M2 needs the red key. None of this has been exercised
   past the first door.
@@ -90,10 +114,15 @@ has already seen.
 
 ## Where everything is
 
-- Repo: https://github.com/Devonance/claude-jev-fprime-yamcs-openmct-doom (branch `main`); README has the run
+- Repo: https://github.com/Devonance/DoomSat (branch `main`); README has the run
   commands, the diagrams and the sources; `docs/doomsat-report.{md,tex,pdf}` is the report.
 - Payload: `payload/doom_payload.py` (sensing, memory, level progression). Graph: `ground/graph_config.py`
-  (defaults) and `ground/graph/` (versions, changelog). Pilot: `ground/pilot.py`. Words: `ground/decision_graph.py`.
+  (defaults and the bounds code enforces) and `ground/graph/` (versions, changelog). Pilot: `ground/pilot.py`.
+  State, heads, modes, selection and the reflex layer: `ground/decision_graph.py`. Frozen metric definitions:
+  `ground/metrics.py`. The graph before the audit pass, all fifteen versions, is kept in
+  `ground/graph_archive_way_choice_run/`.
+- Tests: `python -m unittest discover -s tests` (72, no network, no game). Replay gate:
+  `python tools/replay.py --pilots code,jev --passes 3`; boundary cases: `python tools/boundary_set.py`.
 - Logs of every run today: `out/decisions*.jsonl` (one row per jev decision with the state words, answers,
   probabilities, request id, latency, telemetry snapshot; plus after-action and bump rows). `tools/run_report.py`
   summarises one.
