@@ -30,9 +30,11 @@ check("status format packs to STATUS_LEN",
       struct.calcsize(dp.STATUS_FULL_FMT) == dp.STATUS_LEN, "%d bytes" % dp.STATUS_LEN)
 check("core status is still 120 bytes",
       struct.calcsize(dp.STATUS_FMT) == 120, "the pre-charter channels are unchanged")
-check("candidate block is 8 candidates + a count",
-      dp.STATUS_LEN - 120 == 1 + struct.calcsize("!" + dp.CAND_FMT) * dp.MAX_CANDIDATES,
-      "%d bytes each" % struct.calcsize("!" + dp.CAND_FMT))
+check("candidate block is 8 candidates + a count, then the player's threat",
+      dp.STATUS_LEN - 120 == (1 + struct.calcsize("!" + dp.CAND_FMT) * dp.MAX_CANDIDATES
+                              + struct.calcsize("!" + dp.THREAT_FMT)),
+      "%d bytes per candidate, %d for the threat"
+      % (struct.calcsize("!" + dp.CAND_FMT), struct.calcsize("!" + dp.THREAT_FMT)))
 
 for slot, btn in dp.WEAPON_BUTTON.items():
     check("weapon slot %d has a button" % slot, btn in dp.BUTTON_INDEX)

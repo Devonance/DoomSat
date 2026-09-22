@@ -51,6 +51,7 @@ STATE_PATHS = {
     "targets": {"*": ("what", "how_far", "direction", "unseen_ground_behind_it", "tried_before",
                       "locked", "needed_now")},
     "needs": ("health", "ammo", "armor"),
+    "combat_seen": ("threat", "what", "count", "distance"),
 }
 
 
@@ -427,7 +428,9 @@ HEAD_STATE = {"sector": ("sectors",),
               "danger": ("combat", "player", "sectors"),
               "goal": ("player", "combat", "seen", "here"),
               "target": ("targets", "here", "needs"),
-              "need": ("needs", "here", "combat")}
+              "need": ("needs", "here", "combat"),
+              "engage": ("combat", "here", "targets"),
+              "weapon": ("combat", "here")}
 
 
 def head_of(qid):

@@ -57,7 +57,11 @@ MAX_CANDIDATES = 8
 # does not locate anything once the route bends, and the index alone is not safe because the list is
 # rebuilt while an intent is in flight.
 CAND_FMT = "BffHBBBB"
-STATUS_FULL_FMT = STATUS_FMT + "B" + CAND_FMT * MAX_CANDIDATES
+# What is threatening the PLAYER, as against what is near a candidate: the worst visible monster
+# class and how many are in view. Facts; how dangerous that is comes from the knowledge file on the
+# ground (charter 4, the `engage` head).
+THREAT_FMT = "BB"
+STATUS_FULL_FMT = STATUS_FMT + "B" + CAND_FMT * MAX_CANDIDATES + THREAT_FMT
 STATUS_LEN = struct.calcsize(STATUS_FULL_FMT)
 # INTENT, charter 3.1: intent_id, based_on_tic, mode, target x/y, has_target, stance, fire policy,
 # fire target, weapon slot, use at target, time to live.
@@ -74,6 +78,9 @@ ITEM_KIND = {"Stimpack": "health", "Medikit": "health", "HealthBonus": "health",
              "RedCard": "key", "BlueCard": "key", "YellowCard": "key", "RedSkull": "key", "BlueSkull": "key", "YellowSkull": "key"}
 KEY_COLOUR = {"RedCard": "red", "RedSkull": "red", "BlueCard": "blue", "BlueSkull": "blue", "YellowCard": "yellow", "YellowSkull": "yellow"}
 KEY_BIT = {"red": 1, "blue": 2, "yellow": 4}
+# Charter 3.5. Engine behaviour: on some maps the way out only opens when these die. The list is
+# a property of the game, not of any level, and knowledge/doom_rules.yaml is the source of record.
+BOSS_CLASSES = ("BaronOfHell", "Cyberdemon", "SpiderMastermind")
 SOLID_THINGS = {"ExplosiveBarrel", "BurningBarrel", "Column", "TechPillar", "ShortGreenColumn", "TallGreenColumn", "ShortRedColumn",
                 "TallRedColumn", "SkullColumn", "HeartColumn", "EvilEye", "FloatingSkull", "TorchTree", "BlueTorch", "GreenTorch",
                 "RedTorch", "ShortBlueTorch", "ShortGreenTorch", "ShortRedTorch", "Stalagtite", "Stalagmite", "BigTree", "TechLamp",
@@ -94,7 +101,7 @@ BUTTON_INDEX = {b: i for i, b in enumerate(BUTTONS)}
 # measured before 22 September was taken against a ceiling of 28% of running.
 RUN_FORWARD, RUN_STRAFE = 50, 40
 from mapclasses import (NONE, STEP, DOOR, LOCK_RED, LOCK_BLUE, LOCK_YELLOW, LOCKED, EXIT, WALL, BARRIER,  # noqa: E402,F401
-                        LOCK_KEY, BLOCKING, GRID, WPX)                                                     # noqa: E402,F401
+                        LOCK_KEY, BLOCKING, GRID, WPX, ENEMY_INDEX, NO_ENEMY, ENEMY_CLASSES)                                                     # noqa: E402,F401
 
 FOV = 90.0             # ViZDoom default horizontal field of view
 DEPTH_UNITS = 7.16     # map units per depth-buffer step; the buffer holds perpendicular (z) distance (depth_calib_probe*.py)
@@ -641,7 +648,7 @@ class Payload:
         self.world.see_objects(x, y, state.labels, int(state.tic))
         if state.tic % SENSE_EVERY == 0:
             self.candidates = self.world.candidates(x, y, angle, now, keys_held=ex.keys,
-                                                    need=self.need_now())
+                                                    need=self.need_now(), boss_names=BOSS_CLASSES)
         # what the executor gets every tic, at control rate
         all_blocked = all(r[0] <= 48 for r in s["rays"].values())
         self.exec_obs = {"x": x, "y": y, "angle": angle, "clear_fwd": clear_fwd, "clear_fl": clear_fl,
@@ -649,6 +656,12 @@ class Payload:
                          "enemies": enemies, "ahead_kind": s["ahead_kind"], "ahead_dist": s["ahead_dist"],
                          "all_blocked": all_blocked, "expire_barriers": self.expire_barriers,
                          "has_ammo": self.have_ammo()}
+        # the worst class in view, by the fixed order the ground reads the byte with
+        worst_enemy = NO_ENEMY
+        for _b, _rel, _d, lab in enemies:
+            idx = ENEMY_INDEX.get(lab.object_name)
+            if idx is not None and (worst_enemy == NO_ENEMY or idx > worst_enemy):
+                worst_enemy = idx
         weapon = {1: 0, 2: 1, 3: 2}.get(int(self.var("SELECTED_WEAPON")), 3)
         item = lambda k: ex.nearest_item(x, y, k)
         item_b = lambda k: bearing_deg(x, y, angle, item(k)[1]["x"], item(k)[1]["y"]) if item(k) else 0.0
@@ -685,6 +698,7 @@ class Payload:
             door_fwd=doors["fwd"], door_al=doors["al"], door_left=doors["left"], door_bl=doors["bl"],
             door_back=doors["back"], door_br=doors["br"], door_right=doors["right"], door_ar=doors["ar"],
             cand_count=len(self.candidates),
+            threat_class=worst_enemy, threat_count=min(255, len(enemies)),
             candidates=[self.pack_candidate(c, x, y, angle) for c in self.candidates])
 
     def need_now(self):
@@ -720,7 +734,8 @@ class Payload:
         for c in cands:
             tail.extend(c)
         tail.extend([0, 0.0, 0.0, 0, 0, 0, 255, 0] * (MAX_CANDIDATES - len(cands)))
-        return Payload._pack_core(o) + struct.pack("!" + "B" + CAND_FMT * MAX_CANDIDATES, *tail)
+        tail.extend([int(o.get("threat_class", 255)), int(o.get("threat_count", 0))])
+        return Payload._pack_core(o) + struct.pack("!" + "B" + CAND_FMT * MAX_CANDIDATES + THREAT_FMT, *tail)
 
     @staticmethod
     def _pack_core(o):

@@ -137,7 +137,31 @@ def build_state(t, candidates, needs, keys_held, mode="explore", rules=None):
                  "keys_held": ", ".join(keys_held) or "none",
                  "stuck": "yes" if t.get("STUCK") else "no"},
         "needs": {k: needs.get(k, "none") for k in NEEDS},
+        "combat": combat_words(t, rules or {}),
         "targets": targets,
+    }
+
+
+def combat_words(t, rules):
+    """What has been met, in the words the engage and weapon heads weigh.
+
+    The payload names the class; the danger rank comes from knowledge/doom_rules.yaml. Splitting it that
+    way is what lets an experiment move a danger rank without touching a rubric.
+    """
+    count = int(t.get("THREAT_COUNT", t.get("ENEMY_COUNT", 0)) or 0)
+    if not count:
+        return {"threat": "none", "what": "nothing in view", "count": "none", "distance": "none"}
+    cls = t.get("THREAT_CLASS")
+    name = (ENEMY_CLASSES[int(cls)] if isinstance(cls, (int, float)) and 0 <= int(cls) < len(ENEMY_CLASSES)
+            else str(cls or "something"))
+    danger = (rules.get("monsters", {}).get(name, {}) or {}).get("danger", 3)
+    dist = float(t.get("ENEMY_DIST", 0) or 0)
+    return {
+        "threat": ("a straggler" if danger <= 3 else "dangerous" if danger <= 6 else "deadly"),
+        "what": name,
+        "count": "one" if count == 1 else "a couple" if count <= 3 else "a crowd",
+        "distance": ("point blank" if dist < 120 else "close" if dist < 320
+                     else "mid-range" if dist < 700 else "far"),
     }
 
 
@@ -192,6 +216,13 @@ def questions(state, cfg, ask_need=False):
         q = {"type": "score", "criteria": [c.replace("{t}", tid) for c in spec["criteria"]],
              "instructions": {k: v.replace("{t}", tid) for k, v in spec["instructions"].items()}}
         out["g_" + tid] = q
+    if state.get("combat", {}).get("threat", "none") != "none" and "engage" in cfg["questions"]:
+        # only when something has actually been met: a head asked about an empty room is latency for nothing
+        for head in ("engage", "weapon"):
+            spec = cfg["questions"].get(head)
+            if spec:
+                out[head] = {"type": "choice", "criteria": spec["criteria"],
+                             "instructions": dict(spec["instructions"])}
     if ask_need and "need" in cfg["questions"]:
         spec = cfg["questions"]["need"]
         for kind in NEEDS:
@@ -360,6 +391,46 @@ FIRE_NONE, FIRE_ANY_ATTACKER, FIRE_NEAREST, FIRE_TARGET = range(4)
 WEAPON_KEEP = 255
 
 
+ENGAGE_MODE = {"Fight where I stand": ("FIGHT", "hold"),
+               "Fight while moving": ("FIGHT", "advance_strafing"),
+               "Break off and go round": ("EXPLORE", "advance"),
+               "Retreat": ("RETREAT", "retreat")}
+WEAPON_SLOT = {"Fist": 1, "Pistol": 2, "Shotgun": 3, "Chaingun": 4, "RocketLauncher": 5}
+
+
+def engage_backstop(t, cfg):
+    """What to do about a fight when the head was not asked, or its answer cannot be used.
+
+    Exact, and deliberately cautious. It exists because the first executor baseline had no rule here at
+    all: with no danger answer the code fell through to FIGHT every time, the player charged everything
+    it met at a run, and the dev set went from 34 deaths to 142.
+    """
+    th = cfg["thresholds"]
+    hp = int(t.get("HEALTH", 100) or 100)
+    enemies = int(t.get("ENEMY_COUNT", 0) or 0)
+    no_ammo = not int(t.get("SHELLS", 0) or 0) and not int(t.get("BULLETS", 0) or 0)
+    outgunned = hp < int(th["health_critical"]) or (enemies > 2 and hp < int(th["health_low"]))
+    return "Retreat" if (outgunned or no_ammo) else "Fight while moving"
+
+
+def weapon_backstop(t, answer, rules):
+    """The rule that overrules the head: never a splash weapon at point blank, never an empty one."""
+    slot = WEAPON_SLOT.get(answer)
+    dist = float(t.get("ENEMY_DIST", 0) or 0)
+    if slot is None:
+        return best_weapon_slot(t)
+    if slot == 3 and not int(t.get("SHELLS", 0) or 0):
+        slot = 2
+    if slot in (2, 4) and not int(t.get("BULLETS", 0) or 0):
+        slot = 1
+    for name, spec in (rules.get("weapons", {}) or {}).items():
+        if spec.get("slot") == slot and spec.get("splash") and dist and dist < float(
+                (rules.get("behaviour", {}) or {}).get("splash_min_distance", 200)):
+            return 3 if int(t.get("SHELLS", 0) or 0) else 2
+    equipped = {"FIST": 1, "PISTOL": 2, "SHOTGUN": 3, "OTHER": 4}.get(str(t.get("WEAPON", "PISTOL")), 2)
+    return WEAPON_KEEP if slot == equipped else slot
+
+
 def mode_for(t, cand, cfg, danger_level=None):
     """Which mode an intent is in. Every one of these is an exact rule, so none of them is a question.
 
@@ -398,18 +469,24 @@ def best_weapon_slot(t, rules=None):
     return WEAPON_KEEP if want == equipped else want
 
 
-def intent_for(t, state, candidates, pick, cfg, mode=None, danger_level=None, intent_id=0, tic=0):
-    """Everything the INTENT command carries, from the pick and a handful of exact rules."""
+def intent_for(t, state, candidates, pick, cfg, mode=None, danger_level=None, intent_id=0, tic=0,
+               engage=None, weapon_answer=None, rules=None):
+    """Everything the INTENT command carries, from the pick, the engage answer and a few exact rules."""
     sel = cfg["select"]
     cand = candidates[pick] if pick is not None and pick < len(candidates) else None
-    mode = mode or mode_for(t, cand, cfg, danger_level)
     stance = "advance"
-    if mode == "FIGHT":
-        stance = "advance_strafing"
-    elif mode == "RETREAT":
-        stance = "retreat"
-    elif mode == "OPERATE":
-        stance = "hold" if cand is not None and cand["path_units"] < 48 else "advance"
+    if engage in ENGAGE_MODE:
+        mode, stance = ENGAGE_MODE[engage]
+        if mode == "EXPLORE" and cand is not None and cand["kind"] in ("door", "exit", "switch"):
+            mode = "OPERATE" if cand["path_units"] <= float(sel["operate_units"]) else "APPROACH"
+    else:
+        mode = mode or mode_for(t, cand, cfg, danger_level)
+        if mode == "FIGHT":
+            stance = "advance_strafing"
+        elif mode == "RETREAT":
+            stance = "retreat"
+        elif mode == "OPERATE":
+            stance = "hold" if cand is not None and cand["path_units"] < 48 else "advance"
     return {
         "intent_id": int(intent_id) & 0xFFFF,
         "based_on_tic": int(t.get("TIC", tic) or 0),
@@ -420,7 +497,7 @@ def intent_for(t, state, candidates, pick, cfg, mode=None, danger_level=None, in
         "stance": stance,
         "fire_policy": FIRE_NONE if mode == "RETREAT" else FIRE_ANY_ATTACKER,
         "fire_target_id": 255,
-        "weapon": best_weapon_slot(t),
+        "weapon": weapon_backstop(t, weapon_answer, rules or {}) if weapon_answer else best_weapon_slot(t),
         "use_at_target": bool(cand and cand["kind"] in ("door", "exit", "switch")),
         "ttl_ms": int(sel.get("intent_ttl_ms", 1500)),
     }
@@ -446,13 +523,19 @@ def decide(t, candidates, cfg, mem, system_one, rules, n=0, ask_need=False, cach
                 cache.put(sent, qs, reply)
         answers = reply["answers"]
     pick_i, detail = (None, {}) if not qs else pick(answers, state, candidates, cfg, mem)
+    engage = (answers.get("engage") or {}).get("choice")
+    if state.get("combat", {}).get("threat", "none") != "none" and engage not in ENGAGE_MODE:
+        engage = engage_backstop(t, cfg)
+        detail["engage_fallback"] = True
+    detail["engage"] = engage
     if pick_i is None and candidates:
         # no answers at all: still go somewhere, on the rule alone
         rule = {i: rule_score(state["targets"]["t%d" % i]) for i in range(len(candidates))}
         pick_i = max(rule, key=lambda i: (rule[i], -candidates[i]["path_units"]))
         detail = {"fallback": "no answers"}
         mem.commit(candidates[pick_i]["x"], candidates[pick_i]["y"])
-    intent = intent_for(t, state, candidates, pick_i, cfg, intent_id=n, tic=n)
+    intent = intent_for(t, state, candidates, pick_i, cfg, intent_id=n, tic=n, engage=engage,
+                        weapon_answer=(answers.get("weapon") or {}).get("choice"), rules=rules)
     return {"state": state, "sent": sent, "questions": qs, "answers": answers, "reply": reply,
             "pick": pick_i, "detail": detail, "intent": intent, "needs": needs,
             "mode": intent["mode"], "code_only": not qs, "cached": bool(reply.get("cached"))}

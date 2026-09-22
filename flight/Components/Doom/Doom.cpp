@@ -32,7 +32,8 @@ constexpr U16 STATUS_CORE_LEN = 120;  // struct.calcsize of the payload STATUS_F
 constexpr U8 MAX_CANDIDATES = 8;      // charter 3.3: the ground scores at most this many targets
 constexpr U16 CAND_LEN = 15;          // kind U8, x F32, y F32, pathUnits U16, novelty U8, flags U8,
                                       // threatClass U8, threatCount U8
-constexpr U16 STATUS_LEN = STATUS_CORE_LEN + 1 + CAND_LEN * MAX_CANDIDATES;
+constexpr U16 THREAT_LEN = 2;         // threatClass U8, threatCount U8
+constexpr U16 STATUS_LEN = STATUS_CORE_LEN + 1 + CAND_LEN * MAX_CANDIDATES + THREAT_LEN;
 }  // namespace
 
 Doom ::Doom(const char* const compName)
@@ -362,6 +363,8 @@ void Doom ::handleStatus(const U8* body, U16 length) {
             default: this->tlmWrite_CAND7(c); break;
         }
     }
+    this->tlmWrite_THREAT_CLASS(rdU8(p));
+    this->tlmWrite_THREAT_COUNT(rdU8(p));
     this->tlmWrite_INTENT_ID(this->m_lastIntentId);
     this->tlmWrite_WATCHDOG_TRIPS(this->m_watchdogTrips);
     if (level != this->m_lastLevel) {

@@ -355,7 +355,21 @@ class WorldModel:
         return out
 
     # ------------------------------------------------------------------ the candidate list
-    def candidates(self, x, y, angle, now, keys_held=(), need=None, limit=8):
+    def boss_candidates(self, x, y, boss_names, now):
+        """Bosses, once there is nothing else left to try.
+
+        Engine behaviour, not level knowledge: on some maps the way out only opens when the boss-class
+        monsters die, so with the frontiers exhausted and no exit seen, killing them becomes a place to
+        go. knowledge/doom_rules.yaml names the classes; nothing here knows which map it is on.
+        """
+        out = []
+        for rec in self.objects.values():
+            if rec["kind"] == "enemy" and rec["state"] == "alive" and rec["name"] in boss_names:
+                cell = (int(math.floor(rec["x"] / GRID)), int(math.floor(rec["y"] / GRID)))
+                out.append((cell, rec))
+        return out
+
+    def candidates(self, x, y, angle, now, keys_held=(), need=None, limit=8, boss_names=()):
         """Everywhere worth going, nearest-by-path first, pruned to what the ground can score.
 
         Charter 3.3: code builds the list, the model scores it, code picks. Building it here rather than on
@@ -392,6 +406,11 @@ class WorldModel:
             goals.append(cell)
             meta[cell] = (KIND_KEY if rec["kind"] == "key" else KIND_ITEM, 0, rec["kind"], 0)
 
+        # Charter 3.5's boss rule: only when there is nothing else worth walking to.
+        if not goals and boss_names:
+            for cell, rec in self.boss_candidates(x, y, boss_names, now):
+                goals.append(cell)
+                meta[cell] = (KIND_ENEMY, 0, rec["name"], 0)
         if not goals:
             return []
         costs = self.path_costs(x, y, set(goals), now)

@@ -31,6 +31,9 @@ PAYLOAD = open(os.path.join(ROOT, "payload", "doom_payload.py"), encoding="utf-8
 # Channels the flight software produces itself; the payload never packs them.
 FLIGHT_ONLY = {"FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED", "FRAME_CHUNK",
                "INTENT_ID", "WATCHDOG_TRIPS"}
+# Packed after the candidate block rather than as named fields in pack_status, so they are checked by
+# shape with it rather than by name.
+TAIL_CHANNELS = {"THREAT_CLASS", "THREAT_COUNT"}
 # The candidate targets ride in their own block rather than as named fields, so they are checked by shape
 # (below) rather than by name.
 CAND_CHANNELS = {"CAND%d" % i for i in range(8)}
@@ -49,7 +52,8 @@ def packed_keys():
 
 class TestTheBenchSpeaksTheSameLanguageAsFlight(unittest.TestCase):
     def test_every_packed_field_becomes_the_channel_the_flight_software_declares(self):
-        declared = [c for c in fpp_channels() if c not in FLIGHT_ONLY and c not in CAND_CHANNELS]
+        declared = [c for c in fpp_channels()
+                    if c not in FLIGHT_ONLY and c not in CAND_CHANNELS and c not in TAIL_CHANNELS]
         mapped = [runner.RENAME.get(k, k.upper()) for k in packed_keys()]
         self.assertEqual(sorted(mapped), sorted(declared),
                          "the bench's channel names have drifted from Doom.fpp")
@@ -71,6 +75,9 @@ class TestTheBenchSpeaksTheSameLanguageAsFlight(unittest.TestCase):
         self.assertEqual(re.search(r'CAND_FMT = "(\w+)"', PAYLOAD).group(1), "BffHBBBB")
         core = int(re.search(r"STATUS_CORE_LEN = (\d+)", cpp).group(1))
         self.assertEqual(core, 120, "the pre-charter part of the status changed size")
+        # and the two bytes after the candidates: what is threatening the player
+        self.assertEqual(int(re.search(r"THREAT_LEN = (\d+)", cpp).group(1)), 2)
+        self.assertEqual(re.search(r'THREAT_FMT = "(\w+)"', PAYLOAD).group(1), "BB")
 
     def test_the_intent_command_matches_the_payload_struct(self):
         cpp = open(os.path.join(ROOT, "flight", "Components", "Doom", "Doom.cpp"), encoding="utf-8").read()

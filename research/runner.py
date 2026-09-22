@@ -121,7 +121,8 @@ def jev_decider(cfg, env_files):
 # flight numbers diverge for a reason that has nothing to do with the pilot -- charter 6.3 step 7 calls
 # that a harness bug, and tests/test_runner.py pins it against Doom.fpp.
 RENAME = {"x": "POS_X", "y": "POS_Y", "health_item": "HEALTH_ITEM_DIST", "ammo_item": "AMMO_ITEM_DIST",
-          "armor_item": "ARMOR_ITEM_DIST", "explored": "EXPLORED_CELLS", "cand_count": "CAND_COUNT"}
+          "armor_item": "ARMOR_ITEM_DIST", "explored": "EXPLORED_CELLS", "cand_count": "CAND_COUNT",
+          "threat_class": "THREAT_CLASS", "threat_count": "THREAT_COUNT"}
 BOOLS = {"own_shotgun", "stuck", "door_ahead", "dead", "level_done", "hint_active"}
 AHEAD_KIND = ["NOTHING", "WALL", "DOOR", "EXIT", "LOCKED", "BARRIER", "THING"]
 WEAPON = ["FIST", "PISTOL", "SHOTGUN", "OTHER"]

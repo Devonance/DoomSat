@@ -25,3 +25,6 @@ Initial graph: one Score per open sector, one danger Score, one goal Choice; eve
 
 ## v2 (defaults)
 Initial graph: one Score per open sector, one danger Score, one goal Choice; every exact rule in code.
+
+## v3 (defaults)
+Initial graph: one Score per open sector, one danger Score, one goal Choice; every exact rule in code.

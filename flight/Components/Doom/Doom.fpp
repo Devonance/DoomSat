@@ -250,6 +250,11 @@ module DoomMission {
         telemetry INTENT_ID: U16 id 79 @< the intent the executor is currently carrying out
         telemetry WATCHDOG_TRIPS: U16 id 80 @< times an invariant had to pull the player out of a freeze
 
+        @ What is threatening the player right now (charter 4, the engage head). The class is a fact;
+        @ how dangerous it is comes from the knowledge file on the ground.
+        telemetry THREAT_CLASS: U8 id 81 @< worst visible monster class by index; 255 = nothing in view
+        telemetry THREAT_COUNT: U8 id 82 @< how many are in view
+
         # ----------------------------------------------------------------------
         # Events
         # ----------------------------------------------------------------------

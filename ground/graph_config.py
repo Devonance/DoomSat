@@ -134,6 +134,42 @@ DEFAULT = {
                 "the obvious move: close or the nearest of them, a lot of unseen ground behind it, and nothing near it worth avoiding",
                 "the way on: an untried door or a key the player is missing, and what `targets.{t}.threat` says is standing there is worth facing with the health and ammunition in `here`",
                 "the way out: the level exit, and nothing between here and it that `here.health` and `here.ammunition` could not survive"]},
+        # Charter 3.3 and 4. The charter's own example of a question worth asking: "three imps and a
+        # sergeant between me and the only frontier, 38 health, 12 shells, armor behind me. Fight, detour
+        # or retreat?" No field settles that, and the exact rule underneath it (retreat when health is
+        # critical or the ammunition is gone) is a backstop, not an answer -- it was written in a hurry
+        # after the first executor baseline charged everything it met and died 142 times.
+        "engage": {
+            "type": "choice",
+            "instructions": {
+                "question": "The player has met something. What should it do about it?",
+                "inspect": "`combat`, `here`, `targets`"},
+            "criteria": {
+                "Fight where I stand": {
+                    "what": "`combat.threat` is worth the ammunition and `here.health` can take the trade, "
+                            "and there is room to shoot from"},
+                "Fight while moving": {
+                    "what": "worth fighting but standing still is the danger: `combat.distance` is close, "
+                            "or `combat.count` is more than one"},
+                "Break off and go round": {
+                    "what": "the fight is not the point: `targets` has somewhere to be and `combat.threat` "
+                            "is avoidable at `combat.distance`"},
+                "Retreat": {
+                    "what": "`here.health` is critical or low against a threat that is dangerous or deadly, "
+                            "or `here.ammunition` is empty or scarce with more than one of them",
+                    "examples": ["health critical, two imps close, shotgun empty"]}}},
+        "weapon": {
+            "type": "choice",
+            "instructions": {
+                "question": "Which weapon suits this fight?",
+                "inspect": "`combat`, `here.ammunition`"},
+            "criteria": {
+                "Shotgun": {"what": "`combat.distance` close or mid-range and shells are in hand: the pellets "
+                                    "all land"},
+                "Chaingun": {"what": "`combat.distance` far, or several of them, and bullets are in hand: the "
+                                     "stagger is worth more than the damage"},
+                "Pistol": {"what": "nothing better is loaded"},
+                "Fist": {"what": "`combat.distance` is point blank and nothing is loaded at all"}}},
         "need": {
             "type": "score",
             "instructions": {

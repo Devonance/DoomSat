@@ -341,3 +341,92 @@ class TestDeterminismWithinARun(unittest.TestCase):
         self.run_once(cands)
         self.run_once(cands)
         self.assertEqual(self.one.calls, 2)
+
+
+class TestTheCombatHeads(unittest.TestCase):
+    """Charter 4. The charter's own example of a question worth asking: "three imps and a sergeant
+    between me and the only frontier, 38 health, 12 shells, armor behind me." No field settles that."""
+
+    def setUp(self):
+        self.cfg = gc.load()
+
+    def met(self, **kw):
+        t = {"HEALTH": 70, "SHELLS": 8, "BULLETS": 40, "ENEMY_COUNT": 2, "ENEMY_DIST": 250,
+             "THREAT_CLASS": 3, "THREAT_COUNT": 2}       # DoomImp
+        t.update(kw)
+        return t
+
+    def test_an_empty_room_has_no_combat_words_and_asks_nothing(self):
+        t = {"HEALTH": 90, "ENEMY_COUNT": 0, "THREAT_COUNT": 0}
+        state = tg.build_state(t, [cand()], tg.needs_from(t, RULES), [], rules=RULES)
+        self.assertEqual(state["combat"]["threat"], "none")
+        qs = tg.questions(state, self.cfg)
+        self.assertNotIn("engage", qs, "a head asked about an empty room is latency for nothing")
+        self.assertNotIn("weapon", qs)
+
+    def test_meeting_something_asks_both_heads_in_the_same_call(self):
+        t = self.met()
+        state = tg.build_state(t, [cand()], tg.needs_from(t, RULES), [], rules=RULES)
+        qs = tg.questions(state, self.cfg)
+        self.assertIn("engage", qs)
+        self.assertIn("weapon", qs)
+        self.assertEqual(qs["engage"]["type"], "choice")
+
+    def test_the_combat_words_name_the_class_and_rank_it_from_the_knowledge_file(self):
+        t = self.met(THREAT_CLASS=8, THREAT_COUNT=1)      # BaronOfHell
+        c = tg.combat_words(t, RULES)
+        self.assertEqual(c["what"], "BaronOfHell")
+        self.assertEqual(c["threat"], "deadly")
+        self.assertEqual(c["count"], "one")
+        self.assertEqual(c["distance"], "close")
+
+    def test_an_engage_answer_sets_the_mode_and_the_stance(self):
+        t = self.met()
+        state = tg.build_state(t, [cand()], tg.needs_from(t, RULES), [], rules=RULES)
+        for answer, (mode, stance) in tg.ENGAGE_MODE.items():
+            it = tg.intent_for(t, state, [cand()], 0, self.cfg, engage=answer, rules=RULES)
+            if answer == "Break off and go round":
+                self.assertIn(it["mode"], ("EXPLORE", "APPROACH", "OPERATE"))
+            else:
+                self.assertEqual(it["mode"], mode)
+            self.assertEqual(it["stance"], stance)
+
+    def test_the_backstop_answers_when_the_head_did_not(self):
+        self.assertEqual(tg.engage_backstop(self.met(HEALTH=20), self.cfg), "Retreat")
+        self.assertEqual(tg.engage_backstop(self.met(SHELLS=0, BULLETS=0), self.cfg), "Retreat")
+        self.assertEqual(tg.engage_backstop(self.met(HEALTH=40, ENEMY_COUNT=4), self.cfg), "Retreat")
+        self.assertEqual(tg.engage_backstop(self.met(), self.cfg), "Fight while moving")
+
+    def test_the_weapon_rule_overrules_the_head_on_an_empty_gun(self):
+        # holding the shotgun, out of shells: drop to the pistol
+        self.assertEqual(tg.weapon_backstop(self.met(SHELLS=0, WEAPON="SHOTGUN"), "Shotgun", RULES), 2)
+        # holding the pistol with nothing loaded at all: the fist is the only thing left
+        self.assertEqual(tg.weapon_backstop(self.met(SHELLS=0, BULLETS=0, WEAPON="PISTOL"),
+                                            "Chaingun", RULES), 1)
+
+    def test_it_keeps_what_is_already_in_hand_rather_than_re_selecting_every_tick(self):
+        """Selecting a weapon holds the select button, which is a tick not spent shooting."""
+        self.assertEqual(tg.weapon_backstop(self.met(WEAPON="SHOTGUN"), "Shotgun", RULES), tg.WEAPON_KEEP)
+
+    def test_it_never_fires_a_splash_weapon_at_point_blank(self):
+        rules = {"weapons": {"RocketLauncher": {"slot": 5, "splash": True}},
+                 "behaviour": {"splash_min_distance": 200}}
+        close = tg.weapon_backstop(self.met(ENEMY_DIST=80), "RocketLauncher", rules)
+        self.assertNotEqual(close, 5, "a rocket at point blank kills the player who fired it")
+        far = tg.weapon_backstop(self.met(ENEMY_DIST=900), "RocketLauncher", rules)
+        self.assertEqual(far, 5)
+
+    def test_an_unusable_answer_falls_through_to_the_rule_rather_than_being_ignored(self):
+        t = self.met(HEALTH=15)
+        state = tg.build_state(t, [cand()], tg.needs_from(t, RULES), [], rules=RULES)
+        one = TestDeterminismWithinARun.Counter()
+
+        class Nonsense(one.__class__):
+            def ask(self, state, questions):
+                out = super().ask(state, questions)
+                out["answers"]["engage"] = {"type": "choice", "choice": "Do a little dance"}
+                return out
+
+        d = tg.decide(t, [cand()], self.cfg, tg.TargetMemory(self.cfg), Nonsense(), RULES, 0)
+        self.assertTrue(d["detail"].get("engage_fallback"))
+        self.assertEqual(d["intent"]["mode"], "RETREAT")
