@@ -101,20 +101,20 @@ moment-to-moment controls from words only; every number is bucketed before it se
 
 ## Status
 
-Whole path works end to end and the player now explores on its own: jev answers every ~0.6 s
-(371-377 decisions per 5-minute run), Sonnet plans 7-10 times per run, frames arrive at ~10 fps.
-Things that had to be learned the hard way (all fixed):
+Whole path works end to end and the split is as intended. Latest 6-minute run (graph v2 -> v3):
 
-- Yamcs delivers F´ booleans as the enumerated strings "True"/"False"; the pilot must normalise
-  them or "stuck: False" reads as stuck.
-- The Yamcs WebSocket subscription drops after a few minutes; the pilot detects stale telemetry
-  and resubscribes.
-- A held turn rate over-rotates when the ground loop takes ~0.6 s per decision; `CONTROL.turn`
-  is degrees to turn, executed onboard as a heading setpoint (ViZDoom turn delta = degrees per
-  tic for values 2..16). Because jev's answer lands ~0.6 s after the observation, the pilot
-  compensates the bearings for a turn still in flight.
-- Frame uploads and ground-parameter writes must not share the command client's HTTP session,
-  or command issue latency climbs from 50 ms to seconds.
+| | |
+|---|---|
+| jev decisions | 630 (1.75/s), median 460 ms incl. the Yamcs hop; command issue 48 ms |
+| player | explored x -224..672, y -304..240, ~37k units walked, stuck on 6 ticks of 630 |
+| System Two | 1 after-action review at run end, Sonnet only, 114 s, $0.34; graph v3 |
+| frames | ~10 fps, 1 incomplete |
 
-Open: the frontier explorer still dithers when its target is behind it; Open MCT (built from
-master) loads and connects to Yamcs but headless Chrome will not paint it for screenshots.
+Open: the level exit has not been reached yet (the explorer still stalls at some walls; that is
+what the after-action reviews are now tuning), and Open MCT (built from master) loads and connects
+to Yamcs but headless Chrome will not paint it for screenshots.
+
+Things learned the hard way (all fixed): Yamcs delivers F´ booleans as the strings "True"/"False";
+the Yamcs WebSocket subscription drops after a few minutes; a held turn rate over-rotates with a
+0.6 s decision loop (turn is now an onboard heading setpoint, and the pilot compensates bearings for
+a turn still in flight); frame uploads must not share the command client's HTTP session.
