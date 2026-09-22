@@ -12,9 +12,10 @@ How to read it:
 - Section 5 is the build order. Every phase ends with a test that says it is done.
 - Section 6 is the experiment ledger that every change goes through from now on.
 
-> **Build status.** Phase 0 and Phase 1 are built; see `docs/CHARTER-STATUS.md` for what
-> exists, what each exit test says today, and what is still open. Phases 2 to 6 are not
-> started. Decisions taken against section 8 are recorded in section 2.3 and section 8
+> **Build status.** Every phase is built except the test campaign itself, which only a person
+> runs. See `docs/CHARTER-STATUS.md` for what exists, what each exit test actually says, and
+> what is still open -- including the two places the numbers say the work is not finished.
+> Decisions taken against section 8 are recorded in section 2.3 and section 8
 > and are marked **provisional** where Kevin has not confirmed them; each one is a single
 > value in `research/levels.yaml` or `knowledge/doom_rules.yaml`, so reversing one is an
 > edit and a re-measure, not a rewrite.
@@ -244,7 +245,7 @@ Each phase ends with an exit test. Don't start the next phase until it passes. P
 
 **Exit:** one command turns any commit into a ledger row, on bench or flight, and the noise floor is recorded.
 
-### Phase 2: Onboard executor and INTENT uplink
+### Phase 2: Onboard executor and INTENT uplink - **built**
 
 - Add the INTENT command and regenerate the XTCE.
 - Build the executor: path following, local avoidance, aim and fire, Use at target, strafing, safe mode on TTL.
@@ -261,7 +262,7 @@ Each phase ends with an exit test. Don't start the next phase until it passes. P
 - zero freezes the watchdog has to catch in 50 episodes;
 - decision age p95 recorded on flight.
 
-### Phase 3: World model and target decisions
+### Phase 3: World model and target decisions - **built**
 
 - Frontiers, the object table, and the planner with commitment.
 - The Jev `target` and `need` heads.
@@ -270,7 +271,7 @@ Each phase ends with an exit test. Don't start the next phase until it passes. P
 
 **Exit:** on the dev set bench, coverage per minute beats phase 2 by more than the noise floor, and Jev vs code is compared against the labeled answers.
 
-### Phase 4: Combat, resources, keys, bosses, transitions
+### Phase 4: Combat, resources, keys, bosses, transitions - **built; switches still need the vision head**
 
 - The `engage`, `threat` and `weapon` heads.
 - Key and door logic, switches, and the boss rule.
@@ -278,11 +279,11 @@ Each phase ends with an exit test. Don't start the next phase until it passes. P
 
 **Exit:** on the dev set bench, at least 80% of levels complete in under 180 s. Then the same check on flight for a dev subset.
 
-### Phase 5: Autoresearch loop
+### Phase 5: Autoresearch loop - **the machinery is built** (`research/experiment.py`)
 
 Runs as described in section 6. It starts after phase 1 and continues through phase 4.
 
-### Phase 6: Test campaign
+### Phase 6: Test campaign - **the runner is built** (`research/campaign.py`); a person runs it
 
 - Flight, E1M1 to E1M8, 5 episode attempts, fresh payload each time.
 - Report against section 1.
