@@ -23,6 +23,16 @@
   "Turn around": 150
  },
  "questions": {
+  "steer": {
+   "question": "Which way now? The map's route goes {route_where}. Space ahead: {ahead}, left: {left}, right: {right}, behind: {behind}. Stuck: {stuck}.",
+   "criteria": {
+    "Follow route": "Stuck is no and the space in the route's direction is clear or tight: keep following the route.",
+    "Left": "The route's way is blocked or stuck is yes, and space left is clear: turn left and go that way.",
+    "Right": "The route's way is blocked or stuck is yes, left is not clear, and space right is clear: turn right and go that way.",
+    "Back": "The route's way is blocked or stuck is yes, neither side is clear, and space behind is clear: back out.",
+    "Turn around": "Blocked or stuck with nothing known clear on any side: turn around and look."
+   }
+  },
   "dodge": {
    "question": "Sidestep away from an enemy? Threat: {threat} ({enemy_where}). Space left: {left}, right: {right}, behind: {behind}.",
    "criteria": {

@@ -8,7 +8,7 @@ the graph config, which System Two revises between episodes.
 """
 
 GOALS = ["EXPLORE", "KILL_ENEMY", "STOCK_AMMO", "RESTORE_HEALTH", "ADD_ARMOR", "UPGRADE_WEAPON", "SCOUT", "HOLD"]
-CONTROL_HEADS = ("dodge", "move", "strafe", "turn", "fire", "weapon", "use")
+CONTROL_HEADS = ("steer", "dodge", "move", "strafe", "turn", "fire", "weapon", "use")
 GOAL_FROM_CHOICE = {"Kill enemies": "KILL_ENEMY", "Restore health": "RESTORE_HEALTH", "Stock ammo": "STOCK_AMMO",
                     "Add armor": "ADD_ARMOR", "Explore": "EXPLORE", "Scout": "SCOUT", "Upgrade weapon": "UPGRADE_WEAPON"}
 DESTINATION = {"FRONTIER": "the nearest unexplored edge of the map", "FAR_FRONTIER": "a far unexplored part of the map",
@@ -51,6 +51,15 @@ def bearing_words(b):
     return "behind"
 
 
+def route_words(b):
+    a = abs(b)
+    if a <= 30:
+        return "straight ahead"
+    if a <= 120:
+        return "to the left" if b > 0 else "to the right"
+    return "behind"
+
+
 def facts(t, goal, cfg):
     """Every word a question may use, computed once from the telemetry and the config thresholds."""
     th = cfg["thresholds"]
@@ -86,6 +95,8 @@ def facts(t, goal, cfg):
         "health_pickup": pick("HEALTH_ITEM_DIST"), "ammo_pickup": pick("AMMO_ITEM_DIST"), "armor_pickup": pick("ARMOR_ITEM_DIST"),
         "frontiers": "none" if t.get("FRONTIERS", 0) == 0 else "few" if t.get("FRONTIERS", 0) < 10 else "many",
         "mode": MODE.get(str(t.get("NAV_MODE", "EXPLORE")), "exploring"),
+        "route_where": route_words(t.get("ROUTE_BEARING", 0.0)) if t.get("TARGET_KIND", "NONE") != "NONE" else "nowhere (nothing known to head for)",
+        "route_far": dist_words(t.get("ROUTE_DIST", 0)),
         "level": str(t.get("LEVEL", 1)),
         "keys": keys_words(t.get("KEYS", 0)),
         "explored": "few" if t.get("EXPLORED_CELLS", 0) < 40 else "some" if t.get("EXPLORED_CELLS", 0) < 150 else "many",
@@ -124,8 +135,9 @@ def control_questions(t, goal, cfg):
     f = facts(t, goal, cfg)
     stuck = f["stuck_bool"]
     heads = {
+        "steer": _render(cfg, "steer", f),
         "dodge": _render(cfg, "dodge", f),
-        "move": _render(cfg, "move", f, ["Forward", "Hold"] + (["Backward"] if stuck and f["behind"] == "clear" else [])),
+        "move": _render(cfg, "move", f, ["Forward", "Hold"] + (["Backward"] if f["behind"] == "clear" else [])),
         "turn": _render(cfg, "turn", f),
         "fire": _render(cfg, "fire", f),
         "weapon": _render(cfg, "weapon", f),
@@ -151,5 +163,15 @@ def control_args(answers, cfg):
     move = 1 if a.get("move") == "Forward" else -1 if a.get("move") == "Backward" or a.get("dodge") == "Dodge back" else 0
     strafe = -1 if sideways in ("Dodge left", "Strafe left") else 1 if sideways in ("Dodge right", "Strafe right") else 0
     weapon = {"Pistol": "PISTOL", "Shotgun": "SHOTGUN"}.get(a.get("weapon"), "FIST")
-    return {"move": move, "strafe": strafe, "turn": float(cfg["turn_deg"].get(a.get("turn", "Hold"), 0.0)),
+    turn = float(cfg["turn_deg"].get(a.get("turn", "Hold"), 0.0))
+    steer = a.get("steer", "Follow route")
+    if steer == "Left":          # jev picked a way of its own: turn there now, walk next tick
+        turn, move = 90.0, 0
+    elif steer == "Right":
+        turn, move = -90.0, 0
+    elif steer == "Back":
+        turn, move = 0.0, -1
+    elif steer == "Turn around":
+        turn, move = 150.0, 0
+    return {"move": move, "strafe": strafe, "turn": turn,
             "fire": a.get("fire") == "Fire", "use": a.get("use") == "Use", "weapon": weapon}

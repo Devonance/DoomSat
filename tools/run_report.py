@@ -29,6 +29,9 @@ if raw:
 hp = [r["health"] for r in ctrl if r.get("health") is not None]
 if hp:
     print(f"  health: start {hp[0]} min {min(hp)} end {hp[-1]}")
+bumps = [r for r in rows if r.get("kind") == "system_two_hint"]
+if bumps:
+    print(f"  System Two bumps: {len(bumps)} (median {sorted(b['latency_ms'] for b in bumps)[len(bumps) // 2]} ms): " + "; ".join(f"{b['bearing_deg']} deg/{b['ttl']} s" for b in bumps[-6:]))
 levels = [r for r in rows if r.get("kind") == "level"]
 episodes = sorted({r.get("episode") for r in ctrl if r.get("episode") is not None})
 print(f"  levels finished: {len(levels)} " + ", ".join(f"level {r['finished']} after {r['controls']} decisions" for r in levels) + f"; episodes played: {len(episodes)}")

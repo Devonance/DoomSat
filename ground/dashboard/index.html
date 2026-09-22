@@ -75,14 +75,14 @@
       <div id="controls">&ndash;</div>
     </section>
     <section class="panel">
-      <h2>System Two: Claude Sonnet 5 &mdash; after-action review, revises the decision graph <span id="s2lat" style="float:right"></span></h2>
+      <h2>System Two: Claude Sonnet 5 &mdash; bumps a stalled walk, reviews after each episode <span id="s2lat" style="float:right"></span></h2>
       <div id="plan">&ndash;</div>
     </section>
   </div>
   <div id="bottom">
     <section class="panel"><h2>F&acute; events (Yamcs event archive)</h2><div id="events"></div></section>
     <section class="panel"><h2>Commands (Yamcs command archive)</h2><div id="cmds"></div></section>
-    <section class="panel"><h2>Onboard map the navigator built (payload diagnostic image)</h2><img id="map" alt="onboard map"></section>
+    <section class="panel"><h2>Map product: the navigator's map, downlinked like the frames</h2><img id="map" alt="onboard map"></section>
   </div>
 </main>
 <script>
@@ -90,7 +90,7 @@ const SS = "/DoomSat_DoomSat/DoomSat/doom/", G = "/DoomGround/";
 const TLM = ["HEALTH","ARMOR","SHELLS","BULLETS","WEAPON","KILLS","POS_X","POS_Y","ANGLE","ENEMY_COUNT","ENEMY_DIST","CLEAR_FWD",
   "ROUTE_BEARING","TARGET_KIND","TARGET_DIST","STUCK","DOOR_AHEAD","GOAL","TIC","EPISODE","LEVEL","KEYS","NAV_MODE","DOORS_KNOWN",
   "HUNT_LEFT","FRONTIERS","FRAMES_SENT"];
-const GND = ["DoomFrame","FrameSeq","FramesComplete","FramesIncomplete","SystemOneLatencyMs","ControlCommands","Controls","Plan","SystemTwoLatencyMs"];
+const GND = ["DoomFrame","DoomMap","SystemTwoHint","FrameSeq","FramesComplete","FramesIncomplete","SystemOneLatencyMs","ControlCommands","Controls","Plan","SystemTwoLatencyMs"];
 const MODE = {EXPLORE:"exploring toward a frontier", DOOR:"at a door, pressing Use", KEY:"fetching a key", HUNT:"trying walls and switches",
   IDLE:"nothing to head for", ITEM:"fetching a pickup", ENEMY:"closing on an enemy", EXIT:"heading for the exit line"};
 const $ = id => document.getElementById(id);
@@ -116,9 +116,12 @@ async function poll() {
     $("episode").textContent = `episode ${v.EPISODE ?? "-"}  |  ${v.STUCK === "True" ? "STUCK" : ""}`;
     $("s1lat").textContent = v.SystemOneLatencyMs ? `${Math.round(v.SystemOneLatencyMs)} ms per decision, ${v.ControlCommands} commands` : "";
     $("controls").textContent = v.Controls ? String(v.Controls).replace(/ (?=\w+=)/g, "\n") : "-";
-    $("plan").textContent = v.Plan || "no review yet (first episode)";
+    $("plan").textContent = (v.SystemTwoHint ? "Latest bump: " + v.SystemTwoHint + "
+
+" : "") + (v.Plan || "no after-action review yet (first episode)");
     $("s2lat").textContent = v.SystemTwoLatencyMs ? `${(v.SystemTwoLatencyMs / 1000).toFixed(0)} s review` : "";
     if (v.DoomFrame && v.DoomFrame !== lastFrame) { lastFrame = v.DoomFrame; $("frame").src = v.DoomFrame.replace(/^https?:\/\/[^/]+/, ""); }
+    if (v.DoomMap) window.lastMap = v.DoomMap;
     $("frameinfo").textContent = `frame ${v.FrameSeq ?? "-"}  complete ${v.FramesComplete ?? "-"}  lost ${v.FramesIncomplete ?? "-"}`;
   } catch (e) { console.log(e); }
 }
@@ -133,7 +136,7 @@ async function pollArchive() {
       const args = (c.assignments || []).filter(a => a.userInput).map(a => `${a.name}=${val({engValue: a.value})}`).join(" ");
       return `${new Date(Number(c.commandId.generationTime)).toISOString().substr(11, 8)} ${c.commandId.commandName.split("/").pop().padEnd(9)} ${args}`;
     }).join("\n");
-    $("map").src = "/out/payload_map.png?" + Date.now();
+    if (window.lastMap) $("map").src = window.lastMap.replace(/^https?:\/\/[^/]+/, "");
   } catch (e) { console.log(e); }
 }
 setInterval(poll, 250); setInterval(pollArchive, 1000); poll(); pollArchive();

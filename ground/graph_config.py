@@ -19,6 +19,14 @@ DEFAULT = {
     },
     "turn_deg": {"Hard left": 60, "Left": 25, "Fine left": 8, "Hold": 0, "Fine right": -8, "Right": -25, "Hard right": -60, "Turn around": 150},
     "questions": {
+        "steer": {
+            "question": "Which way now? The map's route goes {route_where}. Space ahead: {ahead}, left: {left}, right: {right}, behind: {behind}. Stuck: {stuck}.",
+            "criteria": {
+                "Follow route": "Stuck is no and the space in the route's direction is clear or tight: keep following the route.",
+                "Left": "The route's way is blocked or stuck is yes, and space left is clear: turn left and go that way.",
+                "Right": "The route's way is blocked or stuck is yes, left is not clear, and space right is clear: turn right and go that way.",
+                "Back": "The route's way is blocked or stuck is yes, neither side is clear, and space behind is clear: back out.",
+                "Turn around": "Blocked or stuck with nothing known clear on any side: turn around and look."}},
         "dodge": {
             "question": "Sidestep away from an enemy? Threat: {threat} ({enemy_where}). Space left: {left}, right: {right}, behind: {behind}.",
             "criteria": {
@@ -78,7 +86,7 @@ DEFAULT = {
 FACT_KEYS = ["threat", "enemy_where", "left", "right", "behind", "ahead", "aligned", "stuck", "blocked_route", "aim_target",
              "aim", "in_crosshair", "equipped_ammo", "equipped", "shells", "bullets", "owns_shotgun", "health", "ammo",
              "armor", "destination", "dest_dist", "health_pickup", "ammo_pickup", "armor_pickup", "frontiers", "explored",
-             "mode", "level", "keys"]
+             "mode", "level", "keys", "route_where", "route_far"]
 
 THRESHOLD_RANGES = {"aligned_deg": (10, 80), "crosshair_deg": (3, 20), "fire_range": (100, 1200), "danger_dist": (60, 500),
                     "blocked_units": (20, 120), "tight_units": (40, 200), "health_critical": (10, 60), "health_low": (20, 80)}

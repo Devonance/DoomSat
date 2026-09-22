@@ -145,7 +145,7 @@ class Explorer:
         self.ux = (np.arange(AM_W) - AM_CX) / AM_SCALE          # automap column -> x offset from the player (units)
         self.vy = -(np.arange(AM_H) - AM_CY) / AM_SCALE         # automap row -> y offset (map y is up)
         self.free = set()
-        self.visited = set()
+        self.visited = {}      # cell -> tics the player has stood in it (the walk, remembered)
         self.items = {}        # (kind, rounded x, rounded y) -> {"kind", "name", "x", "y", "seen"}
         self.keys = set()      # colours of keys picked up
         self.edge_fail = {}    # edge -> [fails, blocked_until]
@@ -209,7 +209,7 @@ class Explorer:
         free floor the player can see."""
         here = self.cell(x, y)
         self.free.add(here)
-        self.visited.add(here)
+        self.visited[here] = self.visited.get(here, 0) + 1
         w = len(depth_row)
         for col in range(0, w, 16):
             rel = math.degrees(math.atan((0.5 - col / (w - 1)) * 2 * math.tan(math.radians(FOV / 2))))
@@ -381,7 +381,7 @@ class Explorer:
                     if extra is None:
                         continue
                     step = 1.0 + extra
-                nd = d0 + step + (1.5 if nearwall[nj, ni] else 0.0)
+                nd = d0 + step + (1.5 if nearwall[nj, ni] else 0.0) + min(2.0, self.visited.get((cx0 + ni, cy0 + nj), 0) / 70.0)
                 if (j, i) == (pj, pi) and self.prev_step == (cx0 + ni, cy0 + nj):
                     nd -= 0.4
                 if nd < dist[nj, ni]:
@@ -557,9 +557,10 @@ class Explorer:
         for c in self.free:
             a, b = px(c)
             d.rectangle((a, b, a + S - 1, b + S - 1), fill=(64, 64, 72))
-        for c in self.visited:
+        for c, n in self.visited.items():
             a, b = px(c)
-            d.rectangle((a + 2, b + 2, a + S - 3, b + S - 3), fill=(40, 110, 60))
+            g = min(255, 90 + n)
+            d.rectangle((a + 2, b + 2, a + S - 3, b + S - 3), fill=(40, g, 60))
         for _, c in p["frontier"]:
             a, b = px(c)
             d.rectangle((a + 1, b + 1, a + S - 2, b + S - 2), outline=(230, 190, 40))
@@ -606,6 +607,8 @@ class Payload:
         self.target, self.target_kind, self.target_since, self.spot = None, "none", 0, None
         self.door, self.door_presses, self.spot_presses = None, 0, 0
         self.blocked_tics = 0
+        self.wp, self.wp_tic = None, 0   # the committed waypoint: held for a while so routes do not flip-flop
+        self.map_png_bytes, self.map_seq = None, 0
         self.use_pending = False
         self.turn_remaining = 0.0
         self.carry = None
@@ -695,6 +698,16 @@ class Payload:
                 best = dist if best is None else min(best, dist)
         return 2000 if best is None else int(best)
 
+    def map_clearance(self, x, y, heading):
+        """Space in a direction the camera cannot see, from the map: 0 if a wall/barrier is in the way within 1.5 cells,
+        24 (unknown) if the cell there was never seen, else 72 (known free)."""
+        ex = self.explorer
+        a = math.radians(heading)
+        far = (x + 1.5 * GRID * math.cos(a), y + 1.5 * GRID * math.sin(a))
+        if not ex.segment_clear((x, y), far, allow=(NONE, STEP)):
+            return 0
+        return 2 * GRID + 8 if ex.cell(*far) in ex.free else 24
+
     def choose_target(self, x, y, enemies, now, tic):
         """What to head for, from what has been seen: exit line > key > goal item/enemy > frontier > wall to try."""
         ex = self.explorer
@@ -713,7 +726,7 @@ class Payload:
         # 2. a key seen and not yet held
         key = ex.nearest_item(x, y, "key")
         if key and ex.reach_cost_near((key[1]["x"], key[1]["y"])) is not None:
-            if kind != "key":
+            if kind != "key" or cur is None:
                 self.set_target((key[1]["x"], key[1]["y"]), "key", tic)
             return self.target, "key", "key"
         # 3. the ground's goal: an enemy or a remembered pickup
@@ -724,7 +737,7 @@ class Payload:
         if self.goal in GOAL_KIND:
             found = ex.nearest_item(x, y, GOAL_KIND[self.goal])
             if found and ex.reach_cost_near((found[1]["x"], found[1]["y"])) is not None:
-                if kind != GOAL_KIND[self.goal]:
+                if kind != GOAL_KIND[self.goal] or cur is None:
                     self.set_target((found[1]["x"], found[1]["y"]), GOAL_KIND[self.goal], tic)
                 return self.target, GOAL_KIND[self.goal], "item"
         if self.goal == "HOLD":
@@ -810,6 +823,11 @@ class Payload:
             else:
                 wp = target
                 route_dist = int(target_dist)
+            # commit to a waypoint for a while: replace it only when reached, blocked, stale, or nearly the same direction
+            if self.wp is not None and state.tic - self.wp_tic < 50 and math.hypot(self.wp[0] - x, self.wp[1] - y) > 24                     and ex.segment_clear((x, y), self.wp) and abs(bearing_deg(x, y, angle, *wp) - bearing_deg(x, y, angle, *self.wp)) > 30:
+                wp = self.wp
+            else:
+                self.wp, self.wp_tic = wp, state.tic
             route_bearing = bearing_deg(x, y, angle, *wp)
             wp_dist = math.hypot(wp[0] - x, wp[1] - y)
             door = ex.first_door(cells) if cells else None
@@ -839,6 +857,7 @@ class Payload:
             pa = angle + push
             ex.hard_barrier(x + 22 * math.cos(math.radians(pa)), y + 22 * math.sin(math.radians(pa)), now, pa)
             print(f"[payload] stuck pushing at ({x:.0f},{y:.0f}) toward {pa % 360:.0f} deg: barrier there, route edge dropped", flush=True)
+            self.target_kind = "none"
             if mv > 0 and cells and len(cells) > 1:
                 a, b = cells[0], cells[1]
                 dx, dy = b[0] - a[0], b[1] - a[1]
@@ -859,10 +878,10 @@ class Payload:
                 if not (dx and dy):
                     ex.fail_edge(ex.edge_key(a, 0 if dx > 0 else 1 if dy > 0 else 2 if dx < 0 else 3), 60.0)
             print(f"[payload] route blocked by something the map does not show near {ex.cell(x, y)}; routing around", flush=True)
-            self.blocked_tics, self.target, ex.plan = 0, None, None
-        clear_left = self.sector_clearance(near_row, 25, 45)
-        clear_right = self.sector_clearance(near_row, -45, -25)
-        clear_back = 2 * GRID + 8 if all(ex.cell(x - k * GRID * math.cos(math.radians(angle)), y - k * GRID * math.sin(math.radians(angle))) in ex.free for k in (1, 2)) else 24
+            self.blocked_tics, self.target, self.target_kind, ex.plan = 0, None, "none", None
+        clear_left = min(self.sector_clearance(near_row, 25, 45), self.map_clearance(x, y, angle + 90))
+        clear_right = min(self.sector_clearance(near_row, -45, -25), self.map_clearance(x, y, angle - 90))
+        clear_back = self.map_clearance(x, y, angle + 180)
         # a door / switch / wall at arm's length where the route wants to go: press Use there
         door_ahead = bool(use_point is not None and abs(route_bearing) < 35 and math.hypot(use_point[0] - x, use_point[1] - y) < 80) \
             or (bool(target) and abs(route_bearing) < 30 and clear_fwd < 80) or self.stuck
@@ -874,19 +893,25 @@ class Payload:
             elif self.door_presses >= DOOR_TRIES:
                 ex.fail_edge(self.door)
                 print(f"[payload] door {self.door} did not open after {self.door_presses} presses; trying elsewhere", flush=True)
-                self.door, self.door_presses, self.target, ex.plan = None, 0, None, None
+                self.door, self.door_presses, self.target, self.target_kind, ex.plan = None, 0, None, "none", None
         if self.spot is not None and self.spot_presses >= (SPOT_TRIES * 2 if kind == "exit" else SPOT_TRIES):
             ex.used[self.spot] = now
-            self.target, self.spot, self.spot_presses = None, None, 0
+            self.target, self.target_kind, self.spot, self.spot_presses = None, "none", None, 0
             ex.plan = None
-        if self.args.map_png and state.tic % 35 == 0:
+        if state.tic % 35 == 0:
             img = ex.render(x, y, angle, target, cells)
             if img is not None:
-                try:
-                    img.save(self.args.map_png + ".tmp.png")
-                    os.replace(self.args.map_png + ".tmp.png", self.args.map_png)
-                except OSError:
-                    pass
+                self.map_png_bytes = None
+                if state.tic % 175 == 0:   # every 5 s: queue the map as an image product
+                    buf = io.BytesIO()
+                    img.save(buf, format="PNG")
+                    self.map_png_bytes = buf.getvalue()
+                if self.args.map_png:
+                    try:
+                        img.save(self.args.map_png + ".tmp.png")
+                        os.replace(self.args.map_png + ".tmp.png", self.args.map_png)
+                    except OSError:
+                        pass
         weapon = {1: 0, 2: 1, 3: 2}.get(int(self.var("SELECTED_WEAPON")), 3)
         near_item = lambda k: int(min(ex.nearest_item(x, y, k)[0], 65535)) if ex.nearest_item(x, y, k) else 65535
         p = ex.plan or {}
@@ -939,6 +964,8 @@ class Payload:
         elif kind == 0x14 and len(body) >= 3:
             rel, ttl = struct.unpack("!hB", body[:3])
             self.explorer.hint = (self.var("ANGLE") + rel, time.time() + ttl)
+            if self.target_kind in ("frontier", "far_frontier"):
+                self.target, self.target_kind = None, "none"   # re-pick the frontier with the hint in force
             print(f"[payload] explore hint {rel:+d} deg for {ttl} s", flush=True)
         else:
             print(f"[payload] unknown uplink kind {kind:#x}", flush=True)
@@ -1025,6 +1052,10 @@ class Payload:
                 Image.fromarray(state.screen_buffer).resize((320, 240), Image.BILINEAR).save(buf, format="JPEG", quality=self.quality)
                 self.frame_seq += 1
                 self.send(conn, 2, struct.pack("!I", self.frame_seq) + buf.getvalue())
+            if self.map_png_bytes and self.frame_hz and len(self.map_png_bytes) < 60000:
+                self.map_seq += 1   # map products share the frame path; the high bit of seq marks them
+                self.send(conn, 2, struct.pack("!I", 0x80000000 | self.map_seq) + self.map_png_bytes)
+                self.map_png_bytes = None
             remaining = t0 + tic / TICRATE - time.perf_counter()
             if remaining > 0:
                 time.sleep(remaining)

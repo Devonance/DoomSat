@@ -49,6 +49,7 @@ class FrameAssembler:
         self.partial = {}
         self.complete = 0
         self.incomplete = 0
+        self.maps = 0
         self.last_path = None
 
     def add(self, value):
@@ -60,12 +61,17 @@ class FrameAssembler:
         frame["parts"][index] = bytes(raw[CHUNK_HEADER.size:CHUNK_HEADER.size + length])
         done = None
         if len(frame["parts"]) == count:
-            jpeg = b"".join(frame["parts"][i] for i in range(count))
-            path = self.out_dir / f"frame-{seq:06d}.jpg"
-            path.write_bytes(jpeg)
-            (self.out_dir / "latest.jpg").write_bytes(jpeg)
-            self.complete += 1
-            self.last_path = path
+            data = b"".join(frame["parts"][i] for i in range(count))
+            if seq & 0x80000000:   # the navigator's map, a PNG product
+                path = self.out_dir / "latest_map.png"
+                path.write_bytes(data)
+                self.maps += 1
+            else:
+                path = self.out_dir / f"frame-{seq:06d}.jpg"
+                path.write_bytes(data)
+                (self.out_dir / "latest.jpg").write_bytes(data)
+                self.complete += 1
+                self.last_path = path
             del self.partial[seq]
             done = (seq, path)
         for old in [s for s, f in self.partial.items() if time.time() - f["t0"] > 3.0]:
@@ -102,7 +108,7 @@ class Pilot:
         self.goal = "EXPLORE"
         self.control_count = 0
         self.last_cmd_ms = 0
-        self.pending_turn, self.pending_turn_t = 0.0, 0.0
+        self.pending_turn, self.pending_turn_t, self.angle_at_cmd = 0.0, 0.0, None
         self.last_publish = 0.0
         self.last_stats = 0.0
         self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
@@ -112,6 +118,11 @@ class Pilot:
         self.episode_start_row = 0
         self.episode_outcome = None    # "died" / "level finished" seen in telemetry
         self.review_busy = False
+        self.progress = []           # (time, explored cells, level) samples
+        self.last_hint_t = time.time()
+        self.bump_busy = False
+        self.level_start_t = time.time()
+        self.attempt = 1
         self.bucket = self._ensure_bucket()
 
     # ------------------------------------------------------------ Yamcs plumbing
@@ -171,7 +182,15 @@ class Pilot:
                     self.episode_outcome = "level finished"
 
     def publish_frame(self, seq, path):
-        """Put the image product in the Yamcs bucket for Open MCT, at most twice a second."""
+        """Put the image product in the Yamcs bucket for Open MCT, at most twice a second (maps: every time)."""
+        if seq & 0x80000000:
+            try:
+                with open(path, "rb") as f:
+                    self.bucket.upload_object("map.png", f)
+                self.set_ground({"DoomMap": f"{self.args.yamcs_public}/api/buckets/{self.instance}/doomframes/objects/map.png?s={seq & 0xFFFF}"})
+            except Exception as e:
+                print(f"[pilot] map publish failed: {e}", file=sys.stderr)
+            return
         if time.time() - self.last_publish < 0.5:
             return
         self.last_publish = time.time()
@@ -208,12 +227,17 @@ class Pilot:
         if time.time() - self.telemetry_time > 2.0:
             return None  # stale telemetry: the payload holds the last controls, then its own uplink timeout releases them
         t = dict(self.telemetry)
-        # A turn commanded less than half a second ago is still executing (or not yet in the telemetry):
-        # judge the bearings as they will be once it lands, or every turn gets commanded twice.
-        if self.pending_turn and time.time() - self.pending_turn_t < 0.5:
+        # A turn commanded less than a second ago may still be executing or not yet in the telemetry: judge the
+        # bearings as they will be once it lands, but only by the part of the turn the heading does not show yet
+        # (subtracting the whole turn after it already landed made jev turn straight back).
+        if self.pending_turn and time.time() - self.pending_turn_t < 1.0 and "ANGLE" in t and self.angle_at_cmd is not None:
+            done = (t["ANGLE"] - self.angle_at_cmd + 180) % 360 - 180
+            remaining = self.pending_turn - done
+            if remaining * self.pending_turn < 0 or abs(remaining) < 4:
+                remaining = 0.0
             for key in ("ROUTE_BEARING", "ENEMY_BEARING"):
                 if key in t:
-                    t[key] = (t[key] - self.pending_turn + 180) % 360 - 180
+                    t[key] = (t[key] - remaining + 180) % 360 - 180
         cfg = self.cfg
         state = dg.build_state(t, self.goal, cfg)
         questions = dg.control_questions(t, self.goal, cfg)
@@ -223,7 +247,7 @@ class Pilot:
         answers = reply["answers"]
         cargs = dg.control_args(answers, cfg)
         self.command("CONTROL", cargs)
-        self.pending_turn, self.pending_turn_t = cargs["turn"], time.time()
+        self.pending_turn, self.pending_turn_t, self.angle_at_cmd = cargs["turn"], time.time(), t.get("ANGLE")
         self.control_count += 1
         if "goal" in answers:
             self.set_goal(dg.GOAL_FROM_CHOICE.get(answers["goal"]["choice"], self.goal))
@@ -248,6 +272,106 @@ class Pilot:
             self.command("SET_GOAL", {"goal": goal})
             print(f"[pilot] goal {self.goal} -> {goal} (jev)", flush=True)
             self.goal = goal
+
+    # ------------------------------------------------------------ System Two: a bump when the walk stalls
+    def check_stall(self):
+        """Every --bump-every seconds, System Two looks at the map and the walk and pushes exploration somewhere;
+        after --level-budget seconds without finishing the level, the game is reset and the episode reviewed."""
+        t = self.telemetry
+        if "EXPLORED_CELLS" not in t or self.system_two is None:
+            return
+        now = time.time()
+        self.progress.append((now, int(t.get("EXPLORED_CELLS", 0)), t.get("LEVEL")))
+        self.progress = [p for p in self.progress if now - p[0] < 120.0]
+        if self.args.level_budget and now - self.level_start_t > self.args.level_budget:
+            print(f"[pilot] level {self.level} not finished within {self.args.level_budget:.0f} s: reset, review, try again (attempt {self.attempt + 1})", flush=True)
+            self.episode_outcome = f"level not finished within the {self.args.level_budget:.0f} s budget (attempt {self.attempt})"
+            self.command("RESET_GAME")
+            self.level_start_t = now
+            self.attempt += 1
+            self.last_hint_t = now
+            return
+        if not self.args.bump_every or self.bump_busy or now - self.last_hint_t < self.args.bump_every:
+            return
+        self.last_hint_t = now
+        self.bump_busy = True
+        threading.Thread(target=self.stall_consult, daemon=True).start()
+
+    def ascii_map(self, path, cols=72):
+        """The navigator's map product as text Sonnet can read: # wall, . seen floor, o walked, F frontier, P player."""
+        try:
+            from PIL import Image
+            im = Image.open(path).convert("RGB")
+        except Exception:
+            return None
+        w, h = im.size
+        step = max(1, w // cols)
+        rows = []
+        for yy in range(0, h, step):
+            line = ""
+            for xx in range(0, w, step):
+                r, g, b = im.getpixel((min(xx + step // 2, w - 1), min(yy + step // 2, h - 1)))
+                if r > 200 and g < 100 and b < 100:
+                    line += "P"
+                elif r > 200 and g > 150 and b < 100:
+                    line += "F"
+                elif r > 180 and g > 180 and b > 180:
+                    line += "#"
+                elif g > r + 30 and g > b + 30:
+                    line += "o"
+                elif r + g + b > 150:
+                    line += "."
+                else:
+                    line += " "
+            rows.append(line.rstrip())
+        return "\n".join(rows)
+
+    def stall_consult(self):
+        try:
+            from collections import Counter
+            t = dict(self.telemetry)
+            recent = [r for r in self.rows[-240:] if r.get("kind") == "control" and r.get("raw")]
+            pts = [(round(r["raw"]["POS_X"] / 64) * 64, round(r["raw"]["POS_Y"] / 64) * 64) for r in recent if r["raw"].get("POS_X") is not None]
+            path = [f"({x},{y}) x{n}" for (x, y), n in Counter(pts).most_common(8)]
+            amap = self.ascii_map(self.frames.out_dir / "latest_map.png")
+            old = [p for p in self.progress if time.time() - p[0] >= 50.0]
+            gained = (self.progress[-1][1] - old[0][1]) if old and self.progress else 0
+            prompt = ("Progress check. {:.0f} s into this level attempt (budget {:.0f} s), {} new map cells in the last minute. "
+                      "Position ({:.0f}, {:.0f}), heading {:.0f} degrees "
+                      "(0 = east, 90 = north). Level {}. Navigator: {}. Frontiers: {}. Doors seen: {}. Keys: {}.\n"
+                      "Where the walk has been in the last two minutes (64-unit bins, most visited first): {}.\n"
+                      "Map the navigator built (# wall, . seen floor, o walked, F unexplored edge, P player; north is up):\n{}\n\n"
+                      "Pick a compass direction to push exploration toward unexplored space away from the well-trodden area "
+                      "(the exit is somewhere unexplored), as a bearing in degrees (0 east, 90 north, 180 west, 270 south), how "
+                      "many seconds to hold it, and the goal to set. One sentence of reasoning.").format(
+                time.time() - self.level_start_t, self.args.level_budget, gained,
+                t.get("POS_X", 0), t.get("POS_Y", 0), t.get("ANGLE", 0), t.get("LEVEL"), t.get("NAV_MODE"), t.get("FRONTIERS"),
+                t.get("DOORS_KNOWN"), t.get("KEYS"), path, amap or "(no map product yet)")
+            schema = {"type": "object", "properties": {"bearing_deg": {"type": "integer"}, "hold_s": {"type": "integer"},
+                                                       "goal": {"type": "string", "enum": ["Explore", "Scout"]},
+                                                       "reason": {"type": "string", "maxLength": 300}},
+                      "required": ["bearing_deg", "hold_s", "reason"], "additionalProperties": False}
+            t0 = time.time()
+            r = self.system_two.structured("You are the mission's System Two. The fast model plays; you only redirect exploration "
+                                           "when it stalls. Answer from the map.", prompt, schema)
+            rel = int(round((r["bearing_deg"] - float(t.get("ANGLE", 0)) + 180) % 360 - 180))
+            ttl = int(max(20, min(120, r.get("hold_s", 60))))
+            self.command("EXPLORE_HINT", {"bearing": rel, "ttl": ttl})
+            if r.get("goal") == "Scout":
+                self.set_goal("SCOUT")
+            row = {"t": time.time(), "kind": "system_two_hint", "bearing_deg": r["bearing_deg"], "relative": rel, "ttl": ttl,
+                   "goal": r.get("goal"), "reason": r.get("reason"), "latency_ms": int((time.time() - t0) * 1000),
+                   "model": r.get("model"), "cost_usd": r.get("cost_usd"), "path": path}
+            self.log.write(json.dumps(row) + "\n")
+            self.rows.append(row)
+            self.set_ground({"SystemTwoHint": f"push {r['bearing_deg']} deg for {ttl} s: {r.get('reason')}"[:900],
+                             "SystemTwoLatencyMs": float(row["latency_ms"])})
+            print(f"[pilot] System Two bump: bearing {r['bearing_deg']} deg (relative {rel:+d}) for {ttl} s, goal {r.get('goal')}: "
+                  f"{r.get('reason')}", flush=True)
+        except Exception as e:
+            print(f"[pilot] stall consult failed: {e}", file=sys.stderr)
+        finally:
+            self.bump_busy = False
 
     # ------------------------------------------------------------ System Two: after-action review
     def episode_boundary(self):
@@ -306,9 +430,13 @@ class Pilot:
             lv = self.telemetry.get("LEVEL")
             if lv is not None and lv != self.level:
                 if self.level is not None:
-                    print(f"[pilot] *** LEVEL {self.level} FINISHED -> level {lv} ***", flush=True)
-                    self.log.write(json.dumps({"t": time.time(), "kind": "level", "finished": self.level, "started": lv, "controls": self.control_count}) + "\n")
+                    print(f"[pilot] *** LEVEL {self.level} FINISHED -> level {lv} (attempt {self.attempt}, {time.time() - self.level_start_t:.0f} s) ***", flush=True)
+                    self.log.write(json.dumps({"t": time.time(), "kind": "level", "finished": self.level, "started": lv, "controls": self.control_count,
+                                               "attempt": self.attempt, "seconds": round(time.time() - self.level_start_t)}) + "\n")
+                    self.set_ground({"Plan": f"LEVEL {self.level} FINISHED in {time.time() - self.level_start_t:.0f} s (attempt {self.attempt})"})
                 self.level = lv
+                self.level_start_t = time.time()
+                self.attempt = 1
             try:
                 row = self.control_step(n)
             except Exception as e:
@@ -316,6 +444,8 @@ class Pilot:
                 print(f"[pilot] System One failed: {e}", file=sys.stderr)
                 time.sleep(1.0)
             n += 1
+            if n % 20 == 0:
+                self.check_stall()
             if row and n % 10 == 0:
                 print(f"[pilot] #{n} jev {row['latency_ms']} ms cmd {row['cmd_ms']} ms  hp={row['health']} goal={self.goal} "
                       f"{' '.join(f'{k}={v}' for k, v in row['answers'].items())}  frames ok={self.frames.complete} lost={self.frames.incomplete}", flush=True)
@@ -342,6 +472,8 @@ def main():
     p.add_argument("--openai-base-url", default=os.environ.get("OPENAI_BASE_URL", "http://localhost:1234/v1"))
     p.add_argument("--env-files", nargs="*", default=[str(HERE / ".env"), str(HERE.parent / ".env")])
     p.add_argument("--period", type=float, default=0.25, help="seconds between control decisions (lower bound)")
+    p.add_argument("--bump-every", type=float, default=60.0, help="seconds between System Two progress checks (0 = never)")
+    p.add_argument("--level-budget", type=float, default=180.0, help="seconds per level attempt before a reset and a review (0 = none)")
     p.add_argument("--fps", type=int, default=10)
     p.add_argument("--quality", type=int, default=45)
     p.add_argument("--duration", type=float, default=0.0, help="stop after this many seconds (0 = run forever)")

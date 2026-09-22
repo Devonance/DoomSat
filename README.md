@@ -101,7 +101,8 @@ scripts/flight.sh payload                  # restart only the game process (afte
 scripts/flight.sh check                    # telemetry, frame chunks, events, links
 python tools/serve_dashboard.py            # mission dashboard on :8070 (proxies the Yamcs API)
 scripts/start_openmct.sh                   # Open MCT on :9000
-scripts/start_pilot.sh --duration 1500     # jev plays; Sonnet reviews after each episode; logs in out/
+scripts/start_pilot.sh --duration 1800     # jev plays; Sonnet bumps every 60 s, 180 s budget per level attempt; logs in out/
+scripts/start_pilot.sh --bump-every 0 --level-budget 0   # no bumps, no budget: jev + graph only
 scripts/start_pilot.sh --no-after-action   # jev + code only, graph frozen at ground/graph/graph_current.json
 python tools/run_report.py                 # what each layer did in the last run (levels, decisions, reviews)
 node tools/dashboard_shot.mjs record out/recording 600   # 1080p recording of the dashboard (webm)
@@ -117,7 +118,7 @@ After editing anything under `flight/`: `scripts/flight.sh build` (incremental) 
 |---|---|---|
 | Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, the map, the route, the target (exit line > key > goal item > frontier > walls to try), door/switch attempts |
 | System One: jev | every ~0.5 s, live | the control heads (dodge, move, strafe, turn, fire, weapon, use) and, every few ticks, the goal (explore / fight / supplies / scout) |
-| System Two: Claude Sonnet 5 | after an episode (death, level finished, run end) | reads the after-action report and revises the decision graph jev plays with next: question wording, criteria, thresholds, turn sizes, goal cadence, standing order |
+| System Two: Claude Sonnet 5 | every minute, and after an episode | every minute: reads the map product and the recent walk and pushes exploration in a direction (`EXPLORE_HINT`, optionally `SET_GOAL`); after an episode (death, level finished, or the 3-minute level budget spent -> `RESET_GAME`): reads the condensed after-action report and revises the decision graph jev plays with next |
 
 Nothing slower than jev sits in the live loop. The graph is data (`ground/graph_config.py`); every revision is
 validated by code (fixed option names, known placeholders, numeric ranges) and stored as

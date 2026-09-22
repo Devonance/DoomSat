@@ -35,6 +35,15 @@
         </AliasSet>
         <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
       </Parameter>
+      <Parameter name="DoomMap" parameterTypeRef="url_t">
+        <AliasSet>
+          <Alias nameSpace="OpenMCT:type" alias="yamcs.image"></Alias>
+        </AliasSet>
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
+      <Parameter name="SystemTwoHint" parameterTypeRef="url_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
       <Parameter name="FrameSeq" parameterTypeRef="count_t">
         <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
       </Parameter>
