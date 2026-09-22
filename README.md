@@ -29,11 +29,10 @@ and code owns the loop.
 - Uplink: CONTROL commands every ~300 ms; the F´ command dispatcher, the Doom component and the
   payload all report them (events `OpCodeDispatched/Completed`, `GoalSet`, `ExploreHint`).
 - jev: 7 control heads per request, ~470 ms median including the Yamcs round trip.
-- Claude Sonnet 5 via the local `claude` CLI: a level strategy at each episode start, then a re-plan only
-  when code sees a reason (no new map cells for 20 s, a health drop, death, level done), never more than
-  once per 30 s; 6-11 s per plan, ~$0.06 each. When it reads the frame, the CLI runs a ~1k-token Haiku
-  helper call for its tool plumbing; the plan itself is Sonnet. `--system-two anthropic` (API key) is the
-  Sonnet-only path, `--no-vision` avoids the helper on the CLI path.
+- Claude Sonnet 5 via the local `claude` CLI as the after-action reviewer: one tool-free schema call per
+  episode (~70 s, ~$0.25 with the CLI's context), returning the revised graph. The CLI is run with
+  `DISABLE_NON_ESSENTIAL_MODEL_CALLS=1` so it makes no Haiku helper calls; `--system-two anthropic` uses
+  the API directly with a key.
 
 Integration findings worth keeping:
 1. F´ `string` telemetry is serialized length-prefixed, but `fprime-xtce` emits a fixed-size
@@ -71,8 +70,9 @@ bootstrap + `fprime-yamcs`), `/root/doom/payload-venv` (ViZDoom 1.3.0), `ground/
 scripts/flight.sh start          # WSL: payload + fprime-yamcs (Yamcs :8090) + DoomSat binary
 scripts/flight.sh check          # telemetry, frame chunks, events, links
 scripts/start_openmct.sh         # Open MCT on :9000 (proxies to Yamcs)
-scripts/start_pilot.sh --duration 300      # jev controls + Claude plans; logs in out/
-scripts/start_pilot.sh --system-two none   # jev only (its goal head plans too)
+scripts/start_pilot.sh --duration 300      # jev plays; Sonnet reviews after each episode; logs in out/
+scripts/start_pilot.sh --no-after-action   # jev + code only, graph frozen at ground/graph/graph_current.json
+python tools/run_report.py                 # what each layer did in the last run
 scripts/start_pilot.sh --system-one openai --openai-base-url http://localhost:1234/v1 --system-one-model <local>
 ```
 
@@ -83,8 +83,13 @@ After editing anything under `flight/`: `scripts/flight.sh build` (incremental) 
 | Layer | Runs | Decides |
 |---|---|---|
 | Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, range-camera map, frontier route, target choice |
-| System One: jev | every ~0.5 s | the seven control heads (dodge, move, strafe, turn, fire, weapon, use) from words |
-| System Two: Claude Sonnet 5 | once per episode + triggers | the goal (explore / fight / supplies / scout / hold) and an exploration hint from the frame |
+| System One: jev | every ~0.6 s, live | the control heads (dodge, move, strafe, turn, fire, weapon, use) and, every few ticks, the goal (explore / fight / supplies / scout) |
+| System Two: Claude Sonnet 5 | after an episode (death, level finished, run end) | reads the after-action report and revises the decision graph jev plays with next: question wording, criteria, thresholds, turn sizes, goal cadence, standing order |
+
+Nothing slower than jev sits in the live loop. The graph is data (`ground/graph_config.py`), every
+revision is validated by code (fixed option names, known placeholders, numeric ranges) and stored
+as `ground/graph/graph_v<N>.json` with Sonnet's rationale in `ground/graph/CHANGELOG.md`.
+`tools/run_report.py` prints what each layer did in a run.
 
 ## Honest play
 
