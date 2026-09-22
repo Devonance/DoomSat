@@ -1,0 +1,59 @@
+{
+ "attempts": 30,
+ "suite_score": 0.0499,
+ "score_sd": 0.0727,
+ "completed": 0,
+ "deaths": 142,
+ "mean_progress": 0.0665,
+ "maps_without_a_usable_progress_score": [
+  "E1M3",
+  "E1M3",
+  "E1M3",
+  "E1M3",
+  "E1M3"
+ ],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "jev_share": {
+   "pass": true,
+   "value": "n/a: code baseline, no model in the loop"
+  }
+ },
+ "guardrails_pass": true,
+ "per_level": {
+  "E1M1": {
+   "n": 5,
+   "mean": 0.1518,
+   "sd": 0.0792
+  },
+  "E1M2": {
+   "n": 5,
+   "mean": 0.0118,
+   "sd": 0.0163
+  },
+  "E1M3": {
+   "n": 5,
+   "mean": 0.0,
+   "sd": 0.0
+  },
+  "E1M4": {
+   "n": 5,
+   "mean": 0.0304,
+   "sd": 0.0413
+  },
+  "E1M5": {
+   "n": 5,
+   "mean": 0.0221,
+   "sd": 0.0222
+  },
+  "E1M6": {
+   "n": 5,
+   "mean": 0.0834,
+   "sd": 0.094
+  }
+ },
+ "run_dir": "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/phase2-executor-code"
+}

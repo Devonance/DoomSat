@@ -280,3 +280,15 @@ def tokens_per_decision(rows):
 def deaths(rows):
     """Episode restarts that were not a level being finished."""
     return sum(1 for r in rows if r.get("kind") == "episode" and r.get("reason") == "died")
+
+
+def deaths_per_minute(n_deaths, game_seconds):
+    """Deaths against time played.
+
+    Added when the onboard executor raised EXPLORE speed from 66 to about 180 units per second and the
+    dev set went from 34 deaths in 30 attempts to 142. Going faster is only an improvement if it does not
+    cost more than it buys, and a suite score can hide the trade because a death and a slow walk both end
+    up as "did not finish". This is the number that does not hide it.
+    """
+    minutes = (game_seconds or 0.0) / 60.0
+    return (n_deaths / minutes) if minutes > 0 else 0.0

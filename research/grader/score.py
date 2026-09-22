@@ -87,6 +87,12 @@ def grade(attempt):
         "level_time": level_time,
         "end_reason": attempt.get("end_reason"),
         "deaths": int(attempt.get("deaths") or 0),
+        "deaths_per_minute": round(fm.deaths_per_minute(int(attempt.get("deaths") or 0), level_time), 3),
+        # charter phase 2: a freeze is only ever visible as the onboard watchdog having had to step in
+        "watchdog_trips": attempt.get("watchdog_trips") or {},
+        "freezes": sum((attempt.get("watchdog_trips") or {}).values()),
+        "executor_stats": attempt.get("executor_stats") or {},
+        "cache_hit_rate": attempt.get("cache_hit_rate"),
         "progress": round(prog, 4),
         "progress_best": round(fm.progress(start_d, best), 4),
         "start_distance": None if start_d is None else round(start_d, 1),

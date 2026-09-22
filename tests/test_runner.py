@@ -29,7 +29,11 @@ FPP = open(os.path.join(ROOT, "flight", "Components", "Doom", "Doom.fpp"), encod
 PAYLOAD = open(os.path.join(ROOT, "payload", "doom_payload.py"), encoding="utf-8").read()
 
 # Channels the flight software produces itself; the payload never packs them.
-FLIGHT_ONLY = {"FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED", "FRAME_CHUNK"}
+FLIGHT_ONLY = {"FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED", "FRAME_CHUNK",
+               "INTENT_ID", "WATCHDOG_TRIPS"}
+# The candidate targets ride in their own block rather than as named fields, so they are checked by shape
+# (below) rather than by name.
+CAND_CHANNELS = {"CAND%d" % i for i in range(8)}
 
 
 def fpp_channels():
@@ -45,7 +49,7 @@ def packed_keys():
 
 class TestTheBenchSpeaksTheSameLanguageAsFlight(unittest.TestCase):
     def test_every_packed_field_becomes_the_channel_the_flight_software_declares(self):
-        declared = [c for c in fpp_channels() if c not in FLIGHT_ONLY]
+        declared = [c for c in fpp_channels() if c not in FLIGHT_ONLY and c not in CAND_CHANNELS]
         mapped = [runner.RENAME.get(k, k.upper()) for k in packed_keys()]
         self.assertEqual(sorted(mapped), sorted(declared),
                          "the bench's channel names have drifted from Doom.fpp")
@@ -53,6 +57,27 @@ class TestTheBenchSpeaksTheSameLanguageAsFlight(unittest.TestCase):
     def test_no_channel_is_produced_twice(self):
         mapped = [runner.RENAME.get(k, k.upper()) for k in packed_keys()]
         self.assertEqual(len(mapped), len(set(mapped)), "two payload fields map to one channel")
+
+    def test_the_candidate_block_is_the_same_shape_on_both_sides(self):
+        """The one part of the status the flight software decodes by offset rather than by name, so a
+        change in the payload's packing is silent until the numbers come out wrong."""
+        cpp = open(os.path.join(ROOT, "flight", "Components", "Doom", "Doom.cpp"), encoding="utf-8").read()
+        n = int(re.search(r"MAX_CANDIDATES = (\d+)", cpp).group(1))
+        each = int(re.search(r"CAND_LEN = (\d+)", cpp).group(1))
+        self.assertEqual(len(CAND_CHANNELS), n, "Doom.fpp declares a different number of candidate slots")
+        self.assertEqual(int(re.search(r"MAX_CANDIDATES = (\d+)", PAYLOAD).group(1)), n)
+        # kind U8 + x F32 + y F32 + pathUnits U16 + novelty U8 + flags U8 + threatClass U8 + threatCount U8
+        self.assertEqual(each, 15)
+        self.assertEqual(re.search(r'CAND_FMT = "(\w+)"', PAYLOAD).group(1), "BffHBBBB")
+        core = int(re.search(r"STATUS_CORE_LEN = (\d+)", cpp).group(1))
+        self.assertEqual(core, 120, "the pre-charter part of the status changed size")
+
+    def test_the_intent_command_matches_the_payload_struct(self):
+        cpp = open(os.path.join(ROOT, "flight", "Components", "Doom", "Doom.cpp"), encoding="utf-8").read()
+        self.assertIn("U8 body[23];", cpp, "the flight side packs a different number of INTENT bytes")
+        self.assertEqual(re.search(r'INTENT_FMT = "(\S+)"', PAYLOAD).group(1), "!HIBffBBBBBBH")
+        import struct as _s
+        self.assertEqual(_s.calcsize("!HIBffBBBBBBH"), 23)
 
     def test_the_enums_match_the_flight_software(self):
         for enum_name, table in (("AheadKind", runner.AHEAD_KIND), ("Weapon", runner.WEAPON), ("Goal", runner.GOAL)):

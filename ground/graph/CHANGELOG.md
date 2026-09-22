@@ -22,3 +22,6 @@ Goal and danger heads left unchanged: goal confidence 0.83 with sane answers, da
 
 ## v1 (defaults)
 Initial graph: one Score per open sector, one danger Score, one goal Choice; every exact rule in code.
+
+## v2 (defaults)
+Initial graph: one Score per open sector, one danger Score, one goal Choice; every exact rule in code.

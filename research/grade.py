@@ -34,6 +34,13 @@ def guardrails(graded, conf):
     out, tier = {}, (graded[0].get("tier") if graded else None)
     crashes = sum(1 for r in graded if r["end_reason"] == "crash")
     out["crashes"] = (crashes <= g["crashes_allowed"], "%d" % crashes)
+    # Going faster is only an improvement if it does not cost more than it buys. The suite score hides
+    # the trade, because a death and a slow walk both come out as "did not finish".
+    dpm = [r.get("deaths_per_minute", 0.0) for r in graded]
+    if dpm and "deaths_per_minute_max" in g:
+        mean_dpm = statistics.fmean(dpm)
+        out["deaths_per_minute"] = (mean_dpm <= g["deaths_per_minute_max"],
+                                    "%.2f (ceiling %.2f)" % (mean_dpm, g["deaths_per_minute_max"]))
     # Only meaningful when a model was in the loop. The code baseline has no model to take a share of the
     # decisions, and holding it to a jev floor would fail every baseline run by construction.
     shares = [r["metrics"]["jev_share"] for r in graded
@@ -53,6 +60,14 @@ def guardrails(graded, conf):
     return out
 
 
+def _freeze_reasons(graded):
+    out = {}
+    for r in graded:
+        for reason, n in (r.get("watchdog_trips") or {}).items():
+            out[reason] = out.get(reason, 0) + n
+    return out
+
+
 def summarise(graded, conf):
     scores = [r["score"] for r in graded]
     usable = [r for r in graded if r["exit_reachable_from_start"]]
@@ -62,6 +77,9 @@ def summarise(graded, conf):
         "score_sd": round(statistics.stdev(scores), 4) if len(scores) > 1 else 0.0,
         "completed": sum(1 for r in graded if r["completed"]),
         "deaths": sum(r["deaths"] for r in graded),
+        "episodes": len(graded),
+        "freezes": sum(r.get("freezes", 0) for r in graded),
+        "freeze_reasons": _freeze_reasons(graded),
         "mean_progress": round(statistics.fmean([r["progress"] for r in usable]), 4) if usable else None,
         "maps_without_a_usable_progress_score": [r["map"] for r in graded if not r["exit_reachable_from_start"]],
         "guardrails": {k: {"pass": v[0], "value": v[1]} for k, v in guardrails(graded, conf).items()},
@@ -112,6 +130,11 @@ def main(argv=None):
     print("\nsuite score %.4f over %d attempts (sd %.4f), %d completed, %d deaths"
           % (summary["suite_score"], summary["attempts"], summary["score_sd"],
              summary["completed"], summary["deaths"]))
+    # Charter phase 2's exit test: a freeze is only ever visible as the watchdog having had to step in.
+    print("  freezes the watchdog caught: %d in %d episodes%s"
+          % (summary["freezes"], summary["episodes"],
+             "  (" + ", ".join("%s x%d" % kv for kv in summary["freeze_reasons"].items()) + ")"
+             if summary["freeze_reasons"] else ""))
     for name, v in summary["guardrails"].items():
         print("  guardrail %-18s %-4s %s" % (name, "pass" if v["pass"] else "FAIL", v["value"]))
     sds = [v["sd"] for v in summary["per_level"].values() if v["sd"] is not None]

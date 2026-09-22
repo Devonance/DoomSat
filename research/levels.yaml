@@ -4,8 +4,15 @@
 # anything here starts a new comparison track, because every earlier number was measured against these
 # values. `research/ledger.py` records the sha1 of this file in every row so a track change is visible.
 
-version: 1
-track: t1                      # bump when anything below changes; ledger rows carry it
+version: 2
+# Bump when anything below changes, or when a change makes earlier numbers incomparable; every ledger row
+# carries it, so a track change is visible rather than implicit.
+#   t1  22 Sep 2026. The pre-charter gait: CONTROL every tick, forward delta 14, a ceiling of 141 units/s.
+#   t2  22 Sep 2026, evening. The forward delta is Doom's own running value, measured at 507 units/s
+#       (payload/speed_probe.py), and the onboard executor carries an INTENT with a TTL. Nothing measured
+#       on t1 is comparable: the speed fix alone moved EXPLORE speed from 66 to about 180 units/s and
+#       deaths on the dev set from 34 in 30 attempts to 142.
+track: t2
 
 # ---------------------------------------------------------------- the two level sets (charter 2.5)
 # Tune on dev. Score on test. The experiment agent never sees a per-level test trace.
@@ -65,6 +72,11 @@ guardrails:
   tokens_per_decision_rise_max: 0.25
   honesty_must_pass: true
   crashes_allowed: 0
+  # Speed is not free. The executor raised EXPLORE speed by about 2.7x and deaths by 4x on the same dev
+  # set, and the suite score barely moved because a death and a slow walk both read as "did not finish".
+  # Measured on t2's first baseline at 2.4 deaths per minute; the ceiling is set just under it so that a
+  # change has to hold the line rather than trade survival for speed again.
+  deaths_per_minute_max: 2.2
 
 # ---------------------------------------------------------------- the keep rule (charter 6.3 step 5)
 keep_rule:

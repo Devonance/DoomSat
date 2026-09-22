@@ -31,6 +31,10 @@ class Doom final : public DoomComponentBase {
 
     void CONTROL_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, I8 move, I8 strafe, F32 turn, bool fire, bool use,
                             const DoomMission::Weapon& weapon) override;
+    void INTENT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, U16 intentId, U32 basedOnTic,
+                           const DoomMission::IntentMode& mode, F32 targetX, F32 targetY, bool hasTarget,
+                           const DoomMission::Stance& stance, const DoomMission::FirePolicy& firePolicy,
+                           U8 fireTargetId, U8 weapon, bool useAtTarget, U16 ttlMs) override;
     void SET_GOAL_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, const DoomMission::Goal& goal) override;
     void RESET_GAME_cmdHandler(FwOpcodeType opCode, U32 cmdSeq) override;
     void EXPLORE_HINT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, I16 bearing, U8 ttl) override;
@@ -57,6 +61,8 @@ class Doom final : public DoomComponentBase {
     U8 m_lastLevel;
     U8 m_lastKeys;
     bool m_wasDone;
+    U16 m_lastIntentId;   //!< the intent the executor is carrying out, echoed back in telemetry
+    U16 m_watchdogTrips;  //!< times an onboard invariant had to pull the player out of a freeze
 };
 
 }  // namespace DoomMission

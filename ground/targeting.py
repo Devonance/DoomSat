@@ -1,0 +1,549 @@
+"""Choosing where to go, from the candidate list the payload builds. Charter 3.3.
+
+This replaces the eight-sector Score as the navigator. The sectors were never wrong; they were myopic. The
+best a sector can say is "it is a bit more open to the left", and the thing worth going to is usually a
+door six hundred units away, through two rooms, that the player has already walked past twice. Graded
+against the charter's ruler, that cost `revisit_fraction` 0.80 and a score of zero.
+
+The shape is the composite-scoring pattern the audit settled on, applied to targets instead of directions:
+
+  the payload  builds the candidate list, with a path distance that respects walls
+  the model    scores each candidate on one shared rubric, in one call
+  code         picks, with commitment and an unsure band, and turns the pick into an INTENT
+
+`rule_score` is the null hypothesis, and it is deliberately NOT a restatement of the rubric. The sector
+head was written that way -- every rubric level a function of the same enum fields the rule read -- and
+the result was that sharpening the rubric drove agreement with ten lines of code from 79% to 89%. The
+model could only reproduce the rule, so the comparison measured nothing. The rubric here asks for the
+trade-offs no single field settles (what is standing near the target against the health and ammunition
+there is to spend, how far it is relative to the alternatives, whether a detour answers a real need);
+the rule knows about none of that.
+"""
+import json
+import math
+
+# Path-distance buckets. These are the words the model sees; the numbers never reach it.
+DIST_WORDS = ((96.0, "right here"), (320.0, "close"), (800.0, "mid-range"), (1600.0, "far"))
+NOVELTY_WORDS = ((16, "none"), (64, "a little"), (160, "some"))
+ENEMY_CLASSES = ("Zombieman", "ShotgunGuy", "ChaingunGuy", "DoomImp", "Demon", "Spectre", "LostSoul",
+                 "Cacodemon", "BaronOfHell", "HellKnight", "Revenant", "Arachnotron", "Fatso",
+                 "PainElemental", "Archvile", "WolfensteinSS")   # pinned to payload/mapclasses.py by a test
+KIND_WORDS = {"frontier": "unexplored edge", "door": "a door", "exit": "the level exit",
+              "key": "a key", "item": "a pickup", "switch": "a switch", "enemy": "an enemy"}
+NEEDS = ("health", "ammo", "armor")
+
+# The rubric as a function, level by level, worst first. Kept beside the criteria in graph_config so the
+# two can be read together; a test asserts they have the same number of levels.
+RULE_LEVELS = 9
+
+
+def bucket(value, table, last):
+    for limit, word in table:
+        if value < limit:
+            return word
+    return last
+
+
+def dist_word(units):
+    return bucket(units, DIST_WORDS, "a long way")
+
+
+def novelty_word(n):
+    return bucket(n, NOVELTY_WORDS, "a lot")
+
+
+def tried_word(tries):
+    return "no" if tries <= 0 else ("once" if tries == 1 else "several times")
+
+
+def sector_word(bearing):
+    """The eight-point direction, the same vocabulary the sector heads used."""
+    import decision_graph as dg
+    return dg.sector_of(bearing)
+
+
+def threat_word(cand, rules):
+    """What is standing near the target, judged with the knowledge file open.
+
+    The payload reports a class and a count, which are facts. "Deadly" is a judgement, and it belongs
+    here, where doom_rules.yaml is in hand -- and the danger ranks in that file are tunable, so this is
+    one of the few words an experiment can move without touching the rubric.
+    """
+    cls = cand.get("threat_class")
+    count = int(cand.get("threat_count", 0) or 0)
+    if cls is None or cls == 255 or not count:
+        return "none"
+    name = ENEMY_CLASSES[cls] if isinstance(cls, int) and cls < len(ENEMY_CLASSES) else str(cls)
+    danger = (rules.get("monsters", {}).get(name, {}) or {}).get("danger", 3)
+    if count > 1:
+        danger += 2
+    return "a straggler" if danger <= 3 else "dangerous" if danger <= 6 else "deadly"
+
+
+def relative_distance(cand, all_cands):
+    """How far it is compared with the other options, which is the comparison a choice actually rests on.
+
+    An absolute band cannot separate "everything is far" from "this one is far and the rest are next
+    door", and the second is the situation where the answer matters.
+    """
+    others = [c.get("path_units", 0.0) for c in all_cands]
+    if len(others) < 2:
+        return "the only one"
+    mine = cand.get("path_units", 0.0)
+    if mine <= min(others):
+        return "the nearest"
+    if mine >= max(others):
+        return "the furthest"
+    mid = sorted(others)[len(others) // 2]
+    return "nearer than most" if mine < mid else "further than most"
+
+
+def target_words(cand, need, keys_held, rules=None, all_cands=()):
+    """One candidate as the handful of words a decision about it rests on.
+
+    Words, never numbers, and never coordinates: a classifier is not a calculator, and a raw map position
+    in the state is noise it has to see past. The world position rides in the INTENT instead, where code
+    uses it to aim.
+    """
+    kind = cand.get("kind", "frontier")
+    words = {
+        "what": KIND_WORDS.get(kind, kind),
+        "how_far": dist_word(cand.get("path_units", 0.0)),
+        "relative_distance": relative_distance(cand, all_cands or [cand]),
+        "direction": sector_word(cand.get("bearing", 0.0)),
+        "unseen_ground_behind_it": novelty_word(cand.get("novelty", 0)),
+        "tried_before": tried_word(cand.get("tries", 0)),
+        "threat": threat_word(cand, rules or {}),
+    }
+    if kind == "door" and cand.get("colour") in ("red", "blue", "yellow"):
+        words["locked"] = cand["colour"] + (" (held)" if cand["colour"] in keys_held else " (no key)")
+    if kind == "item":
+        words["needed_now"] = "yes" if cand.get("colour") == need else "no"
+    return words
+
+
+def build_state(t, candidates, needs, keys_held, mode="explore", rules=None):
+    """The state document the target and need heads see. No numbers, no policy prose."""
+    need = first_need(needs)
+    targets = {}
+    for i, c in enumerate(candidates):
+        targets["t%d" % i] = target_words(c, need, keys_held, rules, candidates)
+    hp = t.get("HEALTH")
+    return {
+        "here": {"mode": mode,
+                 "health": _health(hp),
+                 "armor": _armor(t.get("ARMOR")),
+                 "ammunition": _ammo(t),
+                 "keys_held": ", ".join(keys_held) or "none",
+                 "stuck": "yes" if t.get("STUCK") else "no"},
+        "needs": {k: needs.get(k, "none") for k in NEEDS},
+        "targets": targets,
+    }
+
+
+def _health(hp):
+    hp = 100 if hp is None else hp
+    return "critical" if hp < 35 else "low" if hp < 50 else "fine" if hp < 80 else "full"
+
+
+def _armor(a):
+    a = 0 if a is None else a
+    return "none" if a <= 0 else "some" if a < 50 else "good"
+
+
+def _ammo(t):
+    shells, bullets = int(t.get("SHELLS", 0) or 0), int(t.get("BULLETS", 0) or 0)
+    total = shells * 4 + bullets
+    return "empty" if total <= 0 else "scarce" if total < 30 else "ready"
+
+
+def needs_from(t, rules):
+    """Which of health, ammo and armor are actually wanted, in the knowledge file's own thresholds."""
+    b = rules.get("behaviour", {})
+    hp = int(t.get("HEALTH", 100) or 100)
+    armor = int(t.get("ARMOR", 0) or 0)
+    shells, bullets = int(t.get("SHELLS", 0) or 0), int(t.get("BULLETS", 0) or 0)
+    low = b.get("ammo_low", {})
+    out = {}
+    out["health"] = ("urgent" if hp < b.get("health_critical", 30)
+                     else "wanted" if hp < b.get("health_low", 50)
+                     else "nice to have" if hp < b.get("health_comfortable", 80) else "none")
+    out["ammo"] = ("urgent" if shells + bullets == 0
+                   else "wanted" if shells < low.get("shells", 6) and bullets < low.get("bullets", 20)
+                   else "none")
+    out["armor"] = "wanted" if armor < b.get("armor_low", 25) else "none"
+    return out
+
+
+def first_need(needs):
+    for level in ("urgent", "wanted"):
+        for k in NEEDS:
+            if needs.get(k) == level:
+                return k
+    return None
+
+
+# ---------------------------------------------------------------- questions
+def questions(state, cfg, ask_need=False):
+    """One Score per candidate, in one call. Charter 3.3 and the fan-out the Valyu guide describes."""
+    out = {}
+    spec = cfg["questions"]["target"]
+    for tid in state["targets"]:
+        q = {"type": "score", "criteria": [c.replace("{t}", tid) for c in spec["criteria"]],
+             "instructions": {k: v.replace("{t}", tid) for k, v in spec["instructions"].items()}}
+        out["g_" + tid] = q
+    if ask_need and "need" in cfg["questions"]:
+        spec = cfg["questions"]["need"]
+        for kind in NEEDS:
+            out["n_" + kind] = {"type": "score",
+                                "criteria": [c.replace("{need}", kind) for c in spec["criteria"]],
+                                "instructions": {k: v.replace("{need}", kind)
+                                                 for k, v in spec["instructions"].items()}}
+    return out
+
+
+# ---------------------------------------------------------------- the code baseline
+def rule_score(w, levels=RULE_LEVELS):
+    """The plain baseline: exit, key, an untried door, then whichever unexplored edge is nearest.
+
+    Deliberately simpler than the rubric, and deliberately blind to everything the rubric asks the model
+    to weigh -- what is standing near the target, how much health and ammunition there is to spend on it,
+    whether a detour answers a need that is real now. This is the null hypothesis. Writing it as a
+    restatement of the rubric is how the sector head ended up agreeing with ten lines of code 89% of the
+    time: if the rule and the rubric read the same fields the same way, the model can only reproduce the
+    rule, and the comparison measures nothing.
+
+    It is also the fallback when the answers are too close to call, so it has to have an opinion about
+    everything, and it must never come down to a coin toss.
+    """
+    what, tried = w["what"], w["tried_before"]
+    if what == "the level exit":
+        return float(levels - 1)
+    if what == "a key":
+        return float(levels - 2)
+    if what == "a door":
+        return float(levels - 3) if tried == "no" else 0.0
+    if what == "unexplored edge":
+        near = {"the nearest": 0, "the only one": 0, "nearer than most": 1,
+                "further than most": 2, "the furthest": 3}.get(w.get("relative_distance"), 2)
+        return max(1.0, float(levels - 4 - near))
+    if what == "a pickup":
+        return float(levels - 6) if w.get("needed_now") == "yes" else 1.0
+    return 1.0
+
+
+def rule_answers(state, qids, levels=RULE_LEVELS):
+    """Every asked question answered by the rule, in the shape a System One reply has."""
+    out = {}
+    for qid in qids:
+        if qid.startswith("g_"):
+            out[qid] = {"type": "score", "score": rule_score(state["targets"][qid[2:]], levels),
+                        "confidence": 1.0}
+        elif qid.startswith("n_"):
+            want = state["needs"].get(qid[2:], "none")
+            out[qid] = {"type": "score", "confidence": 1.0,
+                        "score": {"urgent": 3.0, "wanted": 2.0, "nice to have": 1.0}.get(want, 0.0)}
+    return out
+
+
+# ---------------------------------------------------------------- picking
+class TargetMemory:
+    """Commitment, in the same shape the sector memory had: hold a choice until something clearly better.
+
+    The first planner in this project was removed because it "flipped between equal-cost routes every
+    replan". That is a commitment problem, not a planning problem, and this is the commitment.
+    """
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.committed = None      # (x, y) of the target being walked to
+        self.held = 0
+        self.gave_up = {}          # (rx, ry) -> ticks left before it is worth trying again
+        self.fallbacks = 0
+        self.changes = 0
+
+    @staticmethod
+    def key(x, y):
+        return (round(x / 64.0), round(y / 64.0))
+
+    def step(self):
+        self.held += 1
+        for k in list(self.gave_up):
+            self.gave_up[k] -= 1
+            if self.gave_up[k] <= 0:
+                del self.gave_up[k]
+
+    def give_up(self, x, y, ticks):
+        self.gave_up[self.key(x, y)] = ticks
+
+    def gave_up_recently(self, x, y):
+        return self.key(x, y) in self.gave_up
+
+    def commit(self, x, y):
+        k = self.key(x, y)
+        if self.committed != k:
+            self.committed = k
+            self.held = 0
+            self.changes += 1
+
+    def is_committed(self, x, y):
+        return self.committed == self.key(x, y)
+
+
+def pick(answers, state, candidates, cfg, mem):
+    """The best candidate, with commitment and the unsure band. Returns (index, detail)."""
+    sel = cfg["select"]
+    scored = {}
+    for i, _c in enumerate(candidates):
+        a = answers.get("g_t%d" % i)
+        if a is None:
+            continue
+        scored[i] = _raw(a)
+    if not scored:
+        return None, {"fallback": "no answers"}
+    # code-side adjustments: a target given up on recently is worth less, whatever the model says
+    for i, c in enumerate(candidates):
+        if i in scored and mem.gave_up_recently(c["x"], c["y"]):
+            scored[i] -= float(sel.get("tried_penalty", 1.0))
+
+    order = sorted(scored, key=lambda i: -scored[i])
+    best = order[0]
+    gap = scored[order[0]] - scored[order[1]] if len(order) > 1 else 99.0
+    conf = _conf(answers.get("g_t%d" % best))
+    detail = {"gap": round(gap, 3), "confidence": round(conf, 2), "n": len(scored)}
+
+    if gap < float(sel["unsure_gap"]) or conf < float(sel["unsure_conf"]):
+        # a near tie is not a reason to dither: fall back to the exact rule, which always has an opinion
+        rule = {i: rule_score(state["targets"]["t%d" % i]) for i in scored}
+        best = max(rule, key=lambda i: (rule[i], -candidates[i]["path_units"]))
+        detail["fallback"] = "unsure gap" if gap < float(sel["unsure_gap"]) else "unsure answer"
+        mem.fallbacks += 1
+
+    # hold what we are already walking to unless the new choice beats it by a margin
+    for i, c in enumerate(candidates):
+        if mem.is_committed(c["x"], c["y"]) and i in scored and i != best:
+            margin = float(sel["sector_margin"])
+            if mem.held < int(sel["commit_ticks"]):
+                margin += float(sel["commit_bonus"])
+            margin = min(margin, 1.0 - 1e-9)      # a whole rubric level always wins
+            detail["margin"] = round(margin, 3)
+            if scored[best] - scored[i] < margin:
+                best, detail["held"] = i, True
+            break
+    mem.commit(candidates[best]["x"], candidates[best]["y"])
+    detail["score"] = round(scored.get(best, 0.0), 3)
+    return best, detail
+
+
+def _raw(a):
+    if not isinstance(a, dict):
+        return 0.0
+    if a.get("score") is not None:
+        return float(a["score"])
+    probs = a.get("probabilities") or {}
+    return sum(float(k) * float(v) for k, v in probs.items()) if probs else 0.0
+
+
+def _conf(a):
+    if not isinstance(a, dict):
+        return 0.0
+    if a.get("confidence") is not None:
+        return float(a["confidence"])
+    probs = a.get("probabilities") or {}
+    return max(probs.values()) if probs else 0.0
+
+
+# ---------------------------------------------------------------- the intent
+MODE_INDEX = {"EXPLORE": 0, "APPROACH": 1, "OPERATE": 2, "FIGHT": 3, "RETREAT": 4, "RECOVER": 5}
+STANCE_INDEX = {"advance": 0, "advance_strafing": 1, "hold": 2, "retreat": 3}
+FIRE_NONE, FIRE_ANY_ATTACKER, FIRE_NEAREST, FIRE_TARGET = range(4)
+WEAPON_KEEP = 255
+
+
+def mode_for(t, cand, cfg, danger_level=None):
+    """Which mode an intent is in. Every one of these is an exact rule, so none of them is a question.
+
+    RECOVER is absent on purpose: the executor's watchdog owns it, because a freeze is a property of a
+    sequence of tics and the ground only sees one sample of that sequence every half second.
+    """
+    th, sel = cfg["thresholds"], cfg["select"]
+    enemies = int(t.get("ENEMY_COUNT", 0) or 0)
+    dist = float(t.get("ENEMY_DIST", 0) or 0)
+    hp = int(t.get("HEALTH", 100) or 100)
+    threatened = enemies and dist and dist <= float(th["threat_dist"])
+    # When the danger head has not been asked, this used to fall through to FIGHT every time, so the
+    # player charged everything it met at running speed and never backed off. On the first executor
+    # baseline that showed up as 142 deaths across the dev set against 34 for the old gait. With no
+    # answer to lean on, the exact rule decides: a fight you cannot win is not a fight.
+    outgunned = hp < int(th["health_critical"]) or (enemies > 2 and hp < int(th["health_low"]))
+    no_ammo = not int(t.get("SHELLS", 0) or 0) and not int(t.get("BULLETS", 0) or 0)
+    if threatened:
+        if danger_level is not None:
+            return "RETREAT" if danger_level >= float(sel["danger_retreat"]) else "FIGHT"
+        return "RETREAT" if (outgunned or no_ammo) else "FIGHT"
+    if cand is not None and cand["kind"] in ("door", "exit", "switch"):
+        if cand["path_units"] <= float(sel["operate_units"]):
+            return "OPERATE"
+        return "APPROACH"
+    return "EXPLORE"
+
+
+def best_weapon_slot(t, rules=None):
+    """The slot to hold. A rule, not a question, until the weapon head lands in phase 4."""
+    shells = int(t.get("SHELLS", 0) or 0)
+    bullets = int(t.get("BULLETS", 0) or 0)
+    owns_shotgun = bool(t.get("OWN_SHOTGUN"))
+    want = 3 if (owns_shotgun and shells > 0) else (2 if bullets > 0 else 1)
+    equipped = {"FIST": 1, "PISTOL": 2, "SHOTGUN": 3, "OTHER": 4}.get(str(t.get("WEAPON", "PISTOL")), 2)
+    return WEAPON_KEEP if want == equipped else want
+
+
+def intent_for(t, state, candidates, pick, cfg, mode=None, danger_level=None, intent_id=0, tic=0):
+    """Everything the INTENT command carries, from the pick and a handful of exact rules."""
+    sel = cfg["select"]
+    cand = candidates[pick] if pick is not None and pick < len(candidates) else None
+    mode = mode or mode_for(t, cand, cfg, danger_level)
+    stance = "advance"
+    if mode == "FIGHT":
+        stance = "advance_strafing"
+    elif mode == "RETREAT":
+        stance = "retreat"
+    elif mode == "OPERATE":
+        stance = "hold" if cand is not None and cand["path_units"] < 48 else "advance"
+    return {
+        "intent_id": int(intent_id) & 0xFFFF,
+        "based_on_tic": int(t.get("TIC", tic) or 0),
+        "mode": mode,
+        "target_x": float(cand["x"]) if cand else 0.0,
+        "target_y": float(cand["y"]) if cand else 0.0,
+        "has_target": cand is not None,
+        "stance": stance,
+        "fire_policy": FIRE_NONE if mode == "RETREAT" else FIRE_ANY_ATTACKER,
+        "fire_target_id": 255,
+        "weapon": best_weapon_slot(t),
+        "use_at_target": bool(cand and cand["kind"] in ("door", "exit", "switch")),
+        "ttl_ms": int(sel.get("intent_ttl_ms", 1500)),
+    }
+
+
+def decide(t, candidates, cfg, mem, system_one, rules, n=0, ask_need=False, cache=None):
+    """One targeting decision, start to finish. The flight pilot and the bench runner both call this."""
+    import decision_graph as dg
+    mem.step()
+    keys = _keys_held(t)
+    needs = needs_from(t, rules)
+    state = build_state(t, candidates, needs, keys, rules=rules)
+    qs = questions(state, cfg, ask_need=ask_need) if candidates else {}
+    answers, reply = {}, {"latency_ms": 0}
+    sent = dg.state_for(state, qs) if qs else state
+    if qs:
+        hit = cache.get(sent, qs) if cache is not None else None
+        if hit is not None:
+            reply = dict(hit, cached=True, latency_ms=0)
+        else:
+            reply = system_one.ask(sent, qs)
+            if cache is not None:
+                cache.put(sent, qs, reply)
+        answers = reply["answers"]
+    pick_i, detail = (None, {}) if not qs else pick(answers, state, candidates, cfg, mem)
+    if pick_i is None and candidates:
+        # no answers at all: still go somewhere, on the rule alone
+        rule = {i: rule_score(state["targets"]["t%d" % i]) for i in range(len(candidates))}
+        pick_i = max(rule, key=lambda i: (rule[i], -candidates[i]["path_units"]))
+        detail = {"fallback": "no answers"}
+        mem.commit(candidates[pick_i]["x"], candidates[pick_i]["y"])
+    intent = intent_for(t, state, candidates, pick_i, cfg, intent_id=n, tic=n)
+    return {"state": state, "sent": sent, "questions": qs, "answers": answers, "reply": reply,
+            "pick": pick_i, "detail": detail, "intent": intent, "needs": needs,
+            "mode": intent["mode"], "code_only": not qs, "cached": bool(reply.get("cached"))}
+
+
+def _keys_held(t):
+    bits = int(t.get("KEYS", 0) or 0)
+    return [name for bit, name in ((1, "red"), (2, "blue"), (4, "yellow")) if bits & bit]
+
+
+def candidates_from(t, max_n=8):
+    """The candidate list as it arrives in telemetry: CAND0..CAND7 plus a count."""
+    out = []
+    for i in range(int(t.get("CAND_COUNT", 0) or 0)):
+        c = t.get("CAND%d" % i)
+        if not c:
+            continue
+        out.append(normalise(c, t))
+        if len(out) >= max_n:
+            break
+    return out
+
+
+KINDS = ("frontier", "door", "exit", "key", "item", "switch", "enemy")
+COLOURS = ("", "red", "blue", "yellow")
+
+
+def bearing_to(px, py, heading, tx, ty):
+    """Signed bearing to a point relative to the heading; positive means left, as everywhere else here."""
+    return (math.degrees(math.atan2(ty - py, tx - px)) - heading + 180) % 360 - 180
+
+
+def normalise(c, t):
+    """One telemetry candidate as the dict the rest of this module speaks."""
+    get = c.get if isinstance(c, dict) else (lambda k, d=None: getattr(c, k, d))
+    kind = get("kind", 0)
+    kind = KINDS[kind] if isinstance(kind, int) and kind < len(KINDS) else str(kind).lower()
+    flags = int(get("flags", 0) or 0)
+    x, y = float(get("x", 0.0) or 0.0), float(get("y", 0.0) or 0.0)
+    px, py = float(t.get("POS_X", 0.0) or 0.0), float(t.get("POS_Y", 0.0) or 0.0)
+    heading = float(t.get("ANGLE", 0.0) or 0.0)
+    return {"kind": kind, "x": x, "y": y,
+            "bearing": bearing_to(px, py, heading, x, y),
+            "path_units": float(get("dist", 0) or 0), "novelty": int(get("novelty", 0) or 0),
+            "colour": COLOURS[flags & 3] if kind == "door" else str(get("need", "") or ""),
+            "tries": (flags >> 2) & 15}
+
+
+# ---------------------------------------------------------------- determinism within a run
+class DecisionCache:
+    """The same state gets the same answer, every time, for the length of a run. Charter 3.4.
+
+    A System One model is not deterministic across calls, and the replay measured two commands differing
+    between identical passes at a gap of 0.20. That is small, and it is still enough that a run cannot be
+    reproduced from its log, which makes every comparison slightly unfalsifiable. Quantising the state to
+    the words the heads actually see and caching on a hash of those words removes the wobble without
+    removing the model: a state that has genuinely changed still gets a fresh call.
+
+    Within a run only. Nothing survives an attempt, here as everywhere else (charter 2.2).
+    """
+
+    def __init__(self, enabled=True, limit=20000):
+        self.enabled = enabled
+        self.limit = limit
+        self.hits = 0
+        self.misses = 0
+        self._by_hash = {}
+
+    @staticmethod
+    def key(state, questions):
+        import hashlib
+        blob = json.dumps({"s": state, "q": sorted(questions)}, sort_keys=True, default=str)
+        return hashlib.sha1(blob.encode()).hexdigest()
+
+    def get(self, state, questions):
+        if not self.enabled:
+            return None
+        k = self.key(state, questions)
+        hit = self._by_hash.get(k)
+        if hit is None:
+            self.misses += 1
+            return None
+        self.hits += 1
+        return hit
+
+    def put(self, state, questions, reply):
+        if not self.enabled or len(self._by_hash) >= self.limit:
+            return
+        self._by_hash[self.key(state, questions)] = reply
+
+    @property
+    def hit_rate(self):
+        total = self.hits + self.misses
+        return self.hits / total if total else 0.0

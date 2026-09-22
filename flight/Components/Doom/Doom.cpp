@@ -28,12 +28,17 @@ U32 rdU32(const U8*& p) { U32 v = (static_cast<U32>(p[0]) << 24) | (static_cast<
 F32 rdF32(const U8*& p) { U32 u = rdU32(p); F32 f; std::memcpy(&f, &u, sizeof f); return f; }
 U8 rdU8(const U8*& p) { return *p++; }
 void wrF32(U8* p, F32 f) { U32 u; std::memcpy(&u, &f, sizeof u); p[0] = static_cast<U8>(u >> 24); p[1] = static_cast<U8>(u >> 16); p[2] = static_cast<U8>(u >> 8); p[3] = static_cast<U8>(u); }
-constexpr U16 STATUS_LEN = 120;  // struct.calcsize of the payload STATUS_FMT
+constexpr U16 STATUS_CORE_LEN = 120;  // struct.calcsize of the payload STATUS_FMT
+constexpr U8 MAX_CANDIDATES = 8;      // charter 3.3: the ground scores at most this many targets
+constexpr U16 CAND_LEN = 15;          // kind U8, x F32, y F32, pathUnits U16, novelty U8, flags U8,
+                                      // threatClass U8, threatCount U8
+constexpr U16 STATUS_LEN = STATUS_CORE_LEN + 1 + CAND_LEN * MAX_CANDIDATES;
 }  // namespace
 
 Doom ::Doom(const char* const compName)
     : DoomComponentBase(compName), m_sock(-1), m_retryTicks(0), m_rx(new U8[RX_CAPACITY]), m_rxLen(0),
-      m_framesSent(0), m_chunksSent(0), m_cmdsReceived(0), m_lastEpisode(0), m_wasDead(false), m_wasDone(false), m_lastLevel(0), m_lastKeys(0) {}
+      m_framesSent(0), m_chunksSent(0), m_cmdsReceived(0), m_lastEpisode(0), m_wasDead(false), m_wasDone(false), m_lastLevel(0), m_lastKeys(0),
+      m_lastIntentId(0), m_watchdogTrips(0) {}
 
 Doom ::~Doom() {
     this->dropPayload();
@@ -74,6 +79,37 @@ void Doom ::CONTROL_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, I8 move, I8 stra
     body[7] = use ? 1 : 0;
     body[8] = static_cast<U8>(weapon.e);
     const bool ok = this->sendToPayload(0x10, body, sizeof body);
+    this->cmdResponse_out(opCode, cmdSeq, ok ? Fw::CmdResponse::OK : Fw::CmdResponse::EXECUTION_ERROR);
+}
+
+void Doom ::INTENT_cmdHandler(FwOpcodeType opCode, U32 cmdSeq, U16 intentId, U32 basedOnTic,
+                              const DoomMission::IntentMode& mode, F32 targetX, F32 targetY, bool hasTarget,
+                              const DoomMission::Stance& stance, const DoomMission::FirePolicy& firePolicy,
+                              U8 fireTargetId, U8 weapon, bool useAtTarget, U16 ttlMs) {
+    this->m_cmdsReceived++;
+    U8 body[23];
+    body[0] = static_cast<U8>(intentId >> 8);
+    body[1] = static_cast<U8>(intentId);
+    body[2] = static_cast<U8>(basedOnTic >> 24);
+    body[3] = static_cast<U8>(basedOnTic >> 16);
+    body[4] = static_cast<U8>(basedOnTic >> 8);
+    body[5] = static_cast<U8>(basedOnTic);
+    body[6] = static_cast<U8>(mode.e);
+    wrF32(&body[7], targetX);
+    wrF32(&body[11], targetY);
+    body[15] = hasTarget ? 1 : 0;
+    body[16] = static_cast<U8>(stance.e);
+    body[17] = static_cast<U8>(firePolicy.e);
+    body[18] = fireTargetId;
+    body[19] = weapon;
+    body[20] = useAtTarget ? 1 : 0;
+    body[21] = static_cast<U8>(ttlMs >> 8);
+    body[22] = static_cast<U8>(ttlMs);
+    const bool ok = this->sendToPayload(0x15, body, sizeof body);
+    if (ok) {
+        this->m_lastIntentId = intentId;
+        this->log_ACTIVITY_LO_IntentSet(intentId, mode, ttlMs);
+    }
     this->cmdResponse_out(opCode, cmdSeq, ok ? Fw::CmdResponse::OK : Fw::CmdResponse::EXECUTION_ERROR);
 }
 
@@ -299,6 +335,35 @@ void Doom ::handleStatus(const U8* body, U16 length) {
     this->tlmWrite_DOOR_BR(rdU8(p));
     this->tlmWrite_DOOR_RIGHT(rdU8(p));
     this->tlmWrite_DOOR_AR(rdU8(p));
+    // Charter 3.3: the candidate targets the onboard world model offers for the ground to score. Slots
+    // past the count are sent as zeros rather than left stale, so a candidate that has gone away cannot
+    // be scored a second time.
+    const U8 candCount = rdU8(p);
+    this->tlmWrite_CAND_COUNT(candCount);
+    for (U8 i = 0; i < MAX_CANDIDATES; i++) {
+        const U8 kind = rdU8(p);
+        DoomMission::Candidate c;
+        c.setkind(DoomMission::CandKind(static_cast<DoomMission::CandKind::T>(kind > 6 ? 0 : kind)));
+        c.setx(rdF32(p));
+        c.sety(rdF32(p));
+        c.setpathUnits(rdU16(p));
+        c.setnovelty(rdU8(p));
+        c.setflags(rdU8(p));
+        c.setthreatClass(rdU8(p));
+        c.setthreatCount(rdU8(p));
+        switch (i) {
+            case 0: this->tlmWrite_CAND0(c); break;
+            case 1: this->tlmWrite_CAND1(c); break;
+            case 2: this->tlmWrite_CAND2(c); break;
+            case 3: this->tlmWrite_CAND3(c); break;
+            case 4: this->tlmWrite_CAND4(c); break;
+            case 5: this->tlmWrite_CAND5(c); break;
+            case 6: this->tlmWrite_CAND6(c); break;
+            default: this->tlmWrite_CAND7(c); break;
+        }
+    }
+    this->tlmWrite_INTENT_ID(this->m_lastIntentId);
+    this->tlmWrite_WATCHDOG_TRIPS(this->m_watchdogTrips);
     if (level != this->m_lastLevel) {
         this->m_lastLevel = level;
         this->log_ACTIVITY_HI_LevelStarted(level);

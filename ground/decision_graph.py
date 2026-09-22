@@ -44,8 +44,13 @@ STATE_PATHS = {
     "player": ("health", "armor", "ammunition", "equipped_weapon", "equipped_ammo", "shotgun_shells",
                "pistol_bullets", "owns_shotgun"),
     "combat": ("enemy_visible", "enemies_in_view", "enemy_where", "enemy_distance", "enemy_in_crosshair"),
-    "here": ("at_arms_length", "at_arms_length_distance", "stuck", "level", "keys_held", "mode"),
+    "here": ("at_arms_length", "at_arms_length_distance", "stuck", "level", "keys_held", "mode",
+             "health", "armor", "ammunition"),
     "seen": ("exit", "key", "health_pickup", "ammo_pickup", "armor_pickup", "ground_hint"),
+    # Charter 3.3: somewhere to go, built onboard where the map is, scored here.
+    "targets": {"*": ("what", "how_far", "direction", "unseen_ground_behind_it", "tried_before",
+                      "locked", "needed_now")},
+    "needs": ("health", "ammo", "armor"),
 }
 
 
@@ -420,11 +425,19 @@ def questions_for(state, cfg, mode, ask_goal=False, offered=None, threat=False):
 # `state_for` sends only these: text no question reads costs accuracy as well as tokens.
 HEAD_STATE = {"sector": ("sectors",),
               "danger": ("combat", "player", "sectors"),
-              "goal": ("player", "combat", "seen", "here")}
+              "goal": ("player", "combat", "seen", "here"),
+              "target": ("targets", "here", "needs"),
+              "need": ("needs", "here", "combat")}
 
 
 def head_of(qid):
-    return "sector" if qid.startswith("s_") else qid
+    if qid.startswith("s_"):
+        return "sector"
+    if qid.startswith("g_"):
+        return "target"
+    if qid.startswith("n_"):
+        return "need"
+    return qid
 
 
 def state_for(state, questions):

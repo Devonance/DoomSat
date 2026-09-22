@@ -31,6 +31,58 @@ module DoomMission {
         OTHER = 3
     }
 
+    @ What the onboard executor is being asked to do (charter 3.1)
+    enum IntentMode : U8 {
+        EXPLORE = 0
+        APPROACH = 1
+        OPERATE = 2
+        FIGHT = 3
+        RETREAT = 4
+        RECOVER = 5
+    }
+
+    @ How to move while carrying out an intent
+    enum Stance : U8 {
+        ADVANCE = 0
+        ADVANCE_STRAFING = 1
+        HOLD = 2
+        RETREAT = 3
+    }
+
+    @ What the executor is allowed to shoot at
+    enum FirePolicy : U8 {
+        NONE = 0
+        ANY_ATTACKER = 1
+        NEAREST = 2
+        TARGET = 3
+    }
+
+    @ What kind of place a candidate target is
+    enum CandKind : U8 {
+        FRONTIER = 0
+        DOOR = 1
+        EXIT = 2
+        KEY = 3
+        ITEM = 4
+        SWITCH = 5
+        ENEMY = 6
+    }
+
+    @ Somewhere worth going, as the onboard world model offers it to the ground (charter 3.3).
+    @ The distance is along walkable floor, not the straight line: a frontier 200 units away through a
+    @ wall is not 200 units away, and scoring it as though it were is how a pilot walks into the same
+    @ corner all afternoon.
+    struct Candidate {
+        kind: CandKind
+        x: F32          @< where it is, in map units
+        y: F32
+        pathUnits: U16  @< distance along the floor the payload has actually seen
+        novelty: U8     @< how much unseen ground lies behind it
+        flags: U8       @< bits 0-1 key colour (0 none, 1 red, 2 blue, 3 yellow), bits 2-5 tries so far
+        threatClass: U8 @< worst monster class standing near it, by index; 255 = nothing there
+        threatCount: U8 @< how many live things are near it
+    }
+
     @ !binary
     @ Raw bytes of one slice of a JPEG frame (opaque blob on the ground)
     array ChunkBytes = [960] U8
@@ -70,6 +122,25 @@ module DoomMission {
             $use: bool    @< press use (doors, switches)
             weapon: Weapon @< weapon to select (FIST/OTHER = keep current)
         ) opcode 0x00
+
+        @ What to do and for how long, instead of buttons for one tic (charter 3.1). The onboard executor
+        @ carries it out at game rate -- following the planned path, avoiding what the range camera sees,
+        @ aiming, firing, pressing Use -- and drops to safe behaviour when ttl_ms lapses. The player never
+        @ stands still waiting for the ground.
+        async command INTENT(
+            intentId: U16      @< rises with every intent; the newest wins
+            basedOnTic: U32    @< the observation this was decided from; an older answer is dropped
+            mode: IntentMode
+            targetX: F32       @< where to go, in map units
+            targetY: F32
+            hasTarget: bool    @< false means "no destination, act where you stand"
+            stance: Stance
+            firePolicy: FirePolicy
+            fireTargetId: U8   @< candidate index for FIRE_TARGET, 255 = none
+            weapon: U8         @< weapon slot 1-5, 255 = keep the current one
+            useAtTarget: bool  @< press Use on arrival (a door, a switch, the exit)
+            ttlMs: U16         @< how long this intent is worth acting on
+        ) opcode 0x05
 
         @ Set the navigation goal the onboard navigator routes toward
         async command SET_GOAL(goal: Goal) opcode 0x01
@@ -166,6 +237,19 @@ module DoomMission {
         telemetry DOOR_RIGHT: U8 id 68
         telemetry DOOR_AR: U8 id 69
 
+        @ The candidate targets the onboard world model offers for scoring (charter 3.3)
+        telemetry CAND_COUNT: U8 id 70 @< how many of the eight slots below are filled
+        telemetry CAND0: Candidate id 71
+        telemetry CAND1: Candidate id 72
+        telemetry CAND2: Candidate id 73
+        telemetry CAND3: Candidate id 74
+        telemetry CAND4: Candidate id 75
+        telemetry CAND5: Candidate id 76
+        telemetry CAND6: Candidate id 77
+        telemetry CAND7: Candidate id 78
+        telemetry INTENT_ID: U16 id 79 @< the intent the executor is currently carrying out
+        telemetry WATCHDOG_TRIPS: U16 id 80 @< times an invariant had to pull the player out of a freeze
+
         # ----------------------------------------------------------------------
         # Events
         # ----------------------------------------------------------------------
@@ -181,6 +265,7 @@ module DoomMission {
         event BadPayloadMessage(kind: U8) severity warning low id 7 format "Unknown payload message kind {}"
         event LevelStarted(level: U8) severity activity high id 9 format "Now playing level {}"
         event KeyPickedUp(keys: U8) severity activity high id 10 format "Keys held (bitmask red=1 blue=2 yellow=4): {}"
+        event IntentSet(intentId: U16, mode: IntentMode, ttlMs: U16) severity activity low id 11 format "Intent {} {} for {} ms"
 
         # ----------------------------------------------------------------------
         # Standard ports

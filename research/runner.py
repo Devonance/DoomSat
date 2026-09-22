@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT / "ground"))
 
 import decision_graph as dg           # noqa: E402
 import graph_config as gc             # noqa: E402
+import targeting                      # noqa: E402
 
 try:
     import yaml
@@ -88,8 +89,10 @@ class CodeDecider:
         self.cfg, self.levels = cfg, dg.levels_of(cfg)
 
     def ask(self, state, questions):
-        out = {}
+        out = dict(targeting.rule_answers(state, [q for q in questions if q[:2] in ("g_", "n_")]))
         for qid in questions:
+            if qid in out:
+                continue
             if qid.startswith("s_"):
                 out[qid] = {"type": "score", "score": dg.rule_score(state["sectors"][qid[2:]], self.levels),
                             "confidence": 1.0}
@@ -118,7 +121,7 @@ def jev_decider(cfg, env_files):
 # flight numbers diverge for a reason that has nothing to do with the pilot -- charter 6.3 step 7 calls
 # that a harness bug, and tests/test_runner.py pins it against Doom.fpp.
 RENAME = {"x": "POS_X", "y": "POS_Y", "health_item": "HEALTH_ITEM_DIST", "ammo_item": "AMMO_ITEM_DIST",
-          "armor_item": "ARMOR_ITEM_DIST", "explored": "EXPLORED_CELLS"}
+          "armor_item": "ARMOR_ITEM_DIST", "explored": "EXPLORED_CELLS", "cand_count": "CAND_COUNT"}
 BOOLS = {"own_shotgun", "stuck", "door_ahead", "dead", "level_done", "hint_active"}
 AHEAD_KIND = ["NOTHING", "WALL", "DOOR", "EXIT", "LOCKED", "BARRIER", "THING"]
 WEAPON = ["FIST", "PISTOL", "SHOTGUN", "OTHER"]
@@ -126,10 +129,18 @@ GOAL = ["EXPLORE", "KILL_ENEMY", "STOCK_AMMO", "RESTORE_HEALTH", "ADD_ARMOR", "U
 ENUMS = {"ahead_kind": AHEAD_KIND, "weapon": WEAPON, "goal": GOAL}
 
 
+CAND_FIELDS = ("kind", "x", "y", "dist", "novelty", "flags", "threat_class", "threat_count")
+
+
 def telemetry_from(o):
     """One payload observation as the ground would receive it."""
     t = {}
     for k, v in o.items():
+        if k == "candidates":
+            # the ground sees CAND0..CAND7 as aggregates, the way Yamcs delivers an F' struct
+            for i, c in enumerate(v):
+                t["CAND%d" % i] = dict(zip(CAND_FIELDS, c))
+            continue
         name = RENAME.get(k, k.upper())
         if k in ENUMS:
             v = ENUMS[k][int(v)] if 0 <= int(v) < len(ENUMS[k]) else ENUMS[k][0]
@@ -156,7 +167,22 @@ def latencies(path):
     return out or list(DEFAULT_LATENCY_MS)
 
 
-def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat_pool, rng, verbose=False):
+def knowledge():
+    return yaml.safe_load(open(ROOT / "knowledge" / "doom_rules.yaml", encoding="utf-8"))
+
+
+def intent_bytes(it):
+    """An intent as the uplink carries it. Same struct the payload unpacks, so the bench tests the packing."""
+    import struct
+    return struct.pack("!HIBffBBBBBBH", it["intent_id"], it["based_on_tic"],
+                       targeting.MODE_INDEX.get(it["mode"], 0), it["target_x"], it["target_y"],
+                       int(it["has_target"]), targeting.STANCE_INDEX.get(it["stance"], 0),
+                       it["fire_policy"], it["fire_target_id"], it["weapon"],
+                       int(it["use_at_target"]), it["ttl_ms"])
+
+
+def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat_pool, rng, verbose=False,
+                  control="intent"):
     """One level attempt, in process. Returns the attempt record the grader eats."""
     sys.path.insert(0, str(ROOT / "payload"))
     import doom_payload as dp
@@ -165,6 +191,9 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
     p = dp.Payload(_ap.Namespace(port=0, wad=wad_path, map=map_name, skill=skill, seed=seed,
                                  fps=0, quality=45, status_every=3, map_png=None))
     mem = dg.NavMemory(graph)
+    tmem = targeting.TargetMemory(graph)
+    cache = targeting.DecisionCache()      # charter 3.4: an identical state gets an identical action
+    rules = knowledge()
     goal, rows, deaths = "EXPLORE", [], 0
     tic, n, t_wall = 0, 0, time.time()
     end_reason, end_xy = "timeout", None
@@ -175,7 +204,7 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
                 deaths += 1
                 # charter 8.1: retry the level, keep the clock running, and count it
                 p.new_episode()
-                mem = dg.NavMemory(graph)
+                mem, tmem = dg.NavMemory(graph), targeting.TargetMemory(graph)
                 rows.append({"kind": "episode", "reason": "died", "t": time.time(), "tic": tic})
                 continue
             end_reason = "exit"
@@ -189,20 +218,32 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
         end_xy = [o["x"], o["y"]]
         t = telemetry_from(o)
         try:
-            d = dg.decide(t, graph, mem, goal, decider, n)
+            if control == "intent":
+                cands = targeting.candidates_from(t)
+                d = targeting.decide(t, cands, graph, tmem, decider, rules, n,
+                                     ask_need=bool(graph["goal_every"]) and n % graph["goal_every"] == 0,
+                                     cache=cache)
+                # through the same uplink the flight stack uses, so the bench exercises the packing too
+                p.handle(0x15, intent_bytes(d["intent"]))
+                cmd = d["intent"]
+            else:
+                d = dg.decide(t, graph, mem, goal, decider, n)
+                if "goal" in d["answers"]:
+                    goal = dg.GOAL_FROM_CHOICE.get(d["answers"]["goal"].get("choice"), goal)
+                    p.goal = goal
+                c = d["control"]
+                p.control = dict(move=c["move"], strafe=c["strafe"], turn=c["turn"],
+                                 fire=int(bool(c["fire"])), use=int(bool(c["use"])),
+                                 weapon={"PISTOL": 1, "SHOTGUN": 2}.get(c["weapon"], 0))
+                p.turn_remaining = c["turn"]
+                p.last_control_time = time.time()
+                cmd = c
         except Exception as e:                                 # noqa: BLE001
-            rows.append({"kind": "error", "t": time.time(), "tic": tic, "error": str(e)})
+            import traceback
+            rows.append({"kind": "error", "t": time.time(), "tic": tic, "error": str(e),
+                         "traceback": traceback.format_exc()[-800:]})
             end_reason = "crash"
             break
-        if "goal" in d["answers"]:
-            goal = dg.GOAL_FROM_CHOICE.get(d["answers"]["goal"].get("choice"), goal)
-            p.goal = goal
-        c = d["control"]
-        p.control = dict(move=c["move"], strafe=c["strafe"], turn=c["turn"],
-                         fire=int(bool(c["fire"])), use=int(bool(c["use"])),
-                         weapon={"PISTOL": 1, "SHOTGUN": 2}.get(c["weapon"], 0))
-        p.turn_remaining = c["turn"]
-        p.last_control_time = time.time()
         reply = d["reply"]
         rows.append({"t": tic / TICRATE, "kind": "control", "episode": o["episode"], "tic": tic,
                      "graph_version": graph.get("version"), "mode": d["mode"], "goal": goal,
@@ -210,7 +251,8 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
                      "latency_ms": reply.get("latency_ms", 0), "cmd_ms": 0, "tel_age_ms": 0,
                      "model": reply.get("model"), "usage": reply.get("usage"),
                      "answers": {k: dg.answer_label(v) for k, v in d["answers"].items()},
-                     "control": c, "health": o["health"], "kills": o["kills"],
+                     "control": cmd, "health": o["health"], "kills": o["kills"],
+                     "candidates": len(t.get("CAND_COUNT", 0) and [1] * int(t["CAND_COUNT"]) or []),
                      "raw": {k: t.get(k) for k in _RAW_KEYS}})
         n += 1
         # the game waits exactly as long for this answer as flight would
@@ -223,14 +265,20 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
         if verbose and n % 50 == 0:
             print("    %s seed %d: %4d decisions, %5.1f game s, %s" % (map_name, seed, n, tic / TICRATE, d["mode"]),
                   flush=True)
+    # Charter phase 2's exit test is about freezes, and a freeze is only visible as the watchdog having
+    # had to step in. Counting the trips per attempt is the measurement; zero across 50 episodes is the bar.
+    wd = dict(p.executor.watchdog.trips) if p.executor is not None else {}
+    ex_stats = dict(p.executor.stats) if p.executor is not None else {}
     try:
         p.game.close()
     except Exception:                                          # noqa: BLE001
         pass
     return {"tier": "bench", "wad_path": wad_path, "map": map_name, "seed": seed, "skill": skill,
+            "watchdog_trips": wd, "executor_stats": ex_stats,
             "budget_s": budget_s, "start_xy": start_xy, "end_xy": end_xy, "end_reason": end_reason,
             "game_seconds": round(tic / TICRATE, 2), "deaths": deaths, "wall_seconds": round(time.time() - t_wall, 1),
-            "decider": getattr(decider, "name", "?"), "decisions": rows}
+            "decider": getattr(decider, "name", "?"), "decisions": rows,
+            "cache_hit_rate": round(cache.hit_rate, 4)}
 
 
 _RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL", "CLEAR_AR", "CLEAR_BL", "CLEAR_BR",
@@ -317,7 +365,8 @@ def run_bench(a):
     for map_name in maps:
         for seed in seeds:
             t0 = time.time()
-            att = bench_attempt(wad_path, map_name, seed, skill, budget, decider, graph, lat_pool, rng, a.verbose)
+            att = bench_attempt(wad_path, map_name, seed, skill, budget, decider, graph, lat_pool, rng,
+                                a.verbose, control=a.control)
             att.update({"run_id": run_id, "versions": vers})
             path = out_dir / ("attempt-%s-%s.json" % (map_name, seed))
             json.dump(att, open(path, "w", encoding="utf-8"))
@@ -394,6 +443,9 @@ def main(argv=None):
         s.add_argument("--grade", action="store_true",
                        help="grade the run when it finishes, in a separate process (charter phase 1: one "
                             "command turns a commit into a graded run)")
+        s.add_argument("--control", default="intent", choices=["intent", "legacy"],
+                       help="intent: the charter's executor with an INTENT and a TTL. legacy: the "
+                            "pre-charter CONTROL command every tick, kept so the two can be compared.")
         if name == "bench":
             s.add_argument("--decider", default="code", choices=["code", "jev"])
             s.add_argument("--latency-log", default=str(ROOT / "out" / "decisions.jsonl"),

@@ -35,6 +35,7 @@ import os
 import re
 import socket
 import struct
+import sys
 import time
 from collections import deque
 
@@ -42,8 +43,26 @@ import numpy as np
 import vizdoom as vzd
 from PIL import Image, ImageDraw
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import executor as ex_mod            # noqa: E402  the onboard executor (charter 3.1)
+import world_model as wm_mod         # noqa: E402  frontiers, objects, the planner (charter 3.2)
+
 TICRATE = 35
 STATUS_FMT = "!hhhhBBHfffBfHHHHHHHHBBBBBHfHfHHHHfffBBBIHBBHBBBhHHHHBBBBBBBBBBBB"   # 120 bytes, 64 fields (see pack_status)
+# Charter 3.3: the ground scores candidate targets, and building the list needs the map, which is onboard.
+# Eight is what the charter prunes to; each is (kind, bearing, path distance, novelty, flags).
+MAX_CANDIDATES = 8
+# (kind, world x, world y, path distance, novelty, flags). The world position rather than a bearing,
+# because the ground has to be able to aim an intent at the place itself: a bearing plus a path distance
+# does not locate anything once the route bends, and the index alone is not safe because the list is
+# rebuilt while an intent is in flight.
+CAND_FMT = "BffHBBBB"
+STATUS_FULL_FMT = STATUS_FMT + "B" + CAND_FMT * MAX_CANDIDATES
+STATUS_LEN = struct.calcsize(STATUS_FULL_FMT)
+# INTENT, charter 3.1: intent_id, based_on_tic, mode, target x/y, has_target, stance, fire policy,
+# fire target, weapon slot, use at target, time to live.
+INTENT_FMT = "!HIBffBBBBBBH"
+INTENT_LEN = struct.calcsize(INTENT_FMT)
 GOALS = ["EXPLORE", "KILL_ENEMY", "STOCK_AMMO", "RESTORE_HEALTH", "ADD_ARMOR", "UPGRADE_WEAPON", "SCOUT", "HOLD"]
 AHEAD_KINDS = ["nothing", "wall", "door", "exit", "locked", "barrier", "thing"]
 ENEMIES = {"DoomImp", "Zombieman", "ShotgunGuy", "Demon", "Spectre", "ChaingunGuy", "Cacodemon", "HellKnight",
@@ -60,9 +79,23 @@ SOLID_THINGS = {"ExplosiveBarrel", "BurningBarrel", "Column", "TechPillar", "Sho
                 "RedTorch", "ShortBlueTorch", "ShortGreenTorch", "ShortRedTorch", "Stalagtite", "Stalagmite", "BigTree", "TechLamp",
                 "TechLamp2", "Candelabra", "Meat2", "Meat3", "Meat4", "Meat5", "HangNoGuts", "HangBNoBrain", "HangTLookingDown",
                 "HangTSkull", "HangTLookingUp", "HangTNoBrain"}
+# Charter 3.5: slots 1, 4 and 5 were missing, so the player could never take the fist or the chainsaw, the
+# chaingun or the rocket launcher. An episode's last level is a boss fight against two monsters with a
+# thousand hit points each, which is a very long afternoon on a pistol and a shotgun.
 BUTTONS = [vzd.Button.MOVE_FORWARD_BACKWARD_DELTA, vzd.Button.MOVE_LEFT_RIGHT_DELTA, vzd.Button.TURN_LEFT_RIGHT_DELTA,
-           vzd.Button.ATTACK, vzd.Button.USE, vzd.Button.SELECT_WEAPON2, vzd.Button.SELECT_WEAPON3]
-GRID = 32              # map cell for "walked here" memory (map units)
+           vzd.Button.ATTACK, vzd.Button.USE,
+           vzd.Button.SELECT_WEAPON1, vzd.Button.SELECT_WEAPON2, vzd.Button.SELECT_WEAPON3,
+           vzd.Button.SELECT_WEAPON4, vzd.Button.SELECT_WEAPON5]
+WEAPON_BUTTON = {1: vzd.Button.SELECT_WEAPON1, 2: vzd.Button.SELECT_WEAPON2, 3: vzd.Button.SELECT_WEAPON3,
+                 4: vzd.Button.SELECT_WEAPON4, 5: vzd.Button.SELECT_WEAPON5}
+BUTTON_INDEX = {b: i for i, b in enumerate(BUTTONS)}
+# Doom's own forwardmove and sidemove at a run. Measured with payload/speed_probe.py: this delta reaches
+# 507 units/s and the engine caps there, while the 14 the payload used before reached 141. Every speed
+# measured before 22 September was taken against a ceiling of 28% of running.
+RUN_FORWARD, RUN_STRAFE = 50, 40
+from mapclasses import (NONE, STEP, DOOR, LOCK_RED, LOCK_BLUE, LOCK_YELLOW, LOCKED, EXIT, WALL, BARRIER,  # noqa: E402,F401
+                        LOCK_KEY, BLOCKING, GRID, WPX)                                                     # noqa: E402,F401
+
 FOV = 90.0             # ViZDoom default horizontal field of view
 DEPTH_UNITS = 7.16     # map units per depth-buffer step; the buffer holds perpendicular (z) distance (depth_calib_probe*.py)
 DEPTH_FAR = 56         # depth steps beyond which the range camera is not trusted (~400 units)
@@ -80,15 +113,12 @@ EXIT_LINE_MAX_UNITS = 512
 
 # ---- the automap as a sensor: ViZDoom renders it at screen size, centred on the player, viz_am_scale 2.5 = 0.5 px/unit
 AM_W, AM_H, AM_SCALE, AM_CX, AM_CY = 640, 480, 0.5, 320, 240
-WPX = 4                # world raster: map units per pixel
 WORLD_HALF = 6144      # world raster covers +-6144 units around the level start
-NONE, STEP, DOOR, LOCK_RED, LOCK_BLUE, LOCK_YELLOW, LOCKED, EXIT, WALL, BARRIER = range(10)   # merge priority: later wins
 BARRIER_S = 45.0
 CLASS_RGB = {WALL: (255, 255, 255), STEP: (83, 175, 71), DOOR: (115, 115, 255), LOCK_RED: (255, 0, 0), LOCK_BLUE: (0, 0, 255),
              LOCK_YELLOW: (255, 255, 0), LOCKED: (255, 123, 123), EXIT: (255, 127, 27)}
 RENDER_RGB = {**CLASS_RGB, BARRIER: (255, 160, 90)}
 ARROW_RGB = (255, 0, 255)
-LOCK_KEY = {LOCK_RED: "red", LOCK_BLUE: "blue", LOCK_YELLOW: "yellow"}
 # ZDoom's automap categories, given colours code can tell apart (the categories themselves are the engine's defaults:
 # am_showkeys on, exit lines coloured, trigger lines off). The palette maps "00 ff 00" to (83,175,71) etc.
 AM_CVARS = ['am_backcolor "00 00 00"', 'am_wallcolor "ff ff ff"', 'am_fdwallcolor "00 ff 00"', 'am_cdwallcolor "80 80 ff"',
@@ -394,6 +424,10 @@ class Payload:
         self.sense = None            # the slower sensing (rays, novelty, exit) refreshed every SENSE_EVERY tics
         self.door_presses, self.door_at = 0, None
         self.use_ok = False
+        self.world = None            # charter 3.2, rebuilt every episode
+        self.executor = None         # charter 3.1, rebuilt every episode
+        self.candidates = []
+        self.exec_obs = None
         self.new_episode()
 
     @staticmethod
@@ -409,9 +443,9 @@ class Payload:
         g.set_doom_map(self.map)
         g.set_doom_skill(self.args.skill)
         g.set_available_buttons(BUTTONS)
-        g.set_button_max_value(vzd.Button.TURN_LEFT_RIGHT_DELTA, 6)
-        g.set_button_max_value(vzd.Button.MOVE_FORWARD_BACKWARD_DELTA, 14)
-        g.set_button_max_value(vzd.Button.MOVE_LEFT_RIGHT_DELTA, 14)
+        g.set_button_max_value(vzd.Button.TURN_LEFT_RIGHT_DELTA, 10)
+        g.set_button_max_value(vzd.Button.MOVE_FORWARD_BACKWARD_DELTA, RUN_FORWARD)
+        g.set_button_max_value(vzd.Button.MOVE_LEFT_RIGHT_DELTA, RUN_STRAFE)
         g.set_window_visible(False)
         g.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
         g.set_screen_format(vzd.ScreenFormat.RGB24)
@@ -456,6 +490,9 @@ class Payload:
         if self.explorer_map != self.map:
             self.level += 1
         self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
+        self.world = wm_mod.WorldModel(self.explorer, enemies=ENEMIES, item_kind=ITEM_KIND)
+        self.executor = ex_mod.Executor(self.world)
+        self.candidates = []
         self.explorer_map = self.map
         self.positions.clear()
         self.motions.clear()
@@ -600,6 +637,18 @@ class Payload:
                         os.replace(self.args.map_png + ".tmp.png", self.args.map_png)
                     except OSError:
                         pass
+        # ---- the world model for this attempt (charter 3.2): what is here, where it can go, and the way there
+        self.world.see_objects(x, y, state.labels, int(state.tic))
+        if state.tic % SENSE_EVERY == 0:
+            self.candidates = self.world.candidates(x, y, angle, now, keys_held=ex.keys,
+                                                    need=self.need_now())
+        # what the executor gets every tic, at control rate
+        all_blocked = all(r[0] <= 48 for r in s["rays"].values())
+        self.exec_obs = {"x": x, "y": y, "angle": angle, "clear_fwd": clear_fwd, "clear_fl": clear_fl,
+                         "clear_fr": clear_fr, "clear_back": min(s["rays"]["back"][0], 65535),
+                         "enemies": enemies, "ahead_kind": s["ahead_kind"], "ahead_dist": s["ahead_dist"],
+                         "all_blocked": all_blocked, "expire_barriers": self.expire_barriers,
+                         "has_ammo": self.have_ammo()}
         weapon = {1: 0, 2: 1, 3: 2}.get(int(self.var("SELECTED_WEAPON")), 3)
         item = lambda k: ex.nearest_item(x, y, k)
         item_b = lambda k: bearing_deg(x, y, angle, item(k)[1]["x"], item(k)[1]["y"]) if item(k) else 0.0
@@ -634,10 +683,47 @@ class Payload:
             clear_al=min(rays["al"][0], 65535), clear_ar=min(rays["ar"][0], 65535), clear_bl=min(rays["bl"][0], 65535), clear_br=min(rays["br"][0], 65535),
             new_al=nov["al"], new_ar=nov["ar"], new_bl=nov["bl"], new_br=nov["br"],
             door_fwd=doors["fwd"], door_al=doors["al"], door_left=doors["left"], door_bl=doors["bl"],
-            door_back=doors["back"], door_br=doors["br"], door_right=doors["right"], door_ar=doors["ar"])
+            door_back=doors["back"], door_br=doors["br"], door_right=doors["right"], door_ar=doors["ar"],
+            cand_count=len(self.candidates),
+            candidates=[self.pack_candidate(c, x, y, angle) for c in self.candidates])
+
+    def need_now(self):
+        """What a detour would actually be for. Nothing, most of the time."""
+        if self.var("HEALTH") < 50:
+            return "health"
+        if self.var("AMMO3") < 6 and self.var("AMMO2") < 20:
+            return "ammo"
+        if self.var("ARMOR") < 25:
+            return "armor"
+        return None
+
+    def have_ammo(self):
+        w = int(self.var("SELECTED_WEAPON"))
+        return self.var("AMMO3") > 0 if w == 3 else (self.var("AMMO2") > 0 if w == 2 else True)
+
+    def expire_barriers(self):
+        """Charter 4: barrier marks need an expiry, or late in a run every direction reads blocked."""
+        self.explorer.barrier_t[:] = -1e9
+        self.sense = None
+        print("[payload] barrier marks expired (watchdog)", flush=True)
+
+    @staticmethod
+    def pack_candidate(c, x, y, angle):
+        colour = {"red": 1, "blue": 2, "yellow": 3}.get(c.colour, 0)
+        return (c.kind, float(c.x), float(c.y), int(min(65535, c.path_units)), int(min(255, c.novelty)),
+                colour | (min(15, c.tries) << 2), c.threat_class, c.threat_count)
 
     @staticmethod
     def pack_status(o):
+        cands = list(o.get("candidates") or [])[:MAX_CANDIDATES]
+        tail = [min(MAX_CANDIDATES, int(o["cand_count"]))]
+        for c in cands:
+            tail.extend(c)
+        tail.extend([0, 0.0, 0.0, 0, 0, 0, 255, 0] * (MAX_CANDIDATES - len(cands)))
+        return Payload._pack_core(o) + struct.pack("!" + "B" + CAND_FMT * MAX_CANDIDATES, *tail)
+
+    @staticmethod
+    def _pack_core(o):
         return struct.pack(STATUS_FMT, o["health"], o["armor"], o["shells"], o["bullets"], o["weapon"], o["own_shotgun"],
                            o["kills"], o["x"], o["y"], o["angle"], o["enemy_count"], o["enemy_bearing"], o["enemy_dist"],
                            o["clear_fwd"], o["clear_fl"], o["clear_fr"], o["clear_left"], o["clear_right"], o["clear_back"], o["clear_map_fwd"],
@@ -661,6 +747,19 @@ class Payload:
         elif kind == 0x11 and body:
             self.goal = GOALS[body[0]] if body[0] < len(GOALS) else "HOLD"
             print(f"[payload] goal -> {self.goal}", flush=True)
+        elif kind == 0x15 and len(body) >= INTENT_LEN:
+            # INTENT (charter 3.1): what to do and for how long, instead of buttons for one tic.
+            (iid, based, mode, tx, ty, has_t, stance, fire, ftid, weapon, use_at, ttl) = struct.unpack(INTENT_FMT, body[:INTENT_LEN])
+            self.executor.set_intent(ex_mod.Intent(
+                intent_id=iid, based_on_tic=based, mode=ex_mod.MODES[mode] if mode < len(ex_mod.MODES) else "EXPLORE",
+                target_x=tx, target_y=ty, has_target=bool(has_t),
+                stance=ex_mod.STANCES[stance] if stance < len(ex_mod.STANCES) else "advance",
+                fire_policy=fire, fire_target_id=ftid, weapon=weapon, use_at_target=bool(use_at), ttl_ms=ttl),
+                now=time.time())
+            self.last_control_time = time.time()
+            if has_t and self.exec_obs is not None:
+                cand = self._candidate_at(tx, ty)
+                self.world.route_to(self.exec_obs["x"], self.exec_obs["y"], cand, time.time())
         elif kind == 0x12:
             self.new_episode()
         elif kind == 0x13 and len(body) >= 2:
@@ -673,17 +772,59 @@ class Payload:
         else:
             print(f"[payload] unknown uplink kind {kind:#x}", flush=True)
 
+    def _candidate_at(self, tx, ty, within=64.0):
+        best, bd = None, within
+        for c in self.candidates:
+            d = math.hypot(c.x - tx, c.y - ty)
+            if d <= bd:
+                best, bd = c, d
+        if best is None:       # a target the ground names that is not on the list: go to it as a bare point
+            cell = (int(math.floor(tx / wm_mod.GRID)), int(math.floor(ty / wm_mod.GRID)))
+            best = wm_mod.Candidate(wm_mod.KIND_FRONTIER, tx, ty, 0.0, cell=cell)
+        return best
+
+    def buttons(self, cmd):
+        """A command from the executor as the button vector ViZDoom wants.
+
+        `turn` is in degrees with positive meaning left, the way every bearing in this project is signed;
+        the engine's TURN_LEFT_RIGHT_DELTA runs the other way, and the sign flip belongs here rather than
+        in six separate callers.
+        """
+        out = [0.0] * len(BUTTONS)
+        out[BUTTON_INDEX[vzd.Button.MOVE_FORWARD_BACKWARD_DELTA]] = cmd["move"]
+        out[BUTTON_INDEX[vzd.Button.MOVE_LEFT_RIGHT_DELTA]] = cmd["strafe"]
+        out[BUTTON_INDEX[vzd.Button.TURN_LEFT_RIGHT_DELTA]] = -cmd["turn"]
+        out[BUTTON_INDEX[vzd.Button.ATTACK]] = int(cmd["fire"])
+        out[BUTTON_INDEX[vzd.Button.USE]] = int(cmd["use"])
+        slot = int(cmd.get("weapon", ex_mod.WEAPON_KEEP))
+        if slot in WEAPON_BUTTON:
+            out[BUTTON_INDEX[WEAPON_BUTTON[slot]]] = 1
+        return out
+
     def action(self, tic):
+        """One tic of control.
+
+        The executor drives whenever the ground has sent an INTENT. The CONTROL path is kept underneath it
+        so the graph from before the charter still flies and the two can be compared on the bench; it is
+        the executor that the charter's phase 2 exit test measures.
+        """
+        if self.executor is not None and self.executor.intent is not None and self.exec_obs is not None:
+            cmd = self.executor.step(self.exec_obs, time.time())
+            if cmd["use"] and self.use_ok:
+                self.door_presses += 1
+                self.world.note_door_try(self.exec_obs["x"], self.exec_obs["y"], time.time())
+            return self.buttons(cmd)
         c = self.control
         if time.time() - self.last_control_time > UPLINK_TIMEOUT_S:
-            return [0] * len(BUTTONS)  # safe mode: no uplink, hold still
+            return [0.0] * len(BUTTONS)  # safe mode: no uplink, hold still
         use = int(c["use"]) and int(tic % 8 == 0)  # Doom triggers USE on the press edge: pulse a held use
         if use and self.use_ok:
             self.door_presses += 1
-        step = max(-6.0, min(6.0, self.turn_remaining))  # onboard attitude loop: turn to the setpoint, then stop
+        step = max(-10.0, min(10.0, self.turn_remaining))  # onboard attitude loop: turn to the setpoint, then stop
         self.turn_remaining -= step
-        return [14 * c["move"], 14 * c["strafe"], -step, int(c["fire"]), use,
-                int(c["weapon"] == 1), int(c["weapon"] == 2)]
+        return self.buttons({"move": RUN_FORWARD * c["move"], "strafe": RUN_STRAFE * c["strafe"], "turn": step,
+                             "fire": int(c["fire"]), "use": use,
+                             "weapon": {1: 2, 2: 3}.get(int(c["weapon"]), ex_mod.WEAPON_KEEP)})
 
     # ------------------------------------------------------------------ main loop
     def serve(self):

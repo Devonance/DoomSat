@@ -28,6 +28,7 @@ from yamcs.client import YamcsClient
 import after_action
 import decision_graph as dg
 import graph_config as gc
+import targeting
 from providers import make_system_one, make_system_two
 
 HERE = Path(__file__).resolve().parent
@@ -41,8 +42,14 @@ STATUS_CHANNELS = ["HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGU
                    "LEVEL_DONE", "EXPLORED_CELLS", "LEVEL", "KEYS", "HINT_ACTIVE", "HINT_REL",
                    "CLEAR_AL", "CLEAR_AR", "CLEAR_BL", "CLEAR_BR", "NEW_AL", "NEW_AR", "NEW_BL", "NEW_BR",
                    "DOOR_FWD", "DOOR_AL", "DOOR_LEFT", "DOOR_BL", "DOOR_BACK", "DOOR_BR", "DOOR_RIGHT", "DOOR_AR",
-                   "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED"]
+                   "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED",
+                   # charter 3.3: the candidate targets the onboard world model offers for scoring
+                   "CAND_COUNT", "CAND0", "CAND1", "CAND2", "CAND3", "CAND4", "CAND5", "CAND6", "CAND7",
+                   "INTENT_ID", "WATCHDOG_TRIPS"]
 CHUNK_HEADER = struct.Struct("!IHHH")  # seq, index, count, length (then 960 data bytes)
+_FIRE_NAME = {0: "NONE", 1: "ANY_ATTACKER", 2: "NEAREST", 3: "TARGET"}
+
+
 # Everything build_state reads, so a logged row can be replayed exactly (verification step 1).
 RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL", "CLEAR_AR", "CLEAR_BL", "CLEAR_BR",
             "CLEAR_MAP_FWD", "NEW_FWD", "NEW_LEFT", "NEW_RIGHT", "NEW_BACK", "NEW_AL", "NEW_AR", "NEW_BL", "NEW_BR",
@@ -52,6 +59,13 @@ RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL", 
             "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "ENEMY_BEARING", "ENEMY_DIST",
             "HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGUN",
             "EXPLORED_CELLS", "LEVEL", "LEVEL_DONE", "KEYS", "HINT_ACTIVE", "HINT_REL")
+
+
+def _knowledge():
+    """How Doom works (charter 2.1). Values only; the file names no level and a test enforces that."""
+    import yaml
+    path = HERE.parent / "knowledge" / "doom_rules.yaml"
+    return yaml.safe_load(open(path, encoding="utf-8"))
 
 
 class FrameAssembler:
@@ -126,6 +140,9 @@ class Pilot:
         self.last_cmd_ms = 0
         self.pending_turn, self.pending_turn_t, self.angle_at_cmd = 0.0, 0.0, None
         self.nav_memory = dg.NavMemory(self.cfg)
+        self.target_memory = targeting.TargetMemory(self.cfg)
+        self.decision_cache = targeting.DecisionCache()   # charter 3.4
+        self.rules = _knowledge()
         self.mode = "EXPLORE"
         self.skipped_mid_turn = 0
         self.code_only_ticks = 0
@@ -262,6 +279,8 @@ class Pilot:
         # How stale the telemetry already was when this decision started. It is the first of the three
         # terms in decision age (charter 7), and the only one nothing else can recover after the fact.
         tel_age_ms = round((time.time() - self.telemetry_time) * 1000.0)
+        if self.args.control == "intent":
+            return self.intent_step(n, t, cfg, tel_age_ms)
         # One decision, in the same function the bench runner calls. A harness that reimplemented this
         # would be measuring the harness.
         d = dg.decide(t, cfg, self.nav_memory, self.goal, self.system_one, n)
@@ -299,6 +318,54 @@ class Pilot:
             self.set_ground({"SystemOneLatencyMs": float(reply.get("latency_ms", 0)), "ControlCommands": self.control_count,
                              "Controls": f"{mode} {pick or '-'} | " +
                                          " ".join(f"{k}={dg.answer_label(v)}" for k, v in answers.items())})
+        return row
+
+    def intent_step(self, n, t, cfg, tel_age_ms):
+        """One decision under the charter's architecture: score the targets, send an INTENT with a TTL.
+
+        The player does not stop while this is in flight -- the onboard executor is still carrying out the
+        last intent -- which is the whole point of charter 3.1 and the difference between an EXPLORE speed
+        of 66 units per second and one worth reporting.
+        """
+        cands = targeting.candidates_from(t)
+        ask_need = bool(cfg["goal_every"]) and n % cfg["goal_every"] == 0
+        d = targeting.decide(t, cands, cfg, self.target_memory, self.system_one, self.rules, n,
+                             ask_need=ask_need, cache=self.decision_cache)
+        if d["code_only"]:
+            self.code_only_ticks += 1
+        it = d["intent"]
+        self.mode = it["mode"]
+        self.command("INTENT", {
+            "intentId": it["intent_id"], "basedOnTic": it["based_on_tic"], "mode": it["mode"],
+            "targetX": it["target_x"], "targetY": it["target_y"], "hasTarget": it["has_target"],
+            "stance": it["stance"].upper(), "firePolicy": _FIRE_NAME[it["fire_policy"]],
+            "fireTargetId": it["fire_target_id"], "weapon": it["weapon"],
+            "useAtTarget": it["use_at_target"], "ttlMs": it["ttl_ms"]})
+        self.control_count += 1
+        reply = d["reply"]
+        row = {"t": time.time(), "kind": "control", "episode": self.episode, "graph_version": cfg.get("version"),
+               "pinned_model": cfg.get("model"), "latency_ms": reply.get("latency_ms", 0),
+               "model": reply.get("model"), "request_id": reply.get("request_id"), "usage": reply.get("usage"),
+               "cmd_ms": self.last_cmd_ms, "tel_age_ms": tel_age_ms,
+               "mode": it["mode"], "goal": self.goal, "pick": d["pick"], "select": d["detail"],
+               "answers": {k: dg.answer_label(v) for k, v in d["answers"].items()},
+               "confidence": {k: round(dg.answer_confidence(v), 2) for k, v in d["answers"].items()},
+               "control": it, "candidates": len(cands), "cached": d["cached"],
+               "health": t.get("HEALTH"), "kills": t.get("KILLS"), "tic": t.get("TIC"),
+               "state": d["sent"], "here": d["state"]["here"], "needs": d["needs"],
+               "questions_sha": hashlib.sha1(json.dumps(d["questions"], sort_keys=True).encode()).hexdigest()[:12],
+               "raw": {k: t.get(k) for k in RAW_KEYS}}
+        if self.args.log_questions:
+            row["questions"] = d["questions"]
+        self.log.write(json.dumps(row) + "\n")
+        self.rows.append(row)
+        if time.time() - self.last_stats > 1.0:
+            self.last_stats = time.time()
+            target = "-" if d["pick"] is None else "%s@%.0fu" % (cands[d["pick"]]["kind"],
+                                                                 cands[d["pick"]]["path_units"])
+            self.set_ground({"SystemOneLatencyMs": float(reply.get("latency_ms", 0)),
+                             "ControlCommands": self.control_count,
+                             "Controls": "%s -> %s (%d candidates)" % (it["mode"], target, len(cands))})
         return row
 
     def set_goal(self, goal):
@@ -525,6 +592,10 @@ def main():
                    help="make System Two's revision current immediately instead of saving it as a candidate "
                         "for tools/promote_graph.py (one episode is one sample; off by default)")
     p.add_argument("--log-questions", action="store_true", help="log the full question set on every row (large)")
+    p.add_argument("--control", default="intent", choices=["intent", "legacy"],
+                   help="intent: the charter's architecture -- score the candidate targets, send an INTENT "
+                        "with a time to live, and let the onboard executor carry it out. legacy: the "
+                        "pre-charter eight-sector graph sending CONTROL every tick.")
     p.add_argument("--fps", type=int, default=10)
     p.add_argument("--quality", type=int, default=45)
     p.add_argument("--duration", type=float, default=0.0, help="stop after this many seconds (0 = run forever)")

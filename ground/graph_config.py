@@ -65,6 +65,11 @@ DEFAULT = {
         "idle_ticks": 8,              # decisions without moving before the pilot declares itself stuck
         "recover_ticks": 12,          # ticks in RECOVER before returning to EXPLORE regardless
         "fight_linger_ticks": 6,      # ticks FIGHT is held after the last enemy left view
+        # Charter 3.1: an intent outlives the decision that made it, so the player never stands still
+        # waiting for the next one. Long enough to cover a slow answer, short enough that a stale plan
+        # stops rather than runs into a wall; the executor drops to safe behaviour when it lapses.
+        "intent_ttl_ms": 1500,
+        "target_give_up_ticks": 60,   # ticks a target the pilot gave up on stays unattractive
     },
     "questions": {
         "sector": {
@@ -97,6 +102,48 @@ DEFAULT = {
                 "a fight to win: one enemy at mid-range, `player.health` fine or better, `player.ammunition` ready",
                 "under fire: an enemy close or point blank, or `combat.enemies_in_view` above one, or `player.health` low",
                 "get out: `player.health` critical, or several enemies with `player.ammunition` empty or scarce"]},
+        # Charter 3.3. One Score per candidate the payload offers, on a shared rubric, in one call; code
+        # picks with commitment and the unsure band. This is the navigator now -- the sector head below is
+        # kept because the executor still uses it as local obstacle input and because every baseline before
+        # the charter was measured with it.
+        #
+        # The levels are written as TRADE-OFFS, and that is the whole design. The first draft of this
+        # rubric was a level-by-level restatement of `targeting.rule_score`, which guarantees the only
+        # thing the model can do is reproduce the rule -- the same trap the sector rubric fell into, where
+        # sharpening it drove agreement with ten lines of code from 79% to 89% and made the model
+        # redundant by construction. A question worth half a second of latency has to weigh things no
+        # single field settles: what is standing near the target against how much health and ammunition
+        # there is to spend, how far it is compared with the other options rather than in the absolute,
+        # and whether a detour answers a need that is real right now.
+        #
+        # `rule_score` is deliberately simpler than this: exit, then key, then an untried door, then the
+        # nearest unexplored edge, and nothing else. It is the null hypothesis, not a shadow of the rubric.
+        "target": {
+            "type": "score",
+            "instructions": {
+                "question": "How well does going to {t} serve finding the level exit alive, weighed against "
+                            "the other targets and what the player has left?",
+                "inspect": "`targets.{t}`, the other entries in `targets`, `here`, `needs`"},
+            "criteria": [
+                "not reachable in any useful sense: `targets.{t}.locked` names a key the player does not hold, or `targets.{t}.tried_before` is several times and it has not opened",
+                "a bad trade: `targets.{t}.threat` is dangerous or deadly while `here.health` is critical or low, or `here.ammunition` is empty",
+                "not worth the walk: `targets.{t}.relative_distance` is the furthest and there is little behind it, with nothing in `needs` that it answers",
+                "would be worth it nearer: it answers something in `needs`, but it is the furthest of the targets and `targets.{t}.threat` is not none",
+                "a fair next step: unexplored ground at a distance in line with the others, and nothing dangerous standing near it",
+                "worth a detour: it answers a need the player actually has, it is not the furthest, and `targets.{t}.threat` is none or a straggler",
+                "the obvious move: close or the nearest of them, a lot of unseen ground behind it, and nothing near it worth avoiding",
+                "the way on: an untried door or a key the player is missing, and what `targets.{t}.threat` says is standing there is worth facing with the health and ammunition in `here`",
+                "the way out: the level exit, and nothing between here and it that `here.health` and `here.ammunition` could not survive"]},
+        "need": {
+            "type": "score",
+            "instructions": {
+                "question": "How badly does the player need {need} right now?",
+                "inspect": "`needs.{need}`, `here`, `combat`"},
+            "criteria": [
+                "`needs.{need}` is none: no reason to spend a step on it",
+                "`needs.{need}` is nice to have: worth taking if it is on the way",
+                "`needs.{need}` is wanted: worth a short detour",
+                "`needs.{need}` is urgent: worth turning away from the exit for"]},
         "goal": {
             "type": "choice",
             "instructions": {"question": "What is the immediate priority?",
@@ -120,9 +167,11 @@ SELECT_RANGES = {"sector_margin": (0.0, 3.0), "commit_bonus": (0.0, 2.0), "commi
                  "tried_penalty": (0.0, 3.0), "tried_cooldown": (5, 200), "confirm_ticks": (1, 6),
                  "danger_sidestep": (0.0, 9.0), "danger_retreat": (0.0, 9.0), "operate_units": (24, 120),
                  "approach_ticks": (2, 60),
-                 "door_tries": (1, 12), "door_retry_ticks": (10, 400), "idle_ticks": (3, 40), "recover_ticks": (2, 60), "fight_linger_ticks": (0, 40)}
+                 "door_tries": (1, 12), "door_retry_ticks": (10, 400), "idle_ticks": (3, 40), "recover_ticks": (2, 60), "fight_linger_ticks": (0, 40),
+                 "intent_ttl_ms": (300, 5000), "target_give_up_ticks": (10, 400)}
 INT_KEYS = ("commit_ticks", "tried_cooldown", "door_tries", "recover_ticks", "fight_linger_ticks",
-            "confirm_ticks", "approach_ticks", "door_retry_ticks", "idle_ticks")
+            "confirm_ticks", "approach_ticks", "door_retry_ticks", "idle_ticks",
+            "intent_ttl_ms", "target_give_up_ticks")
 
 
 class GraphError(ValueError):
