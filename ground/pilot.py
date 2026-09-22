@@ -106,6 +106,7 @@ class Pilot:
         self.plan_busy = False
         self.control_count = 0
         self.last_cmd_ms = 0
+        self.pending_turn, self.pending_turn_t = 0.0, 0.0
         self.resubscribes = 0
         self.subscription = None
         self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
@@ -204,6 +205,13 @@ class Pilot:
         if time.time() - self.telemetry_time > 2.0:
             return None  # stale telemetry: hold what the payload holds (its own uplink timeout releases controls)
         t = dict(self.telemetry)
+        # A turn commanded less than half a second ago is still executing (or not yet in the telemetry),
+        # so judge the bearings as they will be once it lands; otherwise every turn gets commanded twice.
+        age = time.time() - self.pending_turn_t
+        if self.pending_turn and age < 0.5:
+            for key in ("ROUTE_BEARING", "ENEMY_BEARING"):
+                if key in t:
+                    t[key] = (t[key] - self.pending_turn + 180) % 360 - 180
         state = dg.build_state(t, self.goal, self.standing_order)
         questions = dg.control_questions(t, self.goal)
         if self.system_two is None:
@@ -212,6 +220,7 @@ class Pilot:
         answers = reply["answers"]
         cargs = dg.control_args(answers)
         self.command("CONTROL", cargs)
+        self.pending_turn, self.pending_turn_t = cargs["turn"], time.time()
         self.control_count += 1
         if "goal" in answers and self.system_two is None:
             self.set_goal(dg.GOAL_FROM_CHOICE.get(answers["goal"]["choice"], self.goal), "jev", answers["goal"])

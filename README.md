@@ -96,7 +96,20 @@ moment-to-moment controls from words only; every number is bucketed before it se
 
 ## Status
 
-Whole path works end to end. The open problem is gameplay quality: the frontier explorer still
-wedges on pillars and dead ends (see `out/payload_map.png`, the map the payload built), so runs are
-mostly jev turning and strafing to get free. Open MCT displays the Yamcs tree once its build matches
-`openmct-yamcs` (build from master).
+Whole path works end to end and the player now explores on its own: jev answers every ~0.6 s
+(371-377 decisions per 5-minute run), Sonnet plans 7-10 times per run, frames arrive at ~10 fps.
+Things that had to be learned the hard way (all fixed):
+
+- Yamcs delivers F´ booleans as the enumerated strings "True"/"False"; the pilot must normalise
+  them or "stuck: False" reads as stuck.
+- The Yamcs WebSocket subscription drops after a few minutes; the pilot detects stale telemetry
+  and resubscribes.
+- A held turn rate over-rotates when the ground loop takes ~0.6 s per decision; `CONTROL.turn`
+  is degrees to turn, executed onboard as a heading setpoint (ViZDoom turn delta = degrees per
+  tic for values 2..16). Because jev's answer lands ~0.6 s after the observation, the pilot
+  compensates the bearings for a turn still in flight.
+- Frame uploads and ground-parameter writes must not share the command client's HTTP session,
+  or command issue latency climbs from 50 ms to seconds.
+
+Open: the frontier explorer still dithers when its target is behind it; Open MCT (built from
+master) loads and connects to Yamcs but headless Chrome will not paint it for screenshots.
