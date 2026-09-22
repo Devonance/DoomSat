@@ -66,12 +66,22 @@ exact rule behind them, and code does the rest:
 
 | Head | Type | Asked | What code does with it |
 |---|---|---|---|
-| `sector` | Score, 4 levels | once per open direction, every tick in EXPLORE and APPROACH | ranks the directions, applies hysteresis on a **world bearing**, falls back to a named rule when the top two are too close |
-| `danger` | Score, 4 levels | whenever an enemy is in view | sidestep, or back off |
-| `goal` | Choice | every `goal_every` ticks | `SET_GOAL`, and a weight on the sector holding that goal's pickup |
+| `target` | Score, 9 levels | once per candidate the onboard world model offers, every decision | picks with commitment and an unsure band, plans the path, sends the INTENT |
+| `engage` | Choice | only when something has actually been met | sets the mode and the stance |
+| `weapon` | Choice | with `engage` | the slot to hold, with the splash rule as a backstop |
+| `need` | Score, 4 levels | every `goal_every` decisions | re-weights the candidates a detour would serve |
+| `sector` | Score, 9 levels | the pre-charter navigator, kept for comparison and as executor input | ranks the eight directions with hysteresis on a **world bearing** |
+
+The rubric behind `target` asks for the trade-offs no single field settles: what is standing near the
+target against the health and ammunition there is to spend on it, how far it is *relative to the other
+options*, whether a detour answers a need that is real now. `targeting.rule_score` is the null hypothesis
+and is deliberately blind to all of that — exit, key, untried door, nearest unexplored edge. Writing the
+rubric as a restatement of the rule is how the old `sector` head ended up agreeing with ten lines of code
+89% of the time, which made the model redundant by construction; a test now guards the separation.
 
 Walking, doors, firing, weapon selection, aiming and the mode machine (EXPLORE, APPROACH, OPERATE, FIGHT,
-RECOVER, DONE) are exact rules, so they live in `ground/decision_graph.py`, not in a question. Four things
+RETREAT, RECOVER) are exact rules, so they live in `ground/decision_graph.py` and `payload/executor.py`,
+not in a question. Four things
 follow from jev being stateless and literal, and code holds all four:
 
 1. every fact a criterion mentions exists as a field of the state — `decision_graph.lint` refuses a graph
@@ -86,6 +96,22 @@ follow from jev being stateless and literal, and code holds all four:
 reason back to System Two for one more try. The old version silently cut every string to 700 characters and
 clamped the hysteresis margin, so ten of the last eleven reviews re-diagnosed the same truncation and every
 tuning of the margin was a no-op. See `docs/audit-2026-09-22.md`.
+
+## The rover split (charter 3)
+
+The ground no longer sends buttons for one tic. It sends an **INTENT** with a time to live — a mode,
+somewhere to go, a stance, what to shoot at, which weapon, whether to press Use on arrival — and the
+onboard executor carries it out at 35 Hz. The player never stands still waiting for a decision.
+
+| Tier | Where | Rate | Decides |
+|---|---|---|---|
+| Executor | payload (`executor.py`) | every tic | nothing strategic: follows the planned path, avoids what the camera sees, aims, fires, presses Use, and has the watchdog that pulls the player out of a freeze |
+| World model | payload (`world_model.py`) | 5 Hz | frontiers, the object table, A* with commitment, and the candidate targets it offers the ground |
+| Decider (jev) | ground (`targeting.py`) | 2 to 4 a second | which target, whether to fight, which weapon, what the player needs |
+| Reviewer (Sonnet) | ground | per attempt | proposes experiments; nothing auto-applies |
+
+`docs/CHARTER.md` is the mission and the rules; `docs/CHARTER-STATUS.md` and `docs/PHASES-2-6.md` say what
+is built and what the numbers actually say, including where they say it is not finished.
 
 ## What is proven
 
@@ -124,10 +150,14 @@ Integration findings worth keeping:
 |---|---|
 | `flight/Components/Doom/` | F´ component: commands, 64 telemetry channels, events, FrameChunk downlink (frames and the map product) (FPP + C++) |
 | `flight/DoomSat/Top/`, `flight/config/` | topology/instances/rate groups, com-buffer override (copied into the WSL project) |
-| `payload/doom_payload.py` | the game as an instrument: automap (seen lines) + range camera + labels, local sensing in eight directions, map memory, level progression |
+| `payload/doom_payload.py` | the game as an instrument: automap (seen lines) + range camera + labels, local sensing in eight directions, level progression |
+| `payload/world_model.py` | the world model for one attempt: frontiers, the object table, A* with commitment, and the candidate targets the ground scores |
+| `payload/executor.py` | the onboard executor: follows an INTENT with a time to live at 35 Hz, avoids what the camera sees, aims, fires, and has the watchdog that pulls the player out of a freeze |
+| `payload/speed_probe.py`, `payload/ray_class_probe.py` | the two measurements that settled a constant and a hypothesis: running speed, and what actually stops a collapsed map ray |
 | `payload/selfplay.py`, `payload/nav_probe.py` | code-only drivers of the navigator (no models) for fast iteration |
 | `ground/pilot.py` | the loop: Yamcs subscriptions, frame reassembly, jev control step, after-action reviews, commands |
-| `ground/decision_graph.py` | telemetry -> a structured state, the three heads, the mode machine, the selection rules, the reflex layer, the criteria linter |
+| `ground/decision_graph.py` | telemetry -> a structured state, the sector heads, the mode machine, the selection rules, the reflex layer, the criteria linter |
+| `ground/targeting.py` | the charter's navigator: candidate targets -> words -> the `target`, `need`, `engage` and `weapon` heads -> a pick with commitment -> an INTENT. The code baselines live beside them and are deliberately simpler |
 | `ground/graph_config.py` | the graph as data, with bounds code enforces by rejecting (versioned in `ground/graph/`) |
 | `ground/metrics.py` | one frozen definition per number the runs are compared on, shared by the report and the replay |
 | `ground/after_action.py` | the episode report (built from the heads actually asked) and the System Two review call |
@@ -137,9 +167,9 @@ Integration findings worth keeping:
 | `runs/<date>/` | the day's decision logs (one row per jev decision: **the exact state sent**, the answers, the selection detail, request id, latency, telemetry), pilot log, final graph, map, replay results |
 | `docs/CHARTER.md` | the mission, the knowledge boundary, the architecture and the build order; `docs/CHARTER-STATUS.md` says what of it is built |
 | `knowledge/doom_rules.yaml` | how Doom works: monsters, weapons, ammo, pickups, keys, doors, damaging floors. Values only, no level ever named |
-| `research/` | the ruler. `PROGRAM.md` (the rules of the loop), `levels.yaml` (dev and test sets, and every charter decision as one value), `frozen_metrics.py`, `honesty.py`, `preflight.py`, `runner.py` (bench and flight), `grade.py`, `ledger.py` + `ledger.tsv` |
+| `research/` | the ruler. `PROGRAM.md` (the rules of the loop), `levels.yaml` (dev and test sets, and every charter decision as one value), `frozen_metrics.py`, `honesty.py`, `preflight.py`, `runner.py` (bench and flight), `grade.py`, `ledger.py` + `ledger.tsv`, `experiment.py` (one experiment end to end), `campaign.py` (the test campaign, run by a person) |
 | `research/grader/` | the only code allowed to open a WAD, in its own process: walkability, the distance field, the score. It refuses to import inside a pilot |
-| `tests/` | `python -m unittest discover -s tests` — 173 tests, no network and no game: the state, the selection, the modes, the reflex layer, the graph contract, the report's head coverage, the honesty suite and its canary, the grader and the keep rule |
+| `tests/` | `python -m unittest discover -s tests` — 274 tests, no network and no game: the state, the selection, the modes, the reflex layer, the graph contract, the report's head coverage, the honesty suite and its canary, the grader and the keep rule |
 | `scripts/`, `tools/` | start/stop/build helpers (WSL), replay and boundary-set tools, run report, charts, decision-graph figures, screenshots/recording, developer probes |
 
 ## Running it
