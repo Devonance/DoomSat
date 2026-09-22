@@ -17,7 +17,11 @@ GOAL_FROM_CHOICE = {"Kill enemies": "KILL_ENEMY", "Restore health": "RESTORE_HEA
                     "Add armor": "ADD_ARMOR", "Explore": "EXPLORE", "Scout": "SCOUT", "Upgrade weapon": "UPGRADE_WEAPON"}
 AHEAD_WORDS = {"NOTHING": "nothing near", "WALL": "a wall", "DOOR": "a door", "EXIT": "the exit switch",
                "LOCKED": "a locked door", "BARRIER": "bars or a blocked doorway the map does not show", "THING": "a monster or a barrel"}
-WAY_TURN = {"Ahead": 0.0, "Left": 90.0, "Right": -90.0, "Back": 0.0, "Turn around": 180.0}
+WAY_TURN = {"ahead": 0.0, "ahead-left": 45.0, "left": 90.0, "behind-left": 135.0, "behind": 180.0,
+            "behind-right": -135.0, "right": -90.0, "ahead-right": -45.0}
+DIR_KEYS = {"ahead": ("CLEAR_FWD", "NEW_FWD"), "ahead-left": ("CLEAR_AL", "NEW_AL"), "left": ("CLEAR_LEFT", "NEW_LEFT"),
+            "behind-left": ("CLEAR_BL", "NEW_BL"), "behind": ("CLEAR_BACK", "NEW_BACK"), "behind-right": ("CLEAR_BR", "NEW_BR"),
+            "right": ("CLEAR_RIGHT", "NEW_RIGHT"), "ahead-right": ("CLEAR_AR", "NEW_AR")}
 
 
 # ---------------------------------------------------------------- numbers -> words
@@ -51,13 +55,15 @@ def where_words(b, d):
 
 
 def ground_words(pct):
+    if pct >= 200:
+        return "unexplored (never seen)"
     return "new" if pct >= 60 else "partly walked" if pct >= 25 else "walked before"
 
 
 def build_state(t, goal, cfg):
     """The structured state jev classifies: only what the heads need, in words."""
     th = cfg["thresholds"]
-    space = lambda c: "blocked" if c < th["blocked_units"] else "tight" if c < th["tight_units"] else "open"
+    space = lambda c: "blocked" if c < th["blocked_units"] else "tight" if c < th["tight_units"] else "open" if c < 220 else "long (a passage or a big room)"
     yn = lambda b: "yes" if b else "no"
     enemy = t.get("ENEMY_COUNT", 0) > 0
     e_bearing, e_dist = t.get("ENEMY_BEARING", 0.0), t.get("ENEMY_DIST", 0)
@@ -84,10 +90,8 @@ def build_state(t, goal, cfg):
                    "enemy_where": (bearing_words(e_bearing) + ", " + dist_words(e_dist)) if enemy else "no enemy in view",
                    "threat": "danger" if enemy and e_dist < th["danger_dist"] else "safe",
                    "enemy_in_crosshair": yn(enemy and abs(e_bearing) <= th["crosshair_deg"] and e_dist <= th["fire_range"])},
-        "surroundings": {"ahead": ahead,
-                         "left": {"space": space(t.get("CLEAR_LEFT", 999)), "ground": ground_words(t.get("NEW_LEFT", 100))},
-                         "right": {"space": space(t.get("CLEAR_RIGHT", 999)), "ground": ground_words(t.get("NEW_RIGHT", 100))},
-                         "behind": {"space": space(t.get("CLEAR_BACK", 999)), "ground": ground_words(t.get("NEW_BACK", 100))}},
+        "surroundings": {"ahead": ahead, **{d: {"space": space(t.get(ck, 999)), "ground": ground_words(t.get(nk, 100))}
+                                            for d, (ck, nk) in DIR_KEYS.items() if d != "ahead"}},
         "stuck": yn(t.get("STUCK", False)),
         "seen": {"exit": where_words(t.get("EXIT_BEARING", 0.0), t.get("EXIT_DIST", 0)),
                  "key": where_words(t.get("KEY_BEARING", 0.0), t.get("KEY_DIST", 0)),
@@ -115,10 +119,8 @@ def control_questions(t, goal, cfg):
     """The control heads for this tick. Code decides which heads are asked and which options are on the menu."""
     s = build_state(t, goal, cfg)
     sur = s["surroundings"]
-    ways = ["Ahead", "Left", "Right", "Back", "Turn around"]
-    if sur["behind"]["space"] == "blocked":
-        ways.remove("Back")
-    heads = {"way": _question(cfg, "way", ways), "advance": _question(cfg, "advance"), "fire": _question(cfg, "fire"),
+    ways = [d for d in WAY_TURN if sur[d]["space"] != "blocked"] or ["behind"]   # never offer a blocked direction
+    heads = {"way": _way_question(cfg, sur, ways), "advance": _question(cfg, "advance"), "fire": _question(cfg, "fire"),
              "weapon": _question(cfg, "weapon")}
     if str(t.get("AHEAD_KIND", "NOTHING")) in ("DOOR", "EXIT", "LOCKED") or s["stuck"] == "yes":
         heads["use"] = _question(cfg, "use")
@@ -129,6 +131,17 @@ def control_questions(t, goal, cfg):
         if goal == "KILL_ENEMY":
             heads["turn"] = _question(cfg, "turn")
     return heads
+
+
+def _way_question(cfg, sur, ways):
+    """The way head: one option per open direction, each described from the same template (System Two edits the template)."""
+    spec = cfg["questions"]["way"]
+    tpl = spec["criteria"]["direction"]
+    crit = {}
+    for d in ways:
+        crit[d] = {k: (v.replace("{dir}", d) if isinstance(v, str) else [x.replace("{dir}", d) for x in v]) for k, v in tpl.items()}
+        crit[d]["now"] = f"space {sur[d]['space']}, ground {sur[d]['ground']}"
+    return {"type": "choice", "instructions": copy.deepcopy(spec["instructions"]), "criteria": crit}
 
 
 def goal_question(t, cfg):
@@ -159,11 +172,11 @@ def control_args(answers, cfg, t=None, memory=None):
     memory = memory if memory is not None else {}
     a = {k: v for k, v in answers.items() if k in CONTROL_HEADS}
     way_ans = a.get("way", {})
-    way = way_ans.get("choice", "Ahead")
+    way = way_ans.get("choice", "ahead")
     probs = way_ans.get("probabilities") or {}
     advance = float(a.get("advance", {}).get("noul", 1.0)) >= 0.5
     prev = memory.get("way")
-    prev_ok = prev in probs and probs.get(prev, 0.0) >= 0.3 and not (prev == "Ahead" and not advance)
+    prev_ok = prev in probs and probs.get(prev, 0.0) >= 0.3 and not (prev == "ahead" and not advance)
     if prev and prev != way and prev_ok and probs.get(way, 0.0) < probs.get(prev, 0.0) + float(cfg.get("way_margin", 0.15)):
         way = prev
     memory["way"] = way
@@ -173,7 +186,7 @@ def control_args(answers, cfg, t=None, memory=None):
     weapon = {"Pistol": "PISTOL", "Shotgun": "SHOTGUN"}.get(a.get("weapon", {}).get("choice"), "FIST")
     turn = WAY_TURN.get(way, 0.0)
     move = 0
-    if way == "Ahead":
+    if way == "ahead":
         move = 1 if advance else 0
         if "turn" in a:   # fighting: aim at the enemy instead of steering
             turn = float(cfg["turn_deg"].get(a["turn"].get("choice", "Hold"), 0.0))
@@ -182,8 +195,8 @@ def control_args(answers, cfg, t=None, memory=None):
             fl, fr, fw = t.get("CLEAR_FL", 999), t.get("CLEAR_FR", 999), t.get("CLEAR_FWD", 999)
             if fw < 160 and abs(fl - fr) > 40:
                 turn = 20.0 if fl > fr else -20.0
-    elif way == "Back":
-        move = -1
+    elif way == "behind" and t is not None and t.get("CLEAR_BACK", 0) > t.get("CLEAR_FWD", 0):
+        move, turn = -1, 0.0   # back out rather than turn when the way behind is open
     strafe = -1 if dodge == "Dodge left" else 1 if dodge == "Dodge right" else 0
     if dodge == "Dodge back":
         move = -1

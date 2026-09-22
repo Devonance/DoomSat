@@ -147,6 +147,14 @@ module DoomMission {
         telemetry PAYLOAD_LINK: bool id 51
         telemetry CMDS_RECEIVED: U32 id 52
         telemetry FRAME_CHUNK: FrameChunk id 53
+        telemetry CLEAR_AL: U16 id 54 @< map ray ahead-left (45 deg)
+        telemetry CLEAR_AR: U16 id 55 @< map ray ahead-right
+        telemetry CLEAR_BL: U16 id 56 @< map ray behind-left (135 deg)
+        telemetry CLEAR_BR: U16 id 57 @< map ray behind-right
+        telemetry NEW_AL: U8 id 58 @< percent of the ground ahead-left not yet walked
+        telemetry NEW_AR: U8 id 59
+        telemetry NEW_BL: U8 id 60
+        telemetry NEW_BR: U8 id 61
 
         # ----------------------------------------------------------------------
         # Events

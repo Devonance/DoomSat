@@ -27,49 +27,17 @@
   "way": {
    "type": "choice",
    "instructions": {
-    "question": "Which direction should the player go now?",
+    "question": "Which of the offered directions should the player go now? Each option is a direction around the player, with what the map says there under `now`.",
     "inspect": "surroundings, seen.exit, seen.key, seen.ground_hint, stuck",
-    "focus": "Prefer the exit, then doors, then open ground not yet walked. Never a direction that is blocked."
+    "focus": "Prefer the direction of the exit, then a door, then long space with new ground, then open new ground. A walked-before direction only when nothing new is offered."
    },
    "criteria": {
-    "Ahead": {
-     "what": "surroundings.ahead is open or tight and its ground is new, or the exit, a door or the key is ahead, or ground_hint is ahead",
-     "not_for": "surroundings.ahead blocked, or ahead walked before while a side offers new ground",
+    "direction": {
+     "what": "go {dir}: best when its space is long or open and its ground is new, or the exit, a door, the key or ground_hint lies {dir}",
+     "not_for": "its space is tight, or its ground is walked before while another offered direction is long and new",
      "examples": [
-      "ahead open, new ground",
-      "a door at arm's length ahead",
-      "exit ahead"
-     ]
-    },
-    "Left": {
-     "what": "surroundings.left is open and newer ground than ahead and right, or the exit, a door, the key or ground_hint is to the left",
-     "not_for": "surroundings.left blocked",
-     "examples": [
-      "ahead walked before, left open and new",
-      "exit to the left"
-     ]
-    },
-    "Right": {
-     "what": "surroundings.right is open and newer ground than ahead and left, or the exit, a door, the key or ground_hint is to the right",
-     "not_for": "surroundings.right blocked",
-     "examples": [
-      "ahead blocked, left walked, right open and new",
-      "exit to the right"
-     ]
-    },
-    "Back": {
-     "what": "ahead, left and right are blocked or walked before, and surroundings.behind is open",
-     "not_for": "any open side with new ground",
-     "examples": [
-      "a dead end: ahead blocked, left blocked, right blocked, behind open"
-     ]
-    },
-    "Turn around": {
-     "what": "the exit, a door or the key is behind, or the player is stuck with nothing open on the sides",
-     "not_for": "an open side or new ground ahead",
-     "examples": [
-      "exit behind",
-      "stuck, left blocked, right blocked"
+      "{dir}: space long, ground new",
+      "exit {dir}"
      ]
     }
    }

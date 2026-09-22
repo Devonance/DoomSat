@@ -3,9 +3,10 @@
 Doom runs as a **payload** behind an **F´ (F Prime) flight computer**. Telemetry and image products go
 down through **CCSDS frames** into **Yamcs** (via `fprime-yamcs`; the XTCE mission database is generated from
 the F´ dictionary) and are displayed in the **Yamcs web UI**, **Open MCT** and a small mission dashboard. A
-ground pilot plays the game by uplinking commands: **jev** (TypeSafe's System One model) answers the fast
-control questions every half second, and **Claude Sonnet 5** (System Two) reviews each episode afterwards and
-rewrites the decision graph jev plays with. Code owns the loop and never reads the level file.
+ground pilot plays the game by uplinking commands: **jev** (TypeSafe's System One model) classifies the situation
+every half second and picks the direction, whether to walk, press Use, fire and which weapon; **Claude Sonnet 5**
+(System Two) nudges exploration once a minute and, after each attempt, rewrites the questions jev plays with.
+Code owns the loop and never reads the level file.
 
 ![Architecture](docs/diagrams/architecture.png)
 
@@ -35,12 +36,14 @@ Not used: whole-map or "show objects" automap modes, the "show trigger lines" op
 from the game state, monster counts, item lists, warp cheats. `tools/wad_stats.py` reads WADs but only as a
 developer check for choosing levels and verifying results; the payload never imports it.
 
-The onboard navigator (`payload/doom_payload.py`) stamps the automap into a world raster, sweeps free floor with
-the range camera, and plans on a 32-unit grid: frontiers first, doors on the route are opened with Use, keys it
-has seen are fetched, an exit line it has seen becomes the destination, and when nothing is left to explore it
-tries walls and switches. Obstacles the automap does not draw (window bars, fake doors, barrels) are learned by
-pushing against them once. jev decides, every ~0.5 s, whether to advance, turn, sidestep, fire, press Use and
-which weapon, from words only; every number is bucketed before jev sees it.
+There is no route planner onboard. The payload (`payload/doom_payload.py`) stamps the automap into a world raster,
+sweeps the floor it has seen with the range camera, remembers where it has walked, and reports eight directions
+around the player (every 45 degrees): how far the way is open on the map, and whether the ground that way is
+unexplored, new, or walked before. It also reports what is at arm's length ahead (a wall, a door, the exit switch,
+a locked door, something the map does not show), where an exit line, a key or a pickup was seen, and whether the
+player is stuck. Obstacles the automap does not draw (window bars, fake doors, barrels) are learned by pushing
+against them once. jev picks the direction from those words every ~0.5 s; every number is bucketed before jev
+sees it. The map of a level is kept across attempts, as a player remembers a layout; the game itself restarts.
 
 ## What is proven
 
@@ -117,7 +120,7 @@ After editing anything under `flight/`: `scripts/flight.sh build` (incremental) 
 | Layer | Runs | Decides |
 |---|---|---|
 | Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, the map, the route, the target (exit line > key > goal item > frontier > walls to try), door/switch attempts |
-| System One: jev | every ~0.5 s, live | the control heads (dodge, move, strafe, turn, fire, weapon, use) and, every few ticks, the goal (explore / fight / supplies / scout) |
+| System One: jev | every ~0.5 s, live | one narrow typed question per head over a structured state: `way` (which of the open directions), `advance` (Noul), `use` (Noul), `fire` (Noul), `dodge`, `turn` (aim at an enemy), `weapon`, and every 8th tick the `goal`; options carry what / not_for / examples criteria and code uses the option probabilities for hysteresis |
 | System Two: Claude Sonnet 5 | every minute, and after an episode | every minute: reads the map product and the recent walk and pushes exploration in a direction (`EXPLORE_HINT`, optionally `SET_GOAL`); after an episode (death, level finished, or the 3-minute level budget spent -> `RESET_GAME`): reads the condensed after-action report and revises the decision graph jev plays with next |
 
 Nothing slower than jev sits in the live loop. The graph is data (`ground/graph_config.py`); every revision is

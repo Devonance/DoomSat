@@ -28,7 +28,7 @@ U32 rdU32(const U8*& p) { U32 v = (static_cast<U32>(p[0]) << 24) | (static_cast<
 F32 rdF32(const U8*& p) { U32 u = rdU32(p); F32 f; std::memcpy(&f, &u, sizeof f); return f; }
 U8 rdU8(const U8*& p) { return *p++; }
 void wrF32(U8* p, F32 f) { U32 u; std::memcpy(&u, &f, sizeof u); p[0] = static_cast<U8>(u >> 24); p[1] = static_cast<U8>(u >> 16); p[2] = static_cast<U8>(u >> 8); p[3] = static_cast<U8>(u); }
-constexpr U16 STATUS_LEN = 100;  // struct.calcsize of the payload STATUS_FMT
+constexpr U16 STATUS_LEN = 112;  // struct.calcsize of the payload STATUS_FMT
 }  // namespace
 
 Doom ::Doom(const char* const compName)
@@ -283,6 +283,14 @@ void Doom ::handleStatus(const U8* body, U16 length) {
     this->tlmWrite_KEYS(keys);
     this->tlmWrite_HINT_ACTIVE(rdU8(p) != 0);
     this->tlmWrite_HINT_REL(rdI16(p));
+    this->tlmWrite_CLEAR_AL(rdU16(p));
+    this->tlmWrite_CLEAR_AR(rdU16(p));
+    this->tlmWrite_CLEAR_BL(rdU16(p));
+    this->tlmWrite_CLEAR_BR(rdU16(p));
+    this->tlmWrite_NEW_AL(rdU8(p));
+    this->tlmWrite_NEW_AR(rdU8(p));
+    this->tlmWrite_NEW_BL(rdU8(p));
+    this->tlmWrite_NEW_BR(rdU8(p));
     if (level != this->m_lastLevel) {
         this->m_lastLevel = level;
         this->log_ACTIVITY_HI_LevelStarted(level);

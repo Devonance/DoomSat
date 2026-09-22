@@ -35,9 +35,11 @@ STATUS_CHANNELS = ["HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGU
                    "EXIT_BEARING", "EXIT_DIST", "KEY_BEARING", "KEY_DIST", "HEALTH_ITEM_DIST", "AMMO_ITEM_DIST", "ARMOR_ITEM_DIST",
                    "HEALTH_BEARING", "AMMO_BEARING", "ARMOR_BEARING", "STUCK", "DOOR_AHEAD", "GOAL", "TIC", "EPISODE", "DEAD",
                    "LEVEL_DONE", "EXPLORED_CELLS", "LEVEL", "KEYS", "HINT_ACTIVE", "HINT_REL",
+                   "CLEAR_AL", "CLEAR_AR", "CLEAR_BL", "CLEAR_BR", "NEW_AL", "NEW_AR", "NEW_BL", "NEW_BR",
                    "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED"]
 CHUNK_HEADER = struct.Struct("!IHHH")  # seq, index, count, length (then 960 data bytes)
-RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "NEW_FWD", "NEW_LEFT", "NEW_RIGHT", "NEW_BACK", "AHEAD_KIND",
+RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL", "CLEAR_AR", "CLEAR_BL", "CLEAR_BR",
+            "NEW_FWD", "NEW_LEFT", "NEW_RIGHT", "NEW_BACK", "NEW_AL", "NEW_AR", "NEW_BL", "NEW_BR", "AHEAD_KIND",
             "AHEAD_DIST", "EXIT_DIST", "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "EXPLORED_CELLS", "LEVEL", "KEYS", "HINT_ACTIVE")
 
 
@@ -229,6 +231,12 @@ class Pilot:
         if time.time() - self.telemetry_time > 2.0:
             return None  # stale telemetry: the payload holds the last controls, then its own uplink timeout releases them
         t = dict(self.telemetry)
+        # A big turn takes the payload most of a second (6 degrees per tic): do not ask for a new direction while the
+        # heading is still swinging, or every half second re-issues a fresh 180 and the player spins in place.
+        if abs(self.pending_turn) >= 60 and time.time() - self.pending_turn_t < 1.3 and "ANGLE" in t and self.angle_at_cmd is not None:
+            done = (t["ANGLE"] - self.angle_at_cmd + 180) % 360 - 180
+            if abs(done) < 0.8 * abs(self.pending_turn):
+                return None
         # A turn commanded less than a second ago may still be executing or not yet in the telemetry: judge the
         # bearings as they will be once it lands, but only by the part of the turn the heading does not show yet
         # (subtracting the whole turn after it already landed made jev turn straight back).

@@ -43,7 +43,7 @@ import vizdoom as vzd
 from PIL import Image, ImageDraw
 
 TICRATE = 35
-STATUS_FMT = "!hhhhBBHfffBfHHHHHHHHBBBBBHfHfHHHHfffBBBIHBBHBBBh"   # 100 bytes, 48 fields (see pack_status)
+STATUS_FMT = "!hhhhBBHfffBfHHHHHHHHBBBBBHfHfHHHHfffBBBIHBBHBBBhHHHHBBBB"   # 112 bytes, 56 fields (see pack_status)
 GOALS = ["EXPLORE", "KILL_ENEMY", "STOCK_AMMO", "RESTORE_HEALTH", "ADD_ARMOR", "UPGRADE_WEAPON", "SCOUT", "HOLD"]
 AHEAD_KINDS = ["nothing", "wall", "door", "exit", "locked", "barrier", "thing"]
 ENEMIES = {"DoomImp", "Zombieman", "ShotgunGuy", "Demon", "Spectre", "ChaingunGuy", "Cacodemon", "HellKnight",
@@ -248,36 +248,47 @@ class Explorer:
         return NONE
 
     def sector(self, x, y, heading, now):
-        """A direction judged over a 60-degree sector (three rays): the most open ray and the newest ground."""
+        """A direction judged over three rays: (space, novelty). Unseen ground on the way beats everything seen:
+        space is then how far the seen floor goes (at least 64) and novelty is 255, the word for unexplored."""
         best = None
-        for off in (-30, 0, 30):
+        for off in (-15, 0, 15):
             r = self.ray(x, y, heading + off, now)
-            nov = self.novelty(x, y, heading + off, r[0])
-            if best is None or r[0] + nov > best[0][0] + best[1]:
-                best = (r, nov)
-        return best
+            if r[4] and r[4] < r[0]:
+                cand = (max(64, r[4]), r[1], r[2], r[3], r[4]), 255
+                score = 1000 + r[4]
+            else:
+                nov = self.novelty(x, y, heading + off, r[0])
+                cand = (r, nov)
+                score = r[0] + 2 * nov
+            if best is None or score > best[0]:
+                best = (score, cand)
+        return best[1]
 
     def ray(self, x, y, heading, now, max_units=RAY_MAX):
         """Walk the map from the player in one direction: (distance to the first wall-like thing or max_units,
-        distance to the first door on the way or 0, distance to an exit line or 0, class that stopped the ray)."""
+        distance to the first door on the way or 0, distance to an exit line or 0, class that stopped the ray,
+        distance to the first ground never seen or 0)."""
         a = math.radians(heading)
         ca, sa = math.cos(a), math.sin(a)
-        door = 0
+        door, unseen = 0, 0
         for r in range(20, max_units + 1, 4):   # the player's own body is free space
-            ix, iy = self.wpx(x + r * ca, y + r * sa)
+            px_, py_ = x + r * ca, y + r * sa
+            ix, iy = self.wpx(px_, py_)
             c = self.klass(ix, iy, now)
             if c in (WALL, BARRIER, LOCKED):
-                return r, door, 0, c
+                return r, door, 0, c, unseen
+            if not unseen and r % 16 == 0 and r >= 32 and self.cell(px_, py_) not in self.free:
+                unseen = r
             if c in LOCK_KEY:
                 if LOCK_KEY[c] in self.keys:
                     door = door or r
                 else:
-                    return r, door, 0, c
+                    return r, door, 0, c, unseen
             elif c == EXIT:
-                return r, door, r, c
+                return r, door, r, c, unseen
             elif c == DOOR and not door:
                 door = r
-        return max_units, door, 0, NONE
+        return max_units, door, 0, NONE, unseen
 
     def novelty(self, x, y, heading, dist):
         """How much of the ground that way has not been walked: 0..100 (100 = all new), over cells up to `dist`."""
@@ -404,7 +415,7 @@ class Payload:
         return g
 
     def new_episode(self):
-        """A fresh attempt: the level restarts and so does the map (nothing carried over but weapons between levels)."""
+        """A fresh attempt: the level restarts; the map of this level is kept (weapons carry over between levels)."""
         self.game.set_doom_map(self.map)
         self.game.new_episode()
         loadout = self.carry or {"shotgun": True, "shells": 4, "bullets": 30}
@@ -416,9 +427,14 @@ class Payload:
         self.game.make_action([0] * len(BUTTONS), 1)
         self.episode += 1
         if self.explorer is None or self.explorer_map != self.map:
+            # a new level: a new map. Another attempt at the same level keeps the map (a player remembers the layout);
+            # the game itself restarts from the beginning with everything in it.
             self.level += 1
+            self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
+        else:
+            self.explorer.items.clear()
+            self.explorer.hint = None
         self.explorer_map = self.map
-        self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
         self.positions.clear()
         self.motions.clear()
         self.goal = "EXPLORE"
@@ -453,10 +469,9 @@ class Payload:
         ex = self.explorer
         ix, iy = ex.wpx(x, y)
         ex.barrier_t[iy - 3:iy + 4, ix - 3:ix + 4] = -1e9   # the player stands here: nothing solid within 12 units
-        dirs = (("fwd", 0), ("left", 90), ("right", -90), ("back", 180))
+        dirs = (("fwd", 0), ("al", 45), ("left", 90), ("bl", 135), ("back", 180), ("br", -135), ("right", -90), ("ar", -45))
         rays, nov = {}, {}
-        rays["fwd"] = ex.ray(x, y, angle, now)
-        nov["fwd"] = ex.novelty(x, y, angle, rays["fwd"][0])
+        rays["fwd"], nov["fwd"] = ex.sector(x, y, angle, now)
         for name, off in dirs[1:]:
             rays[name], nov[name] = ex.sector(x, y, angle + off, now)
         # what is at arm's length ahead, from the camera's range and the map's category there
@@ -586,7 +601,9 @@ class Payload:
             explored=min(len(ex.visited), 65535),
             level=self.level, keys=sum(KEY_BIT[k] for k in ex.keys),
             hint_active=int(hint is not None),
-            hint_rel=int(round(((hint[0] - angle + 180) % 360) - 180)) if hint else 0)
+            hint_rel=int(round(((hint[0] - angle + 180) % 360) - 180)) if hint else 0,
+            clear_al=min(rays["al"][0], 65535), clear_ar=min(rays["ar"][0], 65535), clear_bl=min(rays["bl"][0], 65535), clear_br=min(rays["br"][0], 65535),
+            new_al=nov["al"], new_ar=nov["ar"], new_bl=nov["bl"], new_br=nov["br"])
 
     @staticmethod
     def pack_status(o):
@@ -597,7 +614,8 @@ class Payload:
                            o["ahead_kind"], o["ahead_dist"], o["exit_bearing"], o["exit_dist"], o["key_bearing"], o["key_dist"],
                            o["health_item"], o["ammo_item"], o["armor_item"], o["health_bearing"], o["ammo_bearing"], o["armor_bearing"],
                            o["stuck"], o["door_ahead"], o["goal"], o["tic"], o["episode"], o["dead"], o["level_done"], o["explored"],
-                           o["level"], o["keys"], o["hint_active"], o["hint_rel"])
+                           o["level"], o["keys"], o["hint_active"], o["hint_rel"],
+                           o["clear_al"], o["clear_ar"], o["clear_bl"], o["clear_br"], o["new_al"], o["new_ar"], o["new_bl"], o["new_br"])
 
     # ------------------------------------------------------------------ uplink
     def handle(self, kind, body):
