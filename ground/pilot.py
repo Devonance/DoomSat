@@ -31,13 +31,14 @@ SPACE_SYSTEM = "/DoomSat_DoomSat/DoomSat/doom"
 GROUND = "/DoomGround"
 STATUS_CHANNELS = ["HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGUN", "KILLS", "POS_X", "POS_Y", "ANGLE",
                    "ENEMY_COUNT", "ENEMY_BEARING", "ENEMY_DIST", "CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK",
-                   "ROUTE_BEARING", "ROUTE_DIST", "TARGET_DIST", "TARGET_KIND", "STUCK", "DOOR_AHEAD", "GOAL",
-                   "HEALTH_ITEM_DIST", "AMMO_ITEM_DIST", "ARMOR_ITEM_DIST", "TIC", "EPISODE", "DEAD", "LEVEL_DONE",
-                   "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED", "EXPLORED_CELLS", "FRONTIERS",
-                   "LEVEL", "KEYS", "NAV_MODE", "DOORS_KNOWN", "HUNT_LEFT"]
+                   "CLEAR_FL", "CLEAR_FR", "CLEAR_MAP_FWD", "NEW_FWD", "NEW_LEFT", "NEW_RIGHT", "NEW_BACK", "AHEAD_KIND", "AHEAD_DIST",
+                   "EXIT_BEARING", "EXIT_DIST", "KEY_BEARING", "KEY_DIST", "HEALTH_ITEM_DIST", "AMMO_ITEM_DIST", "ARMOR_ITEM_DIST",
+                   "HEALTH_BEARING", "AMMO_BEARING", "ARMOR_BEARING", "STUCK", "DOOR_AHEAD", "GOAL", "TIC", "EPISODE", "DEAD",
+                   "LEVEL_DONE", "EXPLORED_CELLS", "LEVEL", "KEYS", "HINT_ACTIVE", "HINT_REL",
+                   "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED"]
 CHUNK_HEADER = struct.Struct("!IHHH")  # seq, index, count, length (then 960 data bytes)
-RAW_KEYS = ("ROUTE_BEARING", "CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "EXPLORED_CELLS",
-            "LEVEL", "NAV_MODE", "KEYS", "DOORS_KNOWN", "HUNT_LEFT")
+RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "NEW_FWD", "NEW_LEFT", "NEW_RIGHT", "NEW_BACK", "AHEAD_KIND",
+            "AHEAD_DIST", "EXIT_DIST", "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "EXPLORED_CELLS", "LEVEL", "KEYS", "HINT_ACTIVE")
 
 
 class FrameAssembler:
@@ -109,6 +110,7 @@ class Pilot:
         self.control_count = 0
         self.last_cmd_ms = 0
         self.pending_turn, self.pending_turn_t, self.angle_at_cmd = 0.0, 0.0, None
+        self.nav_memory = {}
         self.last_publish = 0.0
         self.last_stats = 0.0
         self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
@@ -245,7 +247,7 @@ class Pilot:
             questions.update(dg.goal_question(t, cfg))
         reply = self.system_one.ask(state, questions)
         answers = reply["answers"]
-        cargs = dg.control_args(answers, cfg)
+        cargs = dg.control_args(answers, cfg, t, self.nav_memory)
         self.command("CONTROL", cargs)
         self.pending_turn, self.pending_turn_t, self.angle_at_cmd = cargs["turn"], time.time(), t.get("ANGLE")
         self.control_count += 1
@@ -254,17 +256,18 @@ class Pilot:
         row = {"t": time.time(), "kind": "control", "episode": self.episode, "graph_version": cfg.get("version"),
                "latency_ms": reply["latency_ms"], "model": reply.get("model"), "request_id": reply.get("request_id"),
                "usage": reply.get("usage"), "cmd_ms": self.last_cmd_ms,
-               "answers": {k: v.get("choice") for k, v in answers.items()},
-               "confidence": {k: round(v.get("confidence", 0.0), 2) for k, v in answers.items()},
+               "answers": {k: dg.answer_label(v) for k, v in answers.items()},
+               "confidence": {k: round(dg.answer_confidence(v), 2) for k, v in answers.items()},
+               "probabilities": {k: {o: round(float(pv), 2) for o, pv in (v.get("probabilities") or {}).items()} for k, v in answers.items() if v.get("probabilities")},
                "control": cargs, "goal": self.goal, "health": t.get("HEALTH"), "kills": t.get("KILLS"), "tic": t.get("TIC"),
-               "seen": state["navigation"] | {"enemy_where": state["combat"]["enemy_where"]},
+               "seen": state["surroundings"] | {"exit": state["seen"]["exit"], "enemy_where": state["combat"]["enemy_where"]},
                "raw": {k: t.get(k) for k in RAW_KEYS}}
         self.log.write(json.dumps(row) + "\n")
         self.rows.append(row)
         if time.time() - self.last_stats > 1.0:
             self.last_stats = time.time()
             self.set_ground({"SystemOneLatencyMs": float(reply["latency_ms"]), "ControlCommands": self.control_count,
-                             "Controls": " ".join(f"{k}={v['choice']}" for k, v in answers.items())})
+                             "Controls": " ".join(f"{k}={dg.answer_label(v)}" for k, v in answers.items())})
         return row
 
     def set_goal(self, goal):
@@ -338,15 +341,15 @@ class Pilot:
             gained = (self.progress[-1][1] - old[0][1]) if old and self.progress else 0
             prompt = ("Progress check. {:.0f} s into this level attempt (budget {:.0f} s), {} new map cells in the last minute. "
                       "Position ({:.0f}, {:.0f}), heading {:.0f} degrees "
-                      "(0 = east, 90 = north). Level {}. Navigator: {}. Frontiers: {}. Doors seen: {}. Keys: {}.\n"
+                      "(0 = east, 90 = north). Level {}. Ahead: {}. Exit line seen at: {} units. Stuck: {}. Keys: {}.\n"
                       "Where the walk has been in the last two minutes (64-unit bins, most visited first): {}.\n"
                       "Map the navigator built (# wall, . seen floor, o walked, F unexplored edge, P player; north is up):\n{}\n\n"
                       "Pick a compass direction to push exploration toward unexplored space away from the well-trodden area "
                       "(the exit is somewhere unexplored), as a bearing in degrees (0 east, 90 north, 180 west, 270 south), how "
                       "many seconds to hold it, and the goal to set. One sentence of reasoning.").format(
                 time.time() - self.level_start_t, self.args.level_budget, gained,
-                t.get("POS_X", 0), t.get("POS_Y", 0), t.get("ANGLE", 0), t.get("LEVEL"), t.get("NAV_MODE"), t.get("FRONTIERS"),
-                t.get("DOORS_KNOWN"), t.get("KEYS"), path, amap or "(no map product yet)")
+                t.get("POS_X", 0), t.get("POS_Y", 0), t.get("ANGLE", 0), t.get("LEVEL"), t.get("AHEAD_KIND"), t.get("EXIT_DIST"),
+                t.get("STUCK"), t.get("KEYS"), path, amap or "(no map product yet)")
             schema = {"type": "object", "properties": {"bearing_deg": {"type": "integer"}, "hold_s": {"type": "integer"},
                                                        "goal": {"type": "string", "enum": ["Explore", "Scout"]},
                                                        "reason": {"type": "string", "maxLength": 300}},
@@ -427,6 +430,7 @@ class Pilot:
                     self.episode_boundary()
                 self.episode = ep
                 self.goal = "EXPLORE"
+                self.nav_memory = {}
             lv = self.telemetry.get("LEVEL")
             if lv is not None and lv != self.level:
                 if self.level is not None:
@@ -448,7 +452,8 @@ class Pilot:
                 self.check_stall()
             if row and n % 10 == 0:
                 print(f"[pilot] #{n} jev {row['latency_ms']} ms cmd {row['cmd_ms']} ms  hp={row['health']} goal={self.goal} "
-                      f"{' '.join(f'{k}={v}' for k, v in row['answers'].items())}  frames ok={self.frames.complete} lost={self.frames.incomplete}", flush=True)
+                      f"{' '.join(f'{k}={v}' for k, v in row['answers'].items())} -> {row['control']['move']}/{row['control']['turn']:.0f}  "
+                      f"frames ok={self.frames.complete} lost={self.frames.incomplete}", flush=True)
             remaining = self.args.period - (time.time() - t0)
             if remaining > 0:
                 time.sleep(remaining)

@@ -28,7 +28,7 @@ U32 rdU32(const U8*& p) { U32 v = (static_cast<U32>(p[0]) << 24) | (static_cast<
 F32 rdF32(const U8*& p) { U32 u = rdU32(p); F32 f; std::memcpy(&f, &u, sizeof f); return f; }
 U8 rdU8(const U8*& p) { return *p++; }
 void wrF32(U8* p, F32 f) { U32 u; std::memcpy(&u, &f, sizeof u); p[0] = static_cast<U8>(u >> 24); p[1] = static_cast<U8>(u >> 16); p[2] = static_cast<U8>(u >> 8); p[3] = static_cast<U8>(u); }
-constexpr U16 STATUS_LEN = 76;  // struct.calcsize of the payload STATUS_FMT
+constexpr U16 STATUS_LEN = 100;  // struct.calcsize of the payload STATUS_FMT
 }  // namespace
 
 Doom ::Doom(const char* const compName)
@@ -241,21 +241,33 @@ void Doom ::handleStatus(const U8* body, U16 length) {
     this->tlmWrite_ENEMY_BEARING(rdF32(p));
     this->tlmWrite_ENEMY_DIST(rdU16(p));
     this->tlmWrite_CLEAR_FWD(rdU16(p));
+    this->tlmWrite_CLEAR_FL(rdU16(p));
+    this->tlmWrite_CLEAR_FR(rdU16(p));
     this->tlmWrite_CLEAR_LEFT(rdU16(p));
     this->tlmWrite_CLEAR_RIGHT(rdU16(p));
     this->tlmWrite_CLEAR_BACK(rdU16(p));
-    this->tlmWrite_ROUTE_BEARING(rdF32(p));
-    this->tlmWrite_ROUTE_DIST(rdU16(p));
-    this->tlmWrite_TARGET_DIST(rdU16(p));
-    const U8 kind = rdU8(p);
-    this->tlmWrite_TARGET_KIND(DoomMission::TargetKind(static_cast<DoomMission::TargetKind::T>(kind > 10 ? 7 : kind)));
+    this->tlmWrite_CLEAR_MAP_FWD(rdU16(p));
+    this->tlmWrite_NEW_FWD(rdU8(p));
+    this->tlmWrite_NEW_LEFT(rdU8(p));
+    this->tlmWrite_NEW_RIGHT(rdU8(p));
+    this->tlmWrite_NEW_BACK(rdU8(p));
+    const U8 ahead = rdU8(p);
+    this->tlmWrite_AHEAD_KIND(DoomMission::AheadKind(static_cast<DoomMission::AheadKind::T>(ahead > 6 ? 0 : ahead)));
+    this->tlmWrite_AHEAD_DIST(rdU16(p));
+    this->tlmWrite_EXIT_BEARING(rdF32(p));
+    this->tlmWrite_EXIT_DIST(rdU16(p));
+    this->tlmWrite_KEY_BEARING(rdF32(p));
+    this->tlmWrite_KEY_DIST(rdU16(p));
+    this->tlmWrite_HEALTH_ITEM_DIST(rdU16(p));
+    this->tlmWrite_AMMO_ITEM_DIST(rdU16(p));
+    this->tlmWrite_ARMOR_ITEM_DIST(rdU16(p));
+    this->tlmWrite_HEALTH_BEARING(rdF32(p));
+    this->tlmWrite_AMMO_BEARING(rdF32(p));
+    this->tlmWrite_ARMOR_BEARING(rdF32(p));
     this->tlmWrite_STUCK(rdU8(p) != 0);
     this->tlmWrite_DOOR_AHEAD(rdU8(p) != 0);
     const U8 goal = rdU8(p);
     this->tlmWrite_GOAL(DoomMission::Goal(static_cast<DoomMission::Goal::T>(goal > 7 ? 7 : goal)));
-    this->tlmWrite_HEALTH_ITEM_DIST(rdU16(p));
-    this->tlmWrite_AMMO_ITEM_DIST(rdU16(p));
-    this->tlmWrite_ARMOR_ITEM_DIST(rdU16(p));
     const U32 tic = rdU32(p);
     this->tlmWrite_TIC(tic);
     const U16 episode = rdU16(p);
@@ -265,15 +277,12 @@ void Doom ::handleStatus(const U8* body, U16 length) {
     this->tlmWrite_DEAD(dead);
     this->tlmWrite_LEVEL_DONE(done);
     this->tlmWrite_EXPLORED_CELLS(rdU16(p));
-    this->tlmWrite_FRONTIERS(rdU16(p));
     const U8 level = rdU8(p);
     this->tlmWrite_LEVEL(level);
     const U8 keys = rdU8(p);
     this->tlmWrite_KEYS(keys);
-    const U8 mode = rdU8(p);
-    this->tlmWrite_NAV_MODE(DoomMission::NavMode(static_cast<DoomMission::NavMode::T>(mode > 7 ? 4 : mode)));
-    this->tlmWrite_DOORS_KNOWN(rdU16(p));
-    this->tlmWrite_HUNT_LEFT(rdU16(p));
+    this->tlmWrite_HINT_ACTIVE(rdU8(p) != 0);
+    this->tlmWrite_HINT_REL(rdI16(p));
     if (level != this->m_lastLevel) {
         this->m_lastLevel = level;
         this->log_ACTIVITY_HI_LevelStarted(level);

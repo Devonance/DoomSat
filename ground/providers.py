@@ -59,10 +59,9 @@ class OpenAISystemOne:
 
     def ask(self, state, questions):
         t0 = time.time()
-        spec = {qid: {"question": q["instructions"]["question"], "options": {k: v["what"] for k, v in q["criteria"].items()}}
-                for qid, q in questions.items()}
-        prompt = ("You are a System One judge: answer every question with exactly one of its option names. "
-                  "Reply with a JSON object mapping question id to the chosen option name and nothing else.\n"
+        spec = {qid: {"type": q.get("type", "choice"), "instructions": q["instructions"], "criteria": q["criteria"]} for qid, q in questions.items()}
+        prompt = ("You are a System One judge. For each choice question answer with exactly one of its option names; for each noul "
+                  "question answer true or false. Reply with a JSON object mapping question id to the answer and nothing else.\n"
                   f"STATE:\n{json.dumps(state)}\nQUESTIONS:\n{json.dumps(spec)}")
         r = requests.post(f"{self.base_url}/chat/completions", headers={"Authorization": f"Bearer {self.api_key}"},
                           json={"model": self.model, "temperature": 0, "response_format": {"type": "json_object"},
@@ -72,6 +71,9 @@ class OpenAISystemOne:
         picked = json.loads(text)
         answers = {}
         for qid, q in questions.items():
+            if q.get("type") == "noul":
+                answers[qid] = {"type": "noul", "noul": 1.0 if picked.get(qid) in (True, "true", "yes") else 0.0}
+                continue
             options = list(q["criteria"])
             c = picked.get(qid) if picked.get(qid) in options else options[0]
             answers[qid] = {"type": "choice", "choice": c, "confidence": 1.0, "probabilities": {o: float(o == c) for o in options}}

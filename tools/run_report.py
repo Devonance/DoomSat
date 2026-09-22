@@ -35,9 +35,12 @@ if bumps:
 levels = [r for r in rows if r.get("kind") == "level"]
 episodes = sorted({r.get("episode") for r in ctrl if r.get("episode") is not None})
 print(f"  levels finished: {len(levels)} " + ", ".join(f"level {r['finished']} after {r['controls']} decisions" for r in levels) + f"; episodes played: {len(episodes)}")
-modes = Counter(str((r.get("raw") or {}).get("NAV_MODE")) for r in ctrl if (r.get("raw") or {}).get("NAV_MODE") is not None)
+modes = Counter(str((r.get("raw") or {}).get("AHEAD_KIND")) for r in ctrl if (r.get("raw") or {}).get("AHEAD_KIND") is not None)
 if modes:
-    print("  navigator: " + ", ".join(f"{k} {v}" for k, v in modes.most_common()))
+    print("  at arm's length: " + ", ".join(f"{k} {v}" for k, v in modes.most_common()))
+steer = Counter(r["answers"].get("steer") for r in ctrl if "steer" in r["answers"])
+if steer:
+    print("  steer:  " + ", ".join(f"{k} {v}" for k, v in steer.most_common()))
 reviews = [r for r in rows if r.get("kind") == "after_action"]
 rerr = [r for r in rows if r.get("kind") == "after_action_error"]
 print(f"System Two: {len(reviews)} after-action reviews, {len(rerr)} errors" + (f"; {len(plans)} live plans (old mode)" if plans else ""))

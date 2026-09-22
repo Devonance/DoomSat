@@ -1,33 +1,23 @@
 """The System One decision graph for the Doom pilot, driven by graph_config.
 
-Code turns telemetry numbers into words, asks jev narrow typed questions (one per control head,
-each stating the facts it depends on), and maps the typed answers back onto the CONTROL command.
-Nothing here reasons; the model only judges. Which options a head is offered is decided by code
-(a Backward that cannot apply is not on the menu). The wording, criteria and thresholds come from
-the graph config, which System Two revises between episodes.
+Code turns telemetry numbers into a small structured state (words, not numbers), asks jev one narrow
+typed question per head in a single call, and combines the answers into the CONTROL command with
+deterministic rules. jev judges; it never reasons, plans or remembers. Which heads are asked and which
+options are on the menu is decided by code (a Backward that cannot apply is not offered).
+
+There is no route: the `way` head is the navigation. jev picks the direction from what is open around
+the player, how much of it has been walked, what is at arm's length, and where the exit, a key or the
+ground's hint lie. Code adds hysteresis from the option probabilities so the choice does not flicker.
 """
+import copy
 
 GOALS = ["EXPLORE", "KILL_ENEMY", "STOCK_AMMO", "RESTORE_HEALTH", "ADD_ARMOR", "UPGRADE_WEAPON", "SCOUT", "HOLD"]
-CONTROL_HEADS = ("steer", "dodge", "move", "strafe", "turn", "fire", "weapon", "use")
+CONTROL_HEADS = ("way", "advance", "use", "fire", "dodge", "turn", "weapon")
 GOAL_FROM_CHOICE = {"Kill enemies": "KILL_ENEMY", "Restore health": "RESTORE_HEALTH", "Stock ammo": "STOCK_AMMO",
                     "Add armor": "ADD_ARMOR", "Explore": "EXPLORE", "Scout": "SCOUT", "Upgrade weapon": "UPGRADE_WEAPON"}
-DESTINATION = {"FRONTIER": "the nearest unexplored edge of the map", "FAR_FRONTIER": "a far unexplored part of the map",
-               "ENEMY": "the enemy", "HEALTH": "a health pickup seen earlier", "AMMO": "an ammo pickup seen earlier",
-               "ARMOR": "an armor pickup seen earlier", "WEAPON": "a weapon seen earlier", "NONE": "nowhere yet",
-               "KEY": "a key card seen earlier", "SWITCH": "a wall or switch to try", "EXIT": "the exit line seen on the map"}
-MODE = {"EXPLORE": "exploring toward the nearest unexplored frontier", "DOOR": "at a door on the route, it needs Use",
-        "KEY": "going to pick up a key seen earlier", "HUNT": "nothing left to explore, trying walls and switches to find the exit",
-        "IDLE": "nothing known to head for", "ITEM": "going to a pickup", "ENEMY": "closing on an enemy",
-        "EXIT": "heading for the exit line seen on the map"}
-
-
-def keys_words(bits):
-    held = [name for bit, name in ((1, "red"), (2, "blue"), (4, "yellow")) if int(bits or 0) & bit]
-    return " and ".join(held) if held else "none"
-
-
-def choice(question, criteria):
-    return {"type": "choice", "instructions": {"question": question}, "criteria": {k: {"what": v} for k, v in criteria.items()}}
+AHEAD_WORDS = {"NOTHING": "nothing near", "WALL": "a wall", "DOOR": "a door", "EXIT": "the exit switch",
+               "LOCKED": "a locked door", "BARRIER": "bars or a blocked doorway the map does not show", "THING": "a monster or a barrel"}
+WAY_TURN = {"Ahead": 0.0, "Left": 90.0, "Right": -90.0, "Back": 0.0, "Turn around": 180.0}
 
 
 # ---------------------------------------------------------------- numbers -> words
@@ -51,127 +41,150 @@ def bearing_words(b):
     return "behind"
 
 
-def route_words(b):
+def where_words(b, d):
+    """Where something seen lies: a coarse direction and a distance, or none."""
+    if not d:
+        return {"where": "not seen"}
     a = abs(b)
-    if a <= 30:
-        return "straight ahead"
-    if a <= 120:
-        return "to the left" if b > 0 else "to the right"
-    return "behind"
+    direction = "ahead" if a <= 30 else ("to the left" if b > 0 else "to the right") if a <= 120 else "behind"
+    return {"where": direction, "distance": dist_words(d)}
 
 
-def facts(t, goal, cfg):
-    """Every word a question may use, computed once from the telemetry and the config thresholds."""
-    th = cfg["thresholds"]
-    clear = lambda c: "blocked" if c < th["blocked_units"] else "tight" if c < th["tight_units"] else "clear"
-    side = lambda c: "unknown" if c == 24 else clear(c)   # 24 is the payload's code for "map does not know"
-    yn = lambda b: "yes" if b else "no"
-    enemy = t.get("ENEMY_COUNT", 0) > 0
-    e_bearing, e_dist = t.get("ENEMY_BEARING", 0.0), t.get("ENEMY_DIST", 0)
-    aiming_enemy = goal == "KILL_ENEMY" and enemy
-    aim = e_bearing if aiming_enemy else t.get("ROUTE_BEARING", 0.0)
-    shells, bullets, hp = t.get("SHELLS", 0), t.get("BULLETS", 0), t.get("HEALTH", 100)
-    pick = lambda k: dist_words(t.get(k, 0)) if t.get(k, 65535) < 900 else "none seen near"
-    f = {
-        "enemy_visible": enemy,
-        "threat": "danger" if enemy and e_dist < th["danger_dist"] else "safe",
-        "enemy_where": (bearing_words(e_bearing) + ", " + dist_words(e_dist)) if enemy else "no enemy in view",
-        "in_crosshair_bool": bool(enemy and abs(e_bearing) <= th["crosshair_deg"] and e_dist <= th["fire_range"]),
-        "aligned_bool": abs(t.get("ROUTE_BEARING", 0.0)) <= th["aligned_deg"],
-        "stuck_bool": bool(t.get("STUCK", False)),
-        "blocked_route_bool": bool(t.get("DOOR_AHEAD", False)),
-        "aim_target": "the enemy" if aiming_enemy else "the route waypoint",
-        "aim": bearing_words(aim),
-        "ahead": clear(t.get("CLEAR_FWD", 999)),
-        "left": side(t.get("CLEAR_LEFT", 999)), "right": side(t.get("CLEAR_RIGHT", 999)), "behind": side(t.get("CLEAR_BACK", 999)),
-        "equipped": str(t.get("WEAPON", "PISTOL")).lower(),
-        "equipped_ammo": shells if str(t.get("WEAPON")) == "SHOTGUN" else bullets,
-        "shells": shells, "bullets": bullets, "owns_shotgun": yn(t.get("OWN_SHOTGUN", False)),
-        "health": "critical" if hp < th["health_critical"] else "low" if hp < th["health_low"] else "fine" if hp < 90 else "full",
-        "ammo": "empty" if shells == 0 and bullets == 0 else "scarce" if shells == 0 and bullets < 12 else "ready",
-        "armor": "none" if t.get("ARMOR", 0) <= 0 else "some" if t.get("ARMOR", 0) < 50 else "good",
-        "destination": DESTINATION.get(str(t.get("TARGET_KIND", "FRONTIER")), "the frontier"),
-        "dest_dist": dist_words(t.get("TARGET_DIST", 0)) if t.get("TARGET_DIST", 0) else "here",
-        "health_pickup": pick("HEALTH_ITEM_DIST"), "ammo_pickup": pick("AMMO_ITEM_DIST"), "armor_pickup": pick("ARMOR_ITEM_DIST"),
-        "frontiers": "none" if t.get("FRONTIERS", 0) == 0 else "few" if t.get("FRONTIERS", 0) < 10 else "many",
-        "mode": MODE.get(str(t.get("NAV_MODE", "EXPLORE")), "exploring"),
-        "route_where": route_words(t.get("ROUTE_BEARING", 0.0)) if t.get("TARGET_KIND", "NONE") != "NONE" else "nowhere (nothing known to head for)",
-        "route_far": dist_words(t.get("ROUTE_DIST", 0)),
-        "level": str(t.get("LEVEL", 1)),
-        "keys": keys_words(t.get("KEYS", 0)),
-        "explored": "few" if t.get("EXPLORED_CELLS", 0) < 40 else "some" if t.get("EXPLORED_CELLS", 0) < 150 else "many",
-    }
-    for k in ("in_crosshair", "aligned", "stuck", "blocked_route"):
-        f[k] = yn(f[k + "_bool"])
-    return f
+def ground_words(pct):
+    return "new" if pct >= 60 else "partly walked" if pct >= 25 else "walked before"
 
 
 def build_state(t, goal, cfg):
-    """The state jev sees alongside the questions."""
-    f = facts(t, goal, cfg)
+    """The structured state jev classifies: only what the heads need, in words."""
+    th = cfg["thresholds"]
+    space = lambda c: "blocked" if c < th["blocked_units"] else "tight" if c < th["tight_units"] else "open"
+    yn = lambda b: "yes" if b else "no"
+    enemy = t.get("ENEMY_COUNT", 0) > 0
+    e_bearing, e_dist = t.get("ENEMY_BEARING", 0.0), t.get("ENEMY_DIST", 0)
+    shells, bullets, hp = t.get("SHELLS", 0), t.get("BULLETS", 0), t.get("HEALTH", 100)
+    ahead_kind = str(t.get("AHEAD_KIND", "NOTHING"))
+    ahead_units = min(t.get("CLEAR_FWD", 999), t.get("CLEAR_MAP_FWD", 999))
+    hint_rel = t.get("HINT_REL", 0)
+    keys = int(t.get("KEYS", 0) or 0)
+    held = [name for bit, name in ((1, "red"), (2, "blue"), (4, "yellow")) if keys & bit]
+    ahead = {"space": space(ahead_units), "ground": ground_words(t.get("NEW_FWD", 100)),
+             "at_arms_length": AHEAD_WORDS.get(ahead_kind, ahead_kind.lower())}
+    if ahead_kind != "NOTHING":
+        ahead["at_arms_length_distance"] = dist_words(t.get("AHEAD_DIST", 0))
     return {
         "standing_order": cfg["standing_order"],
         "committed_goal": goal.replace("_", " ").lower(),
-        "player": {"health": f["health"], "armor": f["armor"], "ammunition": f["ammo"], "equipped_weapon": f["equipped"],
-                   "shotgun_shells": f["shells"], "pistol_bullets": f["bullets"], "owns_shotgun": f["owns_shotgun"]},
-        "combat": {"enemy_visible": f["enemy_visible"], "enemy_where": f["enemy_where"], "enemy_in_crosshair": f["in_crosshair"]},
-        "navigation": {"destination": f["destination"], "destination_distance": f["dest_dist"], "route_aligned_ahead": f["aligned"],
-                       "aim_target": f["aim_target"], "aim_offset": f["aim"], "space_ahead": f["ahead"], "space_left": f["left"],
-                       "space_right": f["right"], "space_behind": f["behind"], "stuck": f["stuck"],
-                       "blocked_where_the_route_goes": f["blocked_route"], "map_explored_cells": f["explored"], "unexplored_frontiers": f["frontiers"],
-                       "navigator": f["mode"], "level": f["level"], "keys_held": f["keys"]},
-        "supplies_seen": {"health_pickup": f["health_pickup"], "ammo_pickup": f["ammo_pickup"], "armor_pickup": f["armor_pickup"]},
+        "player": {"health": "critical" if hp < th["health_critical"] else "low" if hp < th["health_low"] else "fine" if hp < 90 else "full",
+                   "armor": "none" if t.get("ARMOR", 0) <= 0 else "some" if t.get("ARMOR", 0) < 50 else "good",
+                   "ammunition": "empty" if shells == 0 and bullets == 0 else "scarce" if shells == 0 and bullets < 12 else "ready",
+                   "equipped_weapon": str(t.get("WEAPON", "PISTOL")).lower(),
+                   "equipped_ammo": shells if str(t.get("WEAPON")) == "SHOTGUN" else bullets,
+                   "shotgun_shells": shells, "pistol_bullets": bullets, "owns_shotgun": yn(t.get("OWN_SHOTGUN", False))},
+        "combat": {"enemy_visible": yn(enemy),
+                   "enemy_where": (bearing_words(e_bearing) + ", " + dist_words(e_dist)) if enemy else "no enemy in view",
+                   "threat": "danger" if enemy and e_dist < th["danger_dist"] else "safe",
+                   "enemy_in_crosshair": yn(enemy and abs(e_bearing) <= th["crosshair_deg"] and e_dist <= th["fire_range"])},
+        "surroundings": {"ahead": ahead,
+                         "left": {"space": space(t.get("CLEAR_LEFT", 999)), "ground": ground_words(t.get("NEW_LEFT", 100))},
+                         "right": {"space": space(t.get("CLEAR_RIGHT", 999)), "ground": ground_words(t.get("NEW_RIGHT", 100))},
+                         "behind": {"space": space(t.get("CLEAR_BACK", 999)), "ground": ground_words(t.get("NEW_BACK", 100))}},
+        "stuck": yn(t.get("STUCK", False)),
+        "seen": {"exit": where_words(t.get("EXIT_BEARING", 0.0), t.get("EXIT_DIST", 0)),
+                 "key": where_words(t.get("KEY_BEARING", 0.0), t.get("KEY_DIST", 0)),
+                 "health_pickup": where_words(t.get("HEALTH_BEARING", 0.0), t.get("HEALTH_ITEM_DIST", 0)),
+                 "ammo_pickup": where_words(t.get("AMMO_BEARING", 0.0), t.get("AMMO_ITEM_DIST", 0)),
+                 "armor_pickup": where_words(t.get("ARMOR_BEARING", 0.0), t.get("ARMOR_ITEM_DIST", 0)),
+                 "ground_hint": ("ahead" if abs(hint_rel) <= 30 else ("to the left" if hint_rel > 0 else "to the right") if abs(hint_rel) <= 120 else "behind")
+                 if t.get("HINT_ACTIVE", False) else "none",
+                 "level": str(t.get("LEVEL", 1)), "keys_held": " and ".join(held) if held else "none"},
     }
 
 
-def _render(cfg, head, f, options=None):
+def _question(cfg, head, options=None):
     spec = cfg["questions"][head]
-    crit = {k: v for k, v in spec["criteria"].items() if options is None or k in options}
-    return choice(spec["question"].format_map(f), crit)
+    q = {"type": spec["type"], "instructions": copy.deepcopy(spec["instructions"])}
+    crit = spec["criteria"]
+    if spec["type"] == "choice":
+        q["criteria"] = {k: copy.deepcopy(v) for k, v in crit.items() if options is None or k in options}
+    else:
+        q["criteria"] = copy.deepcopy(crit)
+    return q
 
 
 def control_questions(t, goal, cfg):
     """The control heads for this tick. Code decides which heads are asked and which options are on the menu."""
-    f = facts(t, goal, cfg)
-    stuck = f["stuck_bool"]
-    heads = {
-        "steer": _render(cfg, "steer", f),
-        "dodge": _render(cfg, "dodge", f),
-        "move": _render(cfg, "move", f, ["Forward", "Hold"] + (["Backward"] if f["behind"] == "clear" else [])),
-        "turn": _render(cfg, "turn", f),
-        "fire": _render(cfg, "fire", f),
-        "weapon": _render(cfg, "weapon", f),
-    }
-    sides = ["Hold"] + (["Strafe left"] if f["left"] == "clear" else []) + (["Strafe right"] if f["right"] == "clear" else [])
-    if stuck and len(sides) > 1:
-        heads["strafe"] = _render(cfg, "strafe", f, sides)
-    if stuck or f["blocked_route_bool"]:
-        heads["use"] = _render(cfg, "use", f)
+    s = build_state(t, goal, cfg)
+    sur = s["surroundings"]
+    ways = ["Ahead", "Left", "Right", "Back", "Turn around"]
+    if sur["behind"]["space"] == "blocked":
+        ways.remove("Back")
+    heads = {"way": _question(cfg, "way", ways), "advance": _question(cfg, "advance"), "fire": _question(cfg, "fire"),
+             "weapon": _question(cfg, "weapon")}
+    if str(t.get("AHEAD_KIND", "NOTHING")) in ("DOOR", "EXIT", "LOCKED") or s["stuck"] == "yes":
+        heads["use"] = _question(cfg, "use")
+    if s["combat"]["enemy_visible"] == "yes":
+        dodges = ["Carry on"] + (["Dodge left"] if sur["left"]["space"] == "open" else []) + \
+                 (["Dodge right"] if sur["right"]["space"] == "open" else []) + (["Dodge back"] if sur["behind"]["space"] == "open" else [])
+        heads["dodge"] = _question(cfg, "dodge", dodges)
+        if goal == "KILL_ENEMY":
+            heads["turn"] = _question(cfg, "turn")
     return heads
 
 
 def goal_question(t, cfg):
-    return {"goal": _render(cfg, "goal", facts(t, "EXPLORE", cfg))}
+    return {"goal": _question(cfg, "goal")}
 
 
-def control_args(answers, cfg):
-    """Typed answers -> CONTROL command arguments (the only place choices become buttons)."""
-    a = {k: v["choice"] for k, v in answers.items() if k in CONTROL_HEADS}
-    sideways = a.get("dodge", "Carry on")
-    if sideways == "Carry on":
-        sideways = a.get("strafe", "Hold")
-    move = 1 if a.get("move") == "Forward" else -1 if a.get("move") == "Backward" or a.get("dodge") == "Dodge back" else 0
-    strafe = -1 if sideways in ("Dodge left", "Strafe left") else 1 if sideways in ("Dodge right", "Strafe right") else 0
-    weapon = {"Pistol": "PISTOL", "Shotgun": "SHOTGUN"}.get(a.get("weapon"), "FIST")
-    turn = float(cfg["turn_deg"].get(a.get("turn", "Hold"), 0.0))
-    steer = a.get("steer", "Follow route")
-    if steer == "Left":          # jev picked a way of its own: turn there now, walk next tick
-        turn, move = 90.0, 0
-    elif steer == "Right":
-        turn, move = -90.0, 0
-    elif steer == "Back":
-        turn, move = 0.0, -1
-    elif steer == "Turn around":
-        turn, move = 150.0, 0
-    return {"move": move, "strafe": strafe, "turn": turn,
-            "fire": a.get("fire") == "Fire", "use": a.get("use") == "Use", "weapon": weapon}
+def answer_label(v):
+    """A printable answer for any head type: the choice, or yes/no for a Noul."""
+    if not isinstance(v, dict):
+        return str(v)
+    if v.get("type") == "noul" or "noul" in v:
+        return "yes" if float(v.get("noul", 0.0)) >= 0.5 else "no"
+    return v.get("choice")
+
+
+def answer_confidence(v):
+    if not isinstance(v, dict):
+        return 0.0
+    if "noul" in v:
+        p = float(v["noul"])
+        return max(p, 1.0 - p)
+    return float(v.get("confidence", 0.0))
+
+
+def control_args(answers, cfg, t=None, memory=None):
+    """Typed answers -> CONTROL command arguments (the only place choices become buttons). `memory` keeps the last
+    direction so the way only changes when jev is clearly surer of the new one (hysteresis on the probabilities)."""
+    memory = memory if memory is not None else {}
+    a = {k: v for k, v in answers.items() if k in CONTROL_HEADS}
+    way_ans = a.get("way", {})
+    way = way_ans.get("choice", "Ahead")
+    probs = way_ans.get("probabilities") or {}
+    advance = float(a.get("advance", {}).get("noul", 1.0)) >= 0.5
+    prev = memory.get("way")
+    prev_ok = prev in probs and probs.get(prev, 0.0) >= 0.3 and not (prev == "Ahead" and not advance)
+    if prev and prev != way and prev_ok and probs.get(way, 0.0) < probs.get(prev, 0.0) + float(cfg.get("way_margin", 0.15)):
+        way = prev
+    memory["way"] = way
+    use = float(a.get("use", {}).get("noul", 0.0)) >= 0.5 if "use" in a else False
+    fire = float(a.get("fire", {}).get("noul", 0.0)) >= 0.5
+    dodge = a.get("dodge", {}).get("choice", "Carry on")
+    weapon = {"Pistol": "PISTOL", "Shotgun": "SHOTGUN"}.get(a.get("weapon", {}).get("choice"), "FIST")
+    turn = WAY_TURN.get(way, 0.0)
+    move = 0
+    if way == "Ahead":
+        move = 1 if advance else 0
+        if "turn" in a:   # fighting: aim at the enemy instead of steering
+            turn = float(cfg["turn_deg"].get(a["turn"].get("choice", "Hold"), 0.0))
+        elif t is not None:
+            # keep the nose in the open: a small correction toward the freer side of the camera view
+            fl, fr, fw = t.get("CLEAR_FL", 999), t.get("CLEAR_FR", 999), t.get("CLEAR_FWD", 999)
+            if fw < 160 and abs(fl - fr) > 40:
+                turn = 20.0 if fl > fr else -20.0
+    elif way == "Back":
+        move = -1
+    strafe = -1 if dodge == "Dodge left" else 1 if dodge == "Dodge right" else 0
+    if dodge == "Dodge back":
+        move = -1
+    return {"move": move, "strafe": strafe, "turn": turn, "fire": fire, "use": use, "weapon": weapon}

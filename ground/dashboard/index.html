@@ -60,10 +60,10 @@
           <tr><td class="k">Position / heading</td><td><span id="POS"></span> / <span id="ANGLE"></span>&deg;</td></tr>
         </tbody></table>
         <table><tbody>
-          <tr><td class="k">Navigator</td><td id="NAV_MODE" class="acc"></td></tr>
-          <tr><td class="k">Target</td><td><span id="TARGET_KIND"></span> <span id="TARGET_DIST" class="dim"></span></td></tr>
-          <tr><td class="k">Route bearing / space ahead</td><td><span id="ROUTE_BEARING"></span>&deg; / <span id="CLEAR_FWD"></span> u</td></tr>
-          <tr><td class="k">Frontiers / doors seen</td><td><span id="FRONTIERS"></span> / <span id="DOORS_KNOWN"></span></td></tr>
+          <tr><td class="k">At arm's length ahead</td><td><span id="AHEAD_KIND" class="acc"></span> <span id="AHEAD_DIST" class="dim"></span></td></tr>
+          <tr><td class="k">Space ahead / left / right / behind</td><td><span id="CLEAR_FWD"></span> / <span id="CLEAR_LEFT"></span> / <span id="CLEAR_RIGHT"></span> / <span id="CLEAR_BACK"></span> u</td></tr>
+          <tr><td class="k">New ground ahead / left / right / behind</td><td><span id="NEW_FWD"></span> / <span id="NEW_LEFT"></span> / <span id="NEW_RIGHT"></span> / <span id="NEW_BACK"></span> %</td></tr>
+          <tr><td class="k">Exit line seen / cells walked</td><td><span id="EXIT_DIST"></span> u / <span id="EXPLORED_CELLS"></span></td></tr>
           <tr><td class="k">Stuck / use ahead</td><td><span id="STUCK"></span> / <span id="DOOR_AHEAD"></span></td></tr>
           <tr><td class="k">Goal (set by jev)</td><td id="GOAL"></td></tr>
           <tr><td class="k">Game tic / frames sent</td><td><span id="TIC"></span> / <span id="FRAMES_SENT"></span></td></tr>
@@ -88,8 +88,8 @@
 <script>
 const SS = "/DoomSat_DoomSat/DoomSat/doom/", G = "/DoomGround/";
 const TLM = ["HEALTH","ARMOR","SHELLS","BULLETS","WEAPON","KILLS","POS_X","POS_Y","ANGLE","ENEMY_COUNT","ENEMY_DIST","CLEAR_FWD",
-  "ROUTE_BEARING","TARGET_KIND","TARGET_DIST","STUCK","DOOR_AHEAD","GOAL","TIC","EPISODE","LEVEL","KEYS","NAV_MODE","DOORS_KNOWN",
-  "HUNT_LEFT","FRONTIERS","FRAMES_SENT"];
+  "CLEAR_LEFT","CLEAR_RIGHT","CLEAR_BACK","NEW_FWD","NEW_LEFT","NEW_RIGHT","NEW_BACK","AHEAD_KIND","AHEAD_DIST","EXIT_DIST","EXIT_BEARING",
+  "STUCK","DOOR_AHEAD","GOAL","TIC","EPISODE","LEVEL","KEYS","EXPLORED_CELLS","FRAMES_SENT"];
 const GND = ["DoomFrame","DoomMap","SystemTwoHint","FrameSeq","FramesComplete","FramesIncomplete","SystemOneLatencyMs","ControlCommands","Controls","Plan","SystemTwoLatencyMs"];
 const MODE = {EXPLORE:"exploring toward a frontier", DOOR:"at a door, pressing Use", KEY:"fetching a key", HUNT:"trying walls and switches",
   IDLE:"nothing to head for", ITEM:"fetching a pickup", ENEMY:"closing on an enemy", EXIT:"heading for the exit line"};
@@ -108,8 +108,7 @@ async function poll() {
     $("HEALTH").className = "big " + (hp > 60 ? "ok" : hp > 30 ? "warn" : "bad");
     $("hpbar").style.width = Math.max(0, Math.min(100, hp)) + "%";
     $("POS").textContent = v.POS_X !== undefined ? `${Math.round(v.POS_X)}, ${Math.round(v.POS_Y)}` : "";
-    $("NAV_MODE").textContent = (v.NAV_MODE || "") + (MODE[v.NAV_MODE] ? " - " + MODE[v.NAV_MODE] : "") + (v.NAV_MODE === "HUNT" ? ` (${v.HUNT_LEFT} walls left)` : "");
-    $("TARGET_DIST").textContent = v.TARGET_DIST ? `${v.TARGET_DIST} u away` : "";
+    $("AHEAD_DIST").textContent = v.AHEAD_KIND && v.AHEAD_KIND !== "NOTHING" ? `${v.AHEAD_DIST} u` : "";
     const keys = Number(v.KEYS || 0); $("KEYS").textContent = keys ? [keys & 1 && "red", keys & 2 && "blue", keys & 4 && "yellow"].filter(Boolean).join(", ") : "none";
     $("ENEMY_DIST").textContent = Number(v.ENEMY_COUNT) ? `nearest ${v.ENEMY_DIST} u` : "";
     $("level").firstChild.textContent = `level ${v.LEVEL ?? "-"}`;

@@ -11,12 +11,14 @@ import graph_config as gc
 
 REVIEW_SYSTEM = (
     "You are the mission's System Two: a reviewer, not a player. A fast System One model (jev) plays Doom live by "
-    "answering the typed questions in the decision graph every half second; code owns thresholds, option menus and the "
-    "button mapping. Between episodes you read the after-action report and revise the graph so jev plays better next "
-    "episode: reword questions or criteria, adjust thresholds, turn sizes, how often the goal is re-asked, and the standing "
-    "order. Facts are injected into questions through {placeholders}; keep the placeholders that matter and never invent new "
-    "ones (allowed: " + ", ".join(gc.FACT_KEYS) + "). Option names are fixed. Change few things per review, each tied to an "
-    "observed problem, and say why in the rationale. Return the full config."
+    "classifying a structured state document every half second with the typed questions in the decision graph "
+    "(one narrow question per head; Choice heads pick an option, Noul heads answer yes/no); code owns thresholds, the "
+    "option menus and the button mapping. Between episodes you read the after-action report and revise the graph so jev "
+    "plays better next episode: reword instructions or option criteria (strings or JSON objects with what / not_for / "
+    "examples that reference state fields such as surroundings.ahead.space, surroundings.left.ground, seen.exit.where, "
+    "stuck), adjust thresholds, turn sizes, way_margin (hysteresis on direction changes), how often the goal is re-asked, "
+    "and the standing order. Head names, head types and option names are fixed. Change few things per review, each tied "
+    "to an observed problem, and say why in the rationale. Return the full config."
 )
 
 
@@ -28,7 +30,7 @@ def summarise(rows, episode_rows, outcome, cfg):
     span = ctrl[-1]["t"] - ctrl[0]["t"]
     raw = [r["raw"] for r in ctrl if r.get("raw")]
     heads = {}
-    for head in ("move", "turn", "strafe", "dodge", "fire", "use", "weapon", "goal"):
+    for head in ("steer", "move", "turn", "strafe", "dodge", "fire", "use", "weapon", "goal"):
         asked = [r for r in ctrl if head in r["answers"]]
         if asked:
             conf = [r["confidence"].get(head, 0) for r in asked]
@@ -49,9 +51,10 @@ def summarise(rows, episode_rows, outcome, cfg):
     last = []
     for r in ctrl[-8:]:
         s = r.get("seen", {})
-        last.append(f"hp={r.get('health')} goal={r.get('goal')} aim={s.get('aim_offset')} ahead={s.get('space_ahead')} "
-                    f"stuck={s.get('stuck')} enemy={s.get('enemy_where', '-')[:30]} -> " + " ".join(f"{k}={v}" for k, v in r["answers"].items()))
-    modes = Counter(str(r.get("NAV_MODE")) for r in raw if r.get("NAV_MODE") is not None)
+        last.append(f"hp={r.get('health')} goal={r.get('goal')} ahead={s.get('ahead')}/{s.get('ahead_ground')} left={s.get('left')}/{s.get('left_ground')} "
+                    f"right={s.get('right')}/{s.get('right_ground')} arm={s.get('at_arms_length_ahead')} exit={s.get('exit')} stuck={s.get('stuck')} -> "
+                    + " ".join(f"{k}={v}" for k, v in r["answers"].items()))
+    modes = Counter(str(r.get("AHEAD_KIND")) for r in raw if r.get("AHEAD_KIND") is not None)
     bins = Counter((round(r["POS_X"] / 128) * 128, round(r["POS_Y"] / 128) * 128) for r in raw if r.get("POS_X") is not None)
     walk = {"distinct_128u_bins": len(bins), "revisit_ratio": round(1 - len(bins) / max(1, len(raw)), 2),
             "most_visited": [f"({x},{y}) x{n}" for (x, y), n in bins.most_common(5)],
@@ -60,9 +63,10 @@ def summarise(rows, episode_rows, outcome, cfg):
         "graph_version": cfg.get("version"),
         "outcome": outcome,
         "level": max((r.get("LEVEL", 0) or 0) for r in raw) if raw else None,
-        "navigator_modes_ticks": dict(modes.most_common()),
+        "ahead_kind_ticks": dict(modes.most_common()),
+        "exit_line_seen": any((r.get("EXIT_DIST") or 0) > 0 for r in raw),
         "walk": walk,
-        "doors_seen": max((r.get("DOORS_KNOWN", 0) or 0) for r in raw) if raw else None,
+
         "keys_held_at_end": (raw[-1].get("KEYS") if raw else None),
         "duration_s": round(span),
         "decisions": len(ctrl),

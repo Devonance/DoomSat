@@ -1,3 +1,3 @@
 
 ## v1 (defaults)
-Initial graph: the seven control heads and the goal head as designed by hand.
+Initial graph: one narrow question per head, structured criteria, Nouls for yes-no heads.

@@ -12,31 +12,15 @@ module DoomMission {
         HOLD = 7           @< Stand still (safe mode)
     }
 
-    @ What the navigator is currently routing toward
-    enum TargetKind : U8 {
-        FRONTIER = 0
-        ENEMY = 1
-        HEALTH = 2
-        AMMO = 3
-        ARMOR = 4
-        WEAPON = 5
-        FAR_FRONTIER = 6
-        NONE = 7
-        KEY = 8            @< A key card seen earlier
-        SWITCH = 9         @< A wall or switch to try with Use
-        EXIT = 10          @< An exit line seen on the automap
-    }
-
-    @ What the onboard navigator is doing
-    enum NavMode : U8 {
-        EXPLORE = 0        @< Heading for an unexplored frontier
-        DOOR = 1           @< At a door on the route, pressing Use
-        KEY = 2            @< Fetching a key seen earlier
-        HUNT = 3           @< Nothing left to explore: trying walls and switches
-        IDLE = 4           @< Nothing to head for
-        ITEM = 5           @< Fetching a pickup for the ground's goal
-        ENEMY = 6          @< Closing on an enemy
-        EXIT = 7           @< Heading for an exit line seen on the automap
+    @ What the range camera and the map say is at arm's length ahead
+    enum AheadKind : U8 {
+        NOTHING = 0
+        WALL = 1
+        DOOR = 2
+        EXIT = 3           @< The exit line, seen on the automap
+        LOCKED = 4         @< A locked door without its key
+        BARRIER = 5        @< Something the map does not show (window bars, a fake door)
+        THING = 6          @< A monster or a barrel
     }
 
     @ Weapon the player currently holds
@@ -122,37 +106,47 @@ module DoomMission {
         telemetry ENEMY_COUNT: U8 id 10
         telemetry ENEMY_BEARING: F32 id 11 @< degrees, positive left
         telemetry ENEMY_DIST: U16 id 12
-        telemetry CLEAR_FWD: U16 id 13 @< map units of free space ahead
-        telemetry CLEAR_LEFT: U16 id 14
+        telemetry CLEAR_FWD: U16 id 13 @< map units of free space straight ahead (range camera)
+        telemetry CLEAR_LEFT: U16 id 14 @< map units of open way to the left (map ray)
         telemetry CLEAR_RIGHT: U16 id 15
         telemetry CLEAR_BACK: U16 id 16
-        telemetry ROUTE_BEARING: F32 id 17 @< degrees to the next waypoint, positive left
-        telemetry ROUTE_DIST: U16 id 18 @< path length to the target
-        telemetry TARGET_DIST: U16 id 19
-        telemetry TARGET_KIND: TargetKind id 20
-        telemetry STUCK: bool id 21
-        telemetry DOOR_AHEAD: bool id 22
-        telemetry GOAL: Goal id 23
-        telemetry HEALTH_ITEM_DIST: U16 id 24
-        telemetry AMMO_ITEM_DIST: U16 id 25
-        telemetry ARMOR_ITEM_DIST: U16 id 26
-        telemetry TIC: U32 id 27
-        telemetry EPISODE: U16 id 28
-        telemetry DEAD: bool id 29
-        telemetry LEVEL_DONE: bool id 30
-        telemetry FRAMES_SENT: U32 id 31
-        telemetry CHUNKS_SENT: U32 id 32
-        telemetry FRAME_BYTES: U32 id 33 @< bytes of the last frame
-        telemetry PAYLOAD_LINK: bool id 34
-        telemetry CMDS_RECEIVED: U32 id 35
-        telemetry FRAME_CHUNK: FrameChunk id 36
-        telemetry EXPLORED_CELLS: U16 id 37 @< cells of the self-built map the player has stood in
-        telemetry FRONTIERS: U16 id 38 @< known-free cells bordering the unexplored
-        telemetry LEVEL: U8 id 39 @< levels started so far (1 = the first map)
-        telemetry KEYS: U8 id 40 @< keys held, bitmask red=1 blue=2 yellow=4
-        telemetry NAV_MODE: NavMode id 41
-        telemetry DOORS_KNOWN: U16 id 42 @< door edges seen on the automap
-        telemetry HUNT_LEFT: U16 id 43 @< walls still to try when hunting for a switch
+        telemetry CLEAR_FL: U16 id 17 @< range camera, ahead-left band
+        telemetry CLEAR_FR: U16 id 18 @< range camera, ahead-right band
+        telemetry CLEAR_MAP_FWD: U16 id 19 @< map ray straight ahead
+        telemetry NEW_FWD: U8 id 20 @< percent of the ground that way not yet walked
+        telemetry NEW_LEFT: U8 id 21
+        telemetry NEW_RIGHT: U8 id 22
+        telemetry NEW_BACK: U8 id 23
+        telemetry AHEAD_KIND: AheadKind id 24 @< what is at arm's length ahead
+        telemetry AHEAD_DIST: U16 id 25
+        telemetry EXIT_BEARING: F32 id 26 @< degrees to the exit line seen, positive left
+        telemetry EXIT_DIST: U16 id 27 @< 0 when no exit line has been seen
+        telemetry KEY_BEARING: F32 id 28
+        telemetry KEY_DIST: U16 id 29 @< 0 when no key is remembered
+        telemetry HEALTH_ITEM_DIST: U16 id 30
+        telemetry AMMO_ITEM_DIST: U16 id 31
+        telemetry ARMOR_ITEM_DIST: U16 id 32
+        telemetry HEALTH_BEARING: F32 id 33
+        telemetry AMMO_BEARING: F32 id 34
+        telemetry ARMOR_BEARING: F32 id 35
+        telemetry STUCK: bool id 36
+        telemetry DOOR_AHEAD: bool id 37 @< something usable at arm's length
+        telemetry GOAL: Goal id 38
+        telemetry TIC: U32 id 39
+        telemetry EPISODE: U16 id 40
+        telemetry DEAD: bool id 41
+        telemetry LEVEL_DONE: bool id 42
+        telemetry EXPLORED_CELLS: U16 id 43 @< cells of the self-built map the player has stood in
+        telemetry LEVEL: U8 id 44 @< levels started so far (1 = the first map)
+        telemetry KEYS: U8 id 45 @< keys held, bitmask red=1 blue=2 yellow=4
+        telemetry HINT_ACTIVE: bool id 46 @< an exploration hint from the ground is in force
+        telemetry HINT_REL: I16 id 47 @< the hint's bearing relative to the heading, degrees
+        telemetry FRAMES_SENT: U32 id 48
+        telemetry CHUNKS_SENT: U32 id 49
+        telemetry FRAME_BYTES: U32 id 50 @< bytes of the last frame
+        telemetry PAYLOAD_LINK: bool id 51
+        telemetry CMDS_RECEIVED: U32 id 52
+        telemetry FRAME_CHUNK: FrameChunk id 53
 
         # ----------------------------------------------------------------------
         # Events

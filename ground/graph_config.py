@@ -1,7 +1,9 @@
 """The System One decision graph as data: what jev is asked, in which words, with which thresholds.
 
-System Two (Sonnet) edits this between episodes; code validates every revision before it is used.
-Versions live in ground/graph/: graph_current.json plus graph_v<N>.json and CHANGELOG.md.
+jev is a System One model: it classifies a structured state in one pass. So every head is one narrow
+question, options carry contrastive criteria (what / not_for / examples), yes-no heads are Nouls, and
+code combines the answers. System Two (Sonnet) edits the wording, criteria and thresholds between
+episodes; code validates every revision before it is used. Versions live in ground/graph/.
 """
 import copy
 import json
@@ -11,98 +13,123 @@ GRAPH_DIR = Path(__file__).resolve().parent / "graph"
 
 DEFAULT = {
     "version": 1,
-    "standing_order": "Find the level exit alive; fight what blocks the way; pick up supplies when they are needed.",
-    "goal_every": 4,
+    "standing_order": "Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch.",
+    "goal_every": 8,
     "thresholds": {
         "aligned_deg": 35, "crosshair_deg": 8, "fire_range": 450, "danger_dist": 180,
-        "blocked_units": 45, "tight_units": 70, "health_critical": 35, "health_low": 50,
+        "blocked_units": 48, "tight_units": 90, "health_critical": 35, "health_low": 50,
     },
     "turn_deg": {"Hard left": 60, "Left": 25, "Fine left": 8, "Hold": 0, "Fine right": -8, "Right": -25, "Hard right": -60, "Turn around": 150},
+    "way_margin": 0.15,
     "questions": {
-        "steer": {
-            "question": "Which way now? The map's route goes {route_where}. Space ahead: {ahead}, left: {left}, right: {right}, behind: {behind}. Stuck: {stuck}.",
+        "way": {
+            "type": "choice",
+            "instructions": {
+                "question": "Which direction should the player go now?",
+                "inspect": "surroundings, seen.exit, seen.key, seen.ground_hint, stuck",
+                "focus": "Prefer the exit, then doors, then open ground not yet walked. Never a direction that is blocked."},
             "criteria": {
-                "Follow route": "Stuck is no and the space in the route's direction is clear or tight: keep following the route.",
-                "Left": "The route's way is blocked or stuck is yes, and space left is clear: turn left and go that way.",
-                "Right": "The route's way is blocked or stuck is yes, left is not clear, and space right is clear: turn right and go that way.",
-                "Back": "The route's way is blocked or stuck is yes, neither side is clear, and space behind is clear: back out.",
-                "Turn around": "Blocked or stuck with nothing known clear on any side: turn around and look."}},
-        "dodge": {
-            "question": "Sidestep away from an enemy? Threat: {threat} ({enemy_where}). Space left: {left}, right: {right}, behind: {behind}.",
+                "Ahead": {"what": "surroundings.ahead is open or tight and its ground is new, or the exit, a door or the key is ahead, or ground_hint is ahead",
+                          "not_for": "surroundings.ahead blocked, or ahead walked before while a side offers new ground",
+                          "examples": ["ahead open, new ground", "a door at arm's length ahead", "exit ahead"]},
+                "Left": {"what": "surroundings.left is open and newer ground than ahead and right, or the exit, a door, the key or ground_hint is to the left",
+                         "not_for": "surroundings.left blocked",
+                         "examples": ["ahead walked before, left open and new", "exit to the left"]},
+                "Right": {"what": "surroundings.right is open and newer ground than ahead and left, or the exit, a door, the key or ground_hint is to the right",
+                          "not_for": "surroundings.right blocked",
+                          "examples": ["ahead blocked, left walked, right open and new", "exit to the right"]},
+                "Back": {"what": "ahead, left and right are blocked or walked before, and surroundings.behind is open",
+                         "not_for": "any open side with new ground",
+                         "examples": ["a dead end: ahead blocked, left blocked, right blocked, behind open"]},
+                "Turn around": {"what": "the exit, a door or the key is behind, or the player is stuck with nothing open on the sides",
+                                "not_for": "an open side or new ground ahead",
+                                "examples": ["exit behind", "stuck, left blocked, right blocked"]}}},
+        "advance": {
+            "type": "noul",
+            "instructions": {"question": "Should the player walk forward right now?", "inspect": "surroundings.ahead, stuck"},
             "criteria": {
-                "Carry on": "Threat is safe. Do not dodge just because an enemy exists.",
-                "Dodge left": "Threat is danger and space left is clear.",
-                "Dodge right": "Threat is danger, left is not clear, space right is clear.",
-                "Dodge back": "Threat is danger, sides not clear, space behind is clear."}},
-        "move": {
-            "question": "Advance now? Route aligned ahead: {aligned}. Space ahead: {ahead}. Stuck: {stuck}. Space behind: {behind}. Navigator: {mode}.",
-            "criteria": {
-                "Forward": "Route aligned ahead is yes and space ahead is clear or tight. Also forward to close on a distant enemy, and forward when at a door (walk up to it while it opens).",
-                "Hold": "Route aligned ahead is no (turn first), or space ahead is blocked and not at a door, or the destination is here, or stuck with nothing known clear around (turn instead).",
-                "Backward": "Stuck is yes and space behind is clear."}},
-        "strafe": {
-            "question": "Recovery sidestep? Stuck: yes. Space left: {left}, right: {right}.",
-            "criteria": {
-                "Hold": "Neither side is known clear: turn instead.",
-                "Strafe left": "Space left is clear.",
-                "Strafe right": "Left is blocked, space right is clear."}},
-        "turn": {
-            "question": "Turn to put {aim_target} in the crosshair. It is now: {aim}.",
-            "criteria": {
-                "Hard left": "It is far left.", "Left": "It is left.", "Fine left": "It is slightly left or just left of the crosshair.",
-                "Hold": "It is centered.",
-                "Fine right": "It is slightly right or just right of the crosshair.", "Right": "It is right.", "Hard right": "It is far right.",
-                "Turn around": "It is behind."}},
-        "fire": {
-            "question": "Pull the trigger? Living enemy in the crosshair: {in_crosshair} ({enemy_where}). Equipped ammunition: {equipped_ammo}. Never shoot at the route waypoint.",
-            "criteria": {
-                "Fire": "Enemy in the crosshair is yes and equipped ammunition is more than zero.",
-                "Hold fire": "Enemy in the crosshair is no, or equipped ammunition is zero."}},
-        "weapon": {
-            "question": "Which weapon? Equipped: {equipped}. Shotgun shells: {shells}. Pistol bullets: {bullets}. Owns shotgun: {owns_shotgun}.",
-            "criteria": {
-                "Keep": "The equipped weapon still has ammunition.",
-                "Pistol": "Shotgun shells are zero and pistol bullets remain.",
-                "Shotgun": "Owns a shotgun with shells and the pistol is equipped."}},
+                "true": {"what": "surroundings.ahead.space is open or tight, or a door or the exit switch is at arm's length ahead (walk up to it)",
+                         "examples": ["ahead open", "ahead tight", "a door at arm's length"]},
+                "false": {"what": "surroundings.ahead.space is blocked by a wall, bars, a barrel or a monster at point blank, or the player is stuck",
+                          "examples": ["ahead blocked, a wall at arm's length", "stuck yes"]}}},
         "use": {
-            "question": "Press use (open a door, flip a switch, try a wall)? Navigator: {mode}. Route blocked at arm length: {blocked_route}. Stuck: {stuck}.",
+            "type": "noul",
+            "instructions": {"question": "Is there something to operate at arm's length ahead?", "inspect": "surroundings.ahead.at_arms_length, stuck"},
             "criteria": {
-                "Use": "Route blocked at arm length is yes, or stuck is yes, or the navigator is at a door, at the exit line, or trying walls: press it.",
-                "Wait": "Nothing within reach to operate."}},
+                "true": {"what": "a door, the exit switch or a locked door is at arm's length ahead, or the player is stuck (try the wall)",
+                         "examples": ["a door at arm's length", "the exit switch at arm's length"]},
+                "false": {"what": "nothing near, or a plain wall, bars or a monster ahead", "examples": ["nothing near", "a wall"]}}},
+        "fire": {
+            "type": "noul",
+            "instructions": {"question": "Should the trigger be pulled?", "inspect": "combat, player.equipped_ammo"},
+            "criteria": {
+                "true": {"what": "combat.enemy_in_crosshair is yes and player.equipped_ammo is more than zero"},
+                "false": {"what": "no enemy in the crosshair, or equipped ammunition is zero"}}},
+        "dodge": {
+            "type": "choice",
+            "instructions": {"question": "Sidestep to avoid the enemy?", "inspect": "combat, surroundings"},
+            "criteria": {
+                "Carry on": {"what": "combat.threat is safe", "not_for": "a close enemy attacking"},
+                "Dodge left": {"what": "combat.threat is danger and surroundings.left is open"},
+                "Dodge right": {"what": "combat.threat is danger, left not open, surroundings.right open"},
+                "Dodge back": {"what": "combat.threat is danger, sides not open, surroundings.behind open"}}},
+        "turn": {
+            "type": "choice",
+            "instructions": {"question": "Turn to put the enemy in the crosshair. Where is it now?", "inspect": "combat.enemy_where"},
+            "criteria": {
+                "Hard left": {"what": "far left"}, "Left": {"what": "left"}, "Fine left": {"what": "slightly left or just left of the crosshair"},
+                "Hold": {"what": "centered"},
+                "Fine right": {"what": "slightly right or just right of the crosshair"}, "Right": {"what": "right"}, "Hard right": {"what": "far right"},
+                "Turn around": {"what": "behind"}}},
+        "weapon": {
+            "type": "choice",
+            "instructions": {"question": "Which weapon?", "inspect": "player"},
+            "criteria": {
+                "Keep": {"what": "the equipped weapon still has ammunition"},
+                "Pistol": {"what": "shotgun shells are zero and pistol bullets remain"},
+                "Shotgun": {"what": "owns a shotgun with shells and the pistol is equipped"}}},
         "goal": {
-            "question": "Immediate priority? Level {level}. Health: {health}. Threat: {threat} ({enemy_where}). Ammunition: {ammo}. Armor: {armor}. Nearby pickups: health {health_pickup}, ammo {ammo_pickup}, armor {armor_pickup}. Unexplored frontiers: {frontiers}. Navigator: {mode}.",
+            "type": "choice",
+            "instructions": {"question": "What is the immediate priority?", "inspect": "player, combat, seen"},
             "criteria": {
-                "Kill enemies": "An enemy is visible at close or mid range, health is not critical and ammunition is ready.",
-                "Restore health": "Health is critical, or low with a health pickup seen and no close enemy.",
-                "Stock ammo": "Ammunition is empty or scarce and an ammo pickup was seen.",
-                "Add armor": "Armor is none, an armor pickup was seen, health fine, no close enemy.",
-                "Explore": "No close enemy, health fine, ammunition ready: keep exploring toward the nearest frontier to find the exit. Also Explore whenever the navigator is at a door, fetching a key, heading for the exit or trying walls: let it finish.",
-                "Scout": "The nearest frontier is exhausted or the player keeps getting stuck: head for a far unexplored part of the map.",
-                "Upgrade weapon": "No shotgun owned, a weapon was seen, no close enemy."}},
+                "Kill enemies": {"what": "an enemy visible at close or mid range, health not critical, ammunition ready"},
+                "Restore health": {"what": "health critical, or low with a health pickup seen close and no close enemy"},
+                "Stock ammo": {"what": "ammunition empty or scarce and an ammo pickup seen close"},
+                "Add armor": {"what": "armor none, an armor pickup seen close, health fine, no close enemy, exit not seen yet"},
+                "Explore": {"what": "otherwise: keep exploring toward new ground and the exit", "examples": ["no enemy, health fine, exit not seen"]}}},
     },
 }
 
-# Placeholders each question may use (System Two must keep at least the ones it needs; code renders with format_map).
-FACT_KEYS = ["threat", "enemy_where", "left", "right", "behind", "ahead", "aligned", "stuck", "blocked_route", "aim_target",
-             "aim", "in_crosshair", "equipped_ammo", "equipped", "shells", "bullets", "owns_shotgun", "health", "ammo",
-             "armor", "destination", "dest_dist", "health_pickup", "ammo_pickup", "armor_pickup", "frontiers", "explored",
-             "mode", "level", "keys", "route_where", "route_far"]
-
 THRESHOLD_RANGES = {"aligned_deg": (10, 80), "crosshair_deg": (3, 20), "fire_range": (100, 1200), "danger_dist": (60, 500),
-                    "blocked_units": (20, 120), "tight_units": (40, 200), "health_critical": (10, 60), "health_low": (20, 80)}
+                    "blocked_units": (24, 120), "tight_units": (40, 220), "health_critical": (10, 60), "health_low": (20, 80)}
 
 
 class GraphError(ValueError):
     pass
 
 
+def _clean_entry(v, depth=0):
+    """Instructions/criteria may be strings, objects or arrays (System One understands structure); bound their size."""
+    if isinstance(v, str):
+        return v[:400]
+    if isinstance(v, list) and depth < 3:
+        return [_clean_entry(x, depth + 1) for x in v[:8]]
+    if isinstance(v, dict) and depth < 3:
+        return {str(k)[:40]: _clean_entry(x, depth + 1) for k, x in list(v.items())[:8]}
+    return str(v)[:400]
+
+
 def validate(cfg):
-    """Return a cleaned copy of cfg or raise GraphError. Options (criteria keys) are fixed: code maps them to buttons."""
+    """Return a cleaned copy of cfg or raise GraphError. Heads, their types and option names are fixed: code maps them to buttons."""
     if not isinstance(cfg, dict):
         raise GraphError("config must be an object")
     out = copy.deepcopy(DEFAULT)
     out["standing_order"] = str(cfg.get("standing_order", out["standing_order"]))[:300]
     out["goal_every"] = int(max(1, min(20, cfg.get("goal_every", out["goal_every"]))))
+    try:
+        out["way_margin"] = float(max(0.0, min(0.5, float(cfg.get("way_margin", out["way_margin"])))))
+    except (TypeError, ValueError):
+        raise GraphError("way_margin is not a number")
     for k, (lo, hi) in THRESHOLD_RANGES.items():
         v = cfg.get("thresholds", {}).get(k, out["thresholds"][k])
         try:
@@ -117,21 +144,16 @@ def validate(cfg):
             raise GraphError(f"turn_deg {k} is not a number")
         sign = 1 if out["turn_deg"][k] >= 0 else -1
         out["turn_deg"][k] = 0.0 if k == "Hold" else sign * max(3.0, min(180.0, abs(v)))
-    dummy = {k: "x" for k in FACT_KEYS}
     for head, spec in out["questions"].items():
         new = cfg.get("questions", {}).get(head, {})
-        q = str(new.get("question", spec["question"]))[:500]
-        try:
-            q.format_map(dummy)
-        except (KeyError, ValueError, IndexError) as e:
-            raise GraphError(f"question {head} uses an unknown placeholder: {e}")
-        spec["question"] = q
+        if "instructions" in new:
+            spec["instructions"] = _clean_entry(new["instructions"])
         crit = new.get("criteria", {})
         if not isinstance(crit, dict):
             raise GraphError(f"criteria of {head} must be an object")
         for opt in spec["criteria"]:
             if opt in crit:
-                spec["criteria"][opt] = str(crit[opt])[:300]
+                spec["criteria"][opt] = _clean_entry(crit[opt])
     out["version"] = int(cfg.get("version", out["version"]))
     return out
 
@@ -141,10 +163,13 @@ def load():
     path = GRAPH_DIR / "graph_current.json"
     if path.exists():
         try:
-            return validate(json.loads(path.read_text(encoding="utf-8")))
+            cfg = json.loads(path.read_text(encoding="utf-8"))
+            if set(cfg.get("questions", {})) == set(DEFAULT["questions"]) and "way" in cfg["questions"]:
+                return validate(cfg)
+            print("[graph] current graph is from an older layout; using defaults")
         except (GraphError, ValueError) as e:
             print(f"[graph] current graph invalid ({e}); using defaults")
-    return save(copy.deepcopy(DEFAULT), "Initial graph: the seven control heads and the goal head as designed by hand.", model="defaults")
+    return save(copy.deepcopy(DEFAULT), "Initial graph: one narrow question per head, structured criteria, Nouls for yes-no heads.", model="defaults")
 
 
 def save(cfg, rationale, issues=None, model=None):
@@ -165,7 +190,7 @@ def save(cfg, rationale, issues=None, model=None):
 def diff(old, new):
     """Human-readable list of what changed between two configs."""
     out = []
-    for k in ("standing_order", "goal_every"):
+    for k in ("standing_order", "goal_every", "way_margin"):
         if old.get(k) != new.get(k):
             out.append(f"{k}: {old.get(k)!r} -> {new.get(k)!r}")
     for k in old["thresholds"]:
@@ -175,18 +200,19 @@ def diff(old, new):
         if old["turn_deg"][k] != new["turn_deg"][k]:
             out.append(f"turn_deg.{k}: {old['turn_deg'][k]} -> {new['turn_deg'][k]}")
     for head in old["questions"]:
-        if old["questions"][head]["question"] != new["questions"][head]["question"]:
-            out.append(f"questions.{head}.question reworded")
+        if old["questions"][head]["instructions"] != new["questions"][head]["instructions"]:
+            out.append(f"questions.{head}.instructions reworded")
         for opt in old["questions"][head]["criteria"]:
-            if old["questions"][head]["criteria"][opt] != new["questions"][head]["criteria"][opt]:
+            if old["questions"][head]["criteria"][opt] != new["questions"][head]["criteria"].get(opt):
                 out.append(f"questions.{head}.criteria[{opt}] reworded")
     return out
 
 
 # JSON schema handed to System Two for its structured reply (config + rationale + issues)
 def review_schema():
-    q_props = {head: {"type": "object", "properties": {"question": {"type": "string"},
-                                                        "criteria": {"type": "object", "properties": {opt: {"type": "string"} for opt in spec["criteria"]},
+    entry = {"anyOf": [{"type": "string"}, {"type": "object"}, {"type": "array"}]}
+    q_props = {head: {"type": "object", "properties": {"instructions": entry,
+                                                        "criteria": {"type": "object", "properties": {opt: entry for opt in spec["criteria"]},
                                                                      "additionalProperties": False}},
                       "additionalProperties": False}
                for head, spec in DEFAULT["questions"].items()}
@@ -196,6 +222,7 @@ def review_schema():
             "config": {"type": "object", "properties": {
                 "standing_order": {"type": "string"},
                 "goal_every": {"type": "integer"},
+                "way_margin": {"type": "number"},
                 "thresholds": {"type": "object", "properties": {k: {"type": "number"} for k in THRESHOLD_RANGES}, "additionalProperties": False},
                 "turn_deg": {"type": "object", "properties": {k: {"type": "number"} for k in DEFAULT["turn_deg"]}, "additionalProperties": False},
                 "questions": {"type": "object", "properties": q_props, "additionalProperties": False},

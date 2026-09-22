@@ -1,7 +1,7 @@
 """Doom payload: the "instrument" the flight software carries.
 
 Runs Doom (via ViZDoom) at 35 Hz, keeps the last uplinked controls held, and serves an observation
-summary plus JPEG frames to the F Prime Doom component over a local TCP socket.
+summary plus JPEG frames (and the map it builds) to the F Prime Doom component over a local TCP socket.
 
 Everything the payload reports comes from what a player could see, never from the level file:
   - the in-game automap in the mode that shows only lines the player has already seen. ZDoom draws
@@ -11,14 +11,16 @@ Everything the payload reports comes from what a player could see, never from th
   - the depth buffer (a range camera): free space ahead, and the map cells swept clean of unknown,
   - the labels buffer (an object detector): visible enemies, pickups and keys, remembered once seen,
   - the HUD variables: health, armor, ammo, position and heading (odometry).
-The navigator explores toward frontiers, opens the doors it meets (Use), fetches keys it has seen,
-presses switches when nothing is left to explore, and heads for the exit line once it has seen one.
-The level file is never read; nothing is known before the player sees it.
+
+There is no route planner. The payload reports, for the four directions around the player, how far
+the way is open and how much of that ground has already been walked, what is at arm's length ahead
+(a wall, a door, the exit switch, a locked door, something the map does not show), where an exit
+line or a key or a pickup was seen, and whether the player is stuck. The ground decides where to go.
 
 Protocol (big-endian; the payload is the server on 127.0.0.1:4242):
   payload -> flight   'D' kind:u8 length:u16 body
      kind 1 STATUS  fixed struct (see STATUS_FMT)
-     kind 2 FRAME   seq:u32 jpeg bytes
+     kind 2 FRAME   seq:u32 jpeg bytes (seq with the high bit set: the map, a PNG)
   flight -> payload   'D' kind:u8 length:u16 body
      kind 0x10 CONTROL      move:i8 strafe:i8 turn:f32 (degrees to turn, +left) fire:u8 use:u8 weapon:u8
      kind 0x11 SET_GOAL     goal:u8
@@ -27,7 +29,6 @@ Protocol (big-endian; the payload is the server on 127.0.0.1:4242):
      kind 0x14 EXPLORE_HINT bearing:i16 (degrees, positive left) ttl:u8 (seconds)
 """
 import argparse
-import heapq
 import io
 import math
 import os
@@ -42,10 +43,9 @@ import vizdoom as vzd
 from PIL import Image, ImageDraw
 
 TICRATE = 35
-STATUS_FMT = "!hhhhBBHfffBfHHHHHfHHBBBBHHHIHBBHHBBBHH"
+STATUS_FMT = "!hhhhBBHfffBfHHHHHHHHBBBBBHfHfHHHHfffBBBIHBBHBBBh"   # 100 bytes, 48 fields (see pack_status)
 GOALS = ["EXPLORE", "KILL_ENEMY", "STOCK_AMMO", "RESTORE_HEALTH", "ADD_ARMOR", "UPGRADE_WEAPON", "SCOUT", "HOLD"]
-TARGET_KINDS = ["frontier", "enemy", "health", "ammo", "armor", "weapon", "far_frontier", "none", "key", "switch", "exit"]
-NAV_MODES = ["explore", "door", "key", "hunt", "idle", "item", "enemy", "exit"]
+AHEAD_KINDS = ["nothing", "wall", "door", "exit", "locked", "barrier", "thing"]
 ENEMIES = {"DoomImp", "Zombieman", "ShotgunGuy", "Demon", "Spectre", "ChaingunGuy", "Cacodemon", "HellKnight",
            "BaronOfHell", "LostSoul", "Revenant", "Arachnotron", "Fatso", "PainElemental", "Archvile", "WolfensteinSS"}
 ITEM_KIND = {"Stimpack": "health", "Medikit": "health", "HealthBonus": "health", "Soulsphere": "health",
@@ -55,33 +55,29 @@ ITEM_KIND = {"Stimpack": "health", "Medikit": "health", "HealthBonus": "health",
              "RedCard": "key", "BlueCard": "key", "YellowCard": "key", "RedSkull": "key", "BlueSkull": "key", "YellowSkull": "key"}
 KEY_COLOUR = {"RedCard": "red", "RedSkull": "red", "BlueCard": "blue", "BlueSkull": "blue", "YellowCard": "yellow", "YellowSkull": "yellow"}
 KEY_BIT = {"red": 1, "blue": 2, "yellow": 4}
-GOAL_KIND = {"STOCK_AMMO": "ammo", "RESTORE_HEALTH": "health", "ADD_ARMOR": "armor", "UPGRADE_WEAPON": "weapon"}
-# decorations a player cannot walk through (the rest of the scenery, corpses, puffs and pickups are not obstacles)
 SOLID_THINGS = {"ExplosiveBarrel", "BurningBarrel", "Column", "TechPillar", "ShortGreenColumn", "TallGreenColumn", "ShortRedColumn",
                 "TallRedColumn", "SkullColumn", "HeartColumn", "EvilEye", "FloatingSkull", "TorchTree", "BlueTorch", "GreenTorch",
                 "RedTorch", "ShortBlueTorch", "ShortGreenTorch", "ShortRedTorch", "Stalagtite", "Stalagmite", "BigTree", "TechLamp",
-                "TechLamp2", "Candelabra", "Meat2", "Meat3", "Meat4", "Meat5", "NonsolidMeat2", "HangNoGuts", "HangBNoBrain",
-                "HangTLookingDown", "HangTSkull", "HangTLookingUp", "HangTNoBrain", "ColonGibs", "SmallBloodPool", "BrainStem"} - {
-                "NonsolidMeat2", "ColonGibs", "SmallBloodPool", "BrainStem"}
+                "TechLamp2", "Candelabra", "Meat2", "Meat3", "Meat4", "Meat5", "HangNoGuts", "HangBNoBrain", "HangTLookingDown",
+                "HangTSkull", "HangTLookingUp", "HangTNoBrain"}
 BUTTONS = [vzd.Button.MOVE_FORWARD_BACKWARD_DELTA, vzd.Button.MOVE_LEFT_RIGHT_DELTA, vzd.Button.TURN_LEFT_RIGHT_DELTA,
            vzd.Button.ATTACK, vzd.Button.USE, vzd.Button.SELECT_WEAPON2, vzd.Button.SELECT_WEAPON3]
-GRID = 32              # navigation cell (map units)
+GRID = 32              # map cell for "walked here" memory (map units)
 FOV = 90.0             # ViZDoom default horizontal field of view
 DEPTH_UNITS = 7.16     # map units per depth-buffer step; the buffer holds perpendicular (z) distance (depth_calib_probe*.py)
 DEPTH_FAR = 56         # depth steps beyond which the range camera is not trusted (~400 units)
-ROUTE_EVERY = 7        # tics between automap stamps and replans (5 Hz)
+SENSE_EVERY = 7        # tics between automap stamps and the slower sensing (5 Hz)
 UPLINK_TIMEOUT_S = 3.0  # no CONTROL for this long -> release everything (safe mode)
-DOOR_TRIES = 8         # use presses at a door before it counts as "does not open for me now"
-DOOR_RETRY_S = 90.0    # a door that did not open is tried again after this long
-SPOT_TRIES = 3         # use presses at a wall/switch spot before it counts as tried
+DOOR_TRIES = 10        # use presses at a door before it counts as "does not open for me now"
+DOOR_RETRY_S = 120.0   # a door that did not open is treated as a wall for this long
+RAY_MAX = 400          # how far the map rays look (units)
 
 # ---- the automap as a sensor: ViZDoom renders it at screen size, centred on the player, viz_am_scale 2.5 = 0.5 px/unit
 AM_W, AM_H, AM_SCALE, AM_CX, AM_CY = 640, 480, 0.5, 320, 240
 WPX = 4                # world raster: map units per pixel
 WORLD_HALF = 6144      # world raster covers +-6144 units around the level start
-CELL_PX = GRID // WPX
 NONE, STEP, DOOR, LOCK_RED, LOCK_BLUE, LOCK_YELLOW, LOCKED, EXIT, WALL, BARRIER = range(10)   # merge priority: later wins
-BARRIER_S = 45.0       # a range-camera hit with no automap line (window bars, barrel, pillar) blocks for this long
+BARRIER_S = 45.0
 CLASS_RGB = {WALL: (255, 255, 255), STEP: (83, 175, 71), DOOR: (115, 115, 255), LOCK_RED: (255, 0, 0), LOCK_BLUE: (0, 0, 255),
              LOCK_YELLOW: (255, 255, 0), LOCKED: (255, 123, 123), EXIT: (255, 127, 27)}
 RENDER_RGB = {**CLASS_RGB, BARRIER: (255, 160, 90)}
@@ -96,9 +92,6 @@ AM_CVARS = ['am_backcolor "00 00 00"', 'am_wallcolor "ff ff ff"', 'am_fdwallcolo
             'am_showtriggerlines 0', 'am_showkeys 1']
 _VECS = np.array([np.array(c, np.float32) / np.linalg.norm(c) for c in list(CLASS_RGB.values()) + [ARROW_RGB]])
 _VEC_CLASS = np.array(list(CLASS_RGB.keys()) + [NONE], np.uint8)
-DIRS = ((1, 0), (0, 1), (-1, 0), (0, -1))                                   # E N W S
-NEIGH = [(0, 1, False), (1, 0, False), (0, -1, False), (-1, 0, False),
-         (1, 1, True), (1, -1, True), (-1, 1, True), (-1, -1, True)]        # (dj, di, diagonal)
 
 
 def bearing_deg(x, y, angle, tx, ty):
@@ -109,7 +102,7 @@ def bearing_deg(x, y, angle, tx, ty):
 def classify(am):
     """Automap RGB -> class per pixel. Lines are anti-aliased, so classify by colour direction, any brightness."""
     bright = am.max(axis=2)
-    bright[AM_CY - 4:AM_CY + 5, AM_CX - 4:AM_CX + 5] = 0   # the player marker and map crosshair are not lines
+    bright[AM_CY - 4:AM_CY + 5, AM_CX - 4:AM_CX + 5] = 0   # the player marker is not a line
     cls = np.zeros(bright.shape, np.uint8)
     ys, xs = np.nonzero(bright >= 40)
     if len(xs):
@@ -132,51 +125,27 @@ def next_map(name):
 
 
 class Explorer:
-    """The map the payload builds for itself for one level: the in-game automap (lines the player has seen)
-    stamped into a world raster, free space swept by the range camera, plus what it remembers seeing
-    (items, keys) and trying (doors that did not open, walls already used)."""
+    """The map the payload builds for itself for one level attempt: the in-game automap (lines the player has
+    seen) stamped into a world raster, floor swept by the range camera, where the player has walked, what it
+    remembers seeing (items, keys) and what it learned by bumping into (barriers)."""
 
     def __init__(self, x0, y0):
         self.ox, self.oy = x0 - WORLD_HALF, y0 + WORLD_HALF   # raster origin: top-left corner in map units
         self.n = 2 * WORLD_HALF // WPX
         self.raster = np.zeros((self.n, self.n), np.uint8)
-        self.barrier_t = np.full((self.n, self.n), -1e9, np.float32)   # last time the range camera hit something not on the automap
-        self.barrier_n = np.zeros((self.n, self.n), np.uint8)             # how many tics in a row it was seen there
+        self.barrier_t = np.full((self.n, self.n), -1e9, np.float32)   # when a barrier was confirmed there
         self.ux = (np.arange(AM_W) - AM_CX) / AM_SCALE          # automap column -> x offset from the player (units)
         self.vy = -(np.arange(AM_H) - AM_CY) / AM_SCALE         # automap row -> y offset (map y is up)
         self.free = set()
         self.visited = {}      # cell -> tics the player has stood in it (the walk, remembered)
         self.items = {}        # (kind, rounded x, rounded y) -> {"kind", "name", "x", "y", "seen"}
         self.keys = set()      # colours of keys picked up
-        self.edge_fail = {}    # edge -> [fails, blocked_until]
-        self.used = {}         # (cell, dir) spot -> time it was used (walls stay used; exit spots are retried after a minute)
         self.hint = None       # (absolute bearing, expiry)
-        self.plan = None
         self.stamps = 0
-        self.prev_step = None   # the route's first step last time (keeps equal-cost routes from flip-flopping)
 
-    # ------------------------------------------------------------------ geometry helpers
     @staticmethod
     def cell(x, y):
         return int(math.floor(x / GRID)), int(math.floor(y / GRID))
-
-    @staticmethod
-    def xy(c):
-        return (c[0] + 0.5) * GRID, (c[1] + 0.5) * GRID
-
-    @staticmethod
-    def edge_key(c, d):
-        """One key per physical edge: west/south edges are the east/north edges of the neighbour."""
-        if d == 2:
-            return (c[0] - 1, c[1], 0)
-        if d == 3:
-            return (c[0], c[1] - 1, 1)
-        return (c[0], c[1], d)
-
-    @staticmethod
-    def edge_mid(c, d):
-        x, y = Explorer.xy(c)
-        return x + DIRS[d][0] * GRID / 2, y + DIRS[d][1] * GRID / 2
 
     def wpx(self, x, y):
         return int((x - self.ox) / WPX), int((self.oy - y) / WPX)
@@ -189,9 +158,8 @@ class Explorer:
         ix0, iy0 = self.wpx(px + self.ux[0], py + self.vy[0])
         ix1, iy1 = self.wpx(px + self.ux[-1], py + self.vy[-1])
         a, b, c, d = max(0, ix0 + 2), min(self.n, ix1 - 1), max(0, iy0 + 2), min(self.n, iy1 - 1)
-        # the player arrow is drawn over the lines beneath it; keep what was mapped there before
         cx_, cy_ = self.wpx(px, py)
-        under = self.raster[cy_ - 5:cy_ + 6, cx_ - 5:cx_ + 6].copy()
+        under = self.raster[cy_ - 5:cy_ + 6, cx_ - 5:cx_ + 6].copy()   # the arrow hides the lines beneath it
         if a < b and c < d:
             self.raster[c:d, a:b] = 0
         if len(xs):
@@ -206,25 +174,20 @@ class Explorer:
 
     def sweep(self, x, y, angle, depth_row):
         """One range-camera sweep: every cell a ray passes through (farthest surface in the eye-level band) is
-        free floor the player can see."""
+        free floor the player has seen."""
         here = self.cell(x, y)
         self.free.add(here)
         self.visited[here] = self.visited.get(here, 0) + 1
         w = len(depth_row)
         for col in range(0, w, 16):
             rel = math.degrees(math.atan((0.5 - col / (w - 1)) * 2 * math.tan(math.radians(FOV / 2))))
-            radial = DEPTH_UNITS / math.cos(math.radians(rel))   # z-depth -> distance along the ray
-            d = int(depth_row[col])
-            dist = min(d, DEPTH_FAR) * radial
+            dist = min(int(depth_row[col]), DEPTH_FAR) * DEPTH_UNITS / math.cos(math.radians(rel))
             a = math.radians(angle + rel)
             ca, sa = math.cos(a), math.sin(a)
             r = GRID / 2
             while r < dist - GRID / 2:
                 self.free.add(self.cell(x + r * ca, y + r * sa))
                 r += GRID / 2
-            # (per-ray barrier marks were tried and dropped: wall corners the camera hugs and sprites produce
-            #  readings the automap tolerances cannot separate from real gaps; barriers now come from solid
-            #  things seen (labels) and from edges the player actually pushed against.)
 
     def remember_items(self, x, y, labels):
         for lab in labels:
@@ -236,7 +199,7 @@ class Explorer:
         for key in [k for k, v in self.items.items() if math.hypot(v["x"] - x, v["y"] - y) < 40]:
             if self.items[key]["kind"] == "key":
                 self.keys.add(KEY_COLOUR.get(self.items[key]["name"], "red"))
-                self.edge_fail.clear()   # a new key: locked doors deserve a fresh try
+                self.barrier_t[:] = np.minimum(self.barrier_t, time.time() - 1e6)   # locked doors deserve a fresh try
                 print(f"[payload] picked up the {self.items[key]['name']}", flush=True)
             del self.items[key]  # walked over it: picked up (or not a pickup we can take)
 
@@ -249,335 +212,127 @@ class Explorer:
                     best = (d, v)
         return best
 
-    # ------------------------------------------------------------------ planning
-    def edge_cost(self, cls, key, now):
-        """Extra walking cost of crossing an edge of this class, or None if it cannot be crossed (for now)."""
-        if cls == NONE:
-            return 0.0
-        if cls in (WALL, EXIT, BARRIER):
-            return None
-        f = self.edge_fail.get(key)
-        if f and f[1] > now:
-            return None
-        if cls == STEP:
-            return 0.5
-        if cls == DOOR:
-            return 3.0
-        if cls in LOCK_KEY:
-            return 3.0 if LOCK_KEY[cls] in self.keys else None
-        return 3.0 if self.keys else None   # LOCKED: a locked door whose key colour the map does not show
+    def mark_barrier(self, x, y, heading, seconds, dist=24):
+        """Something the map does not show blocks the way `heading` from (x, y): mark it, three marks wide."""
+        dist = max(24, dist)
+        a = math.radians(heading)
+        bx, by = x + dist * math.cos(a), y + dist * math.sin(a)
+        lx, ly = -math.sin(a), math.cos(a)
+        until = time.time() + seconds - BARRIER_S
+        for k in (-12, 0, 12):
+            ix, iy = self.wpx(bx + k * lx, by + k * ly)
+            if 1 <= ix < self.n - 1 and 1 <= iy < self.n - 1:
+                self.barrier_t[iy - 1:iy + 2, ix - 1:ix + 2] = until
 
-    def replan(self, x, y, now, retry=True, loose=False):
-        """Rasterise edges from the automap, run Dijkstra from the player over the free cells, list the choices."""
-        if not self.free:
-            return None
-        if retry:
-            plan = self.replan(x, y, now, retry=False)
-            if plan is not None and plan["reached"] <= 1:
-                # the player's own cell looks sealed; the player is standing there, so drop barrier marks around it and
-                # seed the neighbours by a straight line from the player's position over the undilated map
-                ix, iy = self.wpx(x, y)
-                self.barrier_t[iy - 5:iy + 6, ix - 5:ix + 6] = -1e9
-                self.barrier_n[iy - 5:iy + 6, ix - 5:ix + 6] = 0
-                plan = self.replan(x, y, now, retry=False, loose=True)
-            return plan
-        xs = [c[0] for c in self.free]
-        ys = [c[1] for c in self.free]
-        cx0, cx1, cy0, cy1 = min(xs) - 1, max(xs) + 1, min(ys) - 1, max(ys) + 1
-        W, H = cx1 - cx0 + 1, cy1 - cy0 + 1
-        IX = (((np.arange(cx0, cx1 + 1) + 0.5) * GRID - self.ox) / WPX).astype(int)
-        IY = ((self.oy - (np.arange(cy0, cy1 + 1) + 0.5) * GRID) / WPX).astype(int)
-        px0, px1 = max(IX[0] - 12, 0), min(IX[-1] + 12, self.n)
-        py0, py1 = max(IY[-1] - 12, 0), min(IY[0] + 12, self.n)
-        sub = self.raster[py0:py1, px0:px1].copy()
-        bar = (now - self.barrier_t[py0:py1, px0:px1]) < BARRIER_S
-        if bar.any():
-            pad2 = np.pad(sub, 2)
-            near_line = np.zeros(sub.shape, bool)
-            for dy in range(5):
-                for dx in range(5):
-                    near_line |= pad2[dy:dy + sub.shape[0], dx:dx + sub.shape[1]] > 0
-            hard = self.barrier_n[py0:py1, px0:px1] == 255
-            sub[bar & (~near_line | hard)] = BARRIER
-        pad = np.pad(sub, 2)
-        dil = sub.copy()
-        for dy in range(5):
-            for dx in range(5):
-                np.maximum(dil, pad[dy:dy + sub.shape[0], dx:dx + sub.shape[1]], out=dil)
-        LXg, LYg = np.meshgrid(np.clip(IX - px0, 0, dil.shape[1] - 1), np.clip(IY - py0, 0, dil.shape[0] - 1))
-        right = np.zeros((H, W), np.uint8)
-        up = np.zeros((H, W), np.uint8)
-        nearwall = np.zeros((H, W), bool)
-        for k in range(1, CELL_PX):   # samples strictly between the two cell centres
-            np.maximum(right, dil[LYg, np.minimum(LXg + k, dil.shape[1] - 1)], out=right)
-            np.maximum(up, dil[np.maximum(LYg - k, 0), LXg], out=up)
-        for dy in (-3, 0, 3):
-            for dx in (-3, 0, 3):
-                nearwall |= dil[np.clip(LYg + dy, 0, dil.shape[0] - 1), np.clip(LXg + dx, 0, dil.shape[1] - 1)] == WALL
-        F = np.zeros((H, W), bool)
-        for (cx, cy) in self.free:
-            F[cy - cy0, cx - cx0] = True
-        plan = {"cx0": cx0, "cy0": cy0, "H": H, "W": W, "F": F, "right": right, "up": up, "dil": dil, "px0": px0, "py0": py0}
-        self.plan = plan
+    def klass(self, ix, iy, now, r=1):
+        """Class of the raster around a pixel ((2r+1)^2 window), barriers included."""
+        if not (r <= ix < self.n - r and r <= iy < self.n - r):
+            return NONE
+        c = int(self.raster[iy - r:iy + r + 1, ix - r:ix + r + 1].max())
+        if (now - self.barrier_t[iy - r:iy + r + 1, ix - r:ix + r + 1]).min() < BARRIER_S:
+            return BARRIER
+        return c
 
-        def ecls(j, i, d):
-            if d == 0:
-                return int(right[j, i])
-            if d == 1:
-                return int(up[j, i])
-            if d == 2:
-                return int(right[j, i - 1]) if i > 0 else WALL
-            return int(up[j - 1, i]) if j > 0 else WALL
+    def probe(self, x, y, heading, dist, now):
+        """What the map says about the surface the camera sees at `dist` along `heading`: look a little short
+        of and beyond the hit (the range is quantised) and report the most telling category found."""
+        a = math.radians(heading)
+        found = set()
+        for r in range(max(4, int(dist) - 14), int(dist) + 22, 4):
+            c = self.klass(*self.wpx(x + r * math.cos(a), y + r * math.sin(a)), now, r=2)
+            if c != NONE:
+                found.add(c)
+        for c in (EXIT, DOOR, LOCK_RED, LOCK_BLUE, LOCK_YELLOW, LOCKED, BARRIER, WALL, STEP):
+            if c in found:
+                return c
+        return NONE
 
-        plan["ecls"] = ecls
-        plan["pc"] = self.cell(x, y)
-        # seeds: the cells around the player it can walk to in a straight line
-        pc = self.cell(x, y)
-        self.free.add(pc)
-        if 0 <= pc[1] - cy0 < H and 0 <= pc[0] - cx0 < W:
-            F[pc[1] - cy0, pc[0] - cx0] = True
-        seeds = [(0.0, pc)]
-        pj, pi = pc[1] - cy0, pc[0] - cx0
-        for d in range(4):
-            c = (pc[0] + DIRS[d][0], pc[1] + DIRS[d][1])
-            if c not in self.free or not (0 <= pj < H and 0 <= pi < W):
-                continue
-            key = self.edge_key(pc, d)
-            f = self.edge_fail.get(key)
-            if f and f[1] > now:
-                continue
-            cls = ecls(pj, pi, d)
-            cost = math.hypot(self.xy(c)[0] - x, self.xy(c)[1] - y) / GRID
-            if self.edge_cost(cls, key, now) is not None or self.segment_clear((x, y), self.xy(c), raw=loose):
-                seeds.append((cost, c))   # the second case: a wall runs through the player's own cell
-        INF = float("inf")
-        dist = np.full((H, W), INF)
-        parent = {}
-        heap = []
-        for c0, c in seeds:
-            j, i = c[1] - cy0, c[0] - cx0
-            if 0 <= j < H and 0 <= i < W and c0 < dist[j, i]:
-                dist[j, i] = c0
-                heapq.heappush(heap, (c0, j, i))
-        while heap:
-            d0, j, i = heapq.heappop(heap)
-            if d0 > dist[j, i]:
-                continue
-            for dj, di, diag in NEIGH:
-                nj, ni = j + dj, i + di
-                if not (0 <= nj < H and 0 <= ni < W) or not F[nj, ni]:
-                    continue
-                if diag:
-                    if not (F[j, ni] and F[nj, i]):
-                        continue
-                    e1, e2 = ecls(j, i, 0 if di > 0 else 2), ecls(j, i, 1 if dj > 0 else 3)
-                    e3, e4 = ecls(nj, i, 0 if di > 0 else 2), ecls(j, ni, 1 if dj > 0 else 3)
-                    if any(e not in (NONE, STEP) for e in (e1, e2, e3, e4)):
-                        continue
-                    step = math.sqrt(2.0) + (0.5 if STEP in (e1, e2, e3, e4) else 0.0)
-                else:
-                    d = 0 if di > 0 else 1 if dj > 0 else 2 if di < 0 else 3
-                    extra = self.edge_cost(ecls(j, i, d), self.edge_key((cx0 + i, cy0 + j), d), now)
-                    if extra is None:
-                        continue
-                    step = 1.0 + extra
-                nd = d0 + step + (1.5 if nearwall[nj, ni] else 0.0) + min(2.0, self.visited.get((cx0 + ni, cy0 + nj), 0) / 70.0)
-                if (j, i) == (pj, pi) and self.prev_step == (cx0 + ni, cy0 + nj):
-                    nd -= 0.4
-                if nd < dist[nj, ni]:
-                    dist[nj, ni] = nd
-                    parent[(nj, ni)] = (j, i)
-                    heapq.heappush(heap, (nd, nj, ni))
-        plan["dist"], plan["parent"] = dist, parent
-        # what the reachable map offers: frontiers, doors, exit lines, walls to try
-        frontier, exits, spots, doors = [], [], [], set()
-        for j, i in zip(*np.nonzero(np.isfinite(dist))):
-            c = (cx0 + i, cy0 + j)
-            for d in range(4):
-                nj, ni = j + DIRS[d][1], i + DIRS[d][0]
-                cls = ecls(j, i, d)
-                key = self.edge_key(c, d)
-                if cls in (DOOR, LOCK_RED, LOCK_BLUE, LOCK_YELLOW, LOCKED):
-                    doors.add(key)
-                if cls == EXIT:
-                    if now - self.used.get((c, d), 0.0) > 60.0:
-                        exits.append((dist[j, i], c, d))
-                    continue
-                inside = 0 <= nj < H and 0 <= ni < W
-                if (not inside or not F[nj, ni]) and self.edge_cost(cls, key, now) is not None:
-                    frontier.append((dist[j, i], c))
-                f = self.edge_fail.get(key)
-                if (cls == WALL or (f and f[0] >= 3)) and (c, d) not in self.used:
-                    spots.append((dist[j, i] + (0 if f else 4.0), c, d))
-        plan.update(frontier=frontier, exits=sorted(exits), spots=sorted(spots), doors_known=len(doors), reached=int(np.isfinite(dist).sum()))
-        if os.environ.get("DOOM_DEBUG_TRACE"):
-            pj, pi = pc[1] - cy0, pc[0] - cx0
-            e = [ecls(pj, pi, d) for d in range(4)] if 0 <= pj < H and 0 <= pi < W else None
-            fails = {k: round(v[1] - now) for k, v in self.edge_fail.items() if v[1] > now}
-            print(f"[trace] pc {pc} edges {e} reached {plan['reached']} frontiers {len(frontier)} nearest {sorted(frontier)[:2]} fails {fails} barrier px near {int(((now - self.barrier_t[self.wpx(x, y)[1] - 8:self.wpx(x, y)[1] + 9, self.wpx(x, y)[0] - 8:self.wpx(x, y)[0] + 9]) < BARRIER_S).sum())}", flush=True)
-        if os.environ.get("DOOM_DEBUG_PLAN") and plan["reached"] < 5:
-            pj, pi = pc[1] - cy0, pc[0] - cx0
-            ix, iy = self.wpx(x, y)
-            win = self.raster[iy - 6:iy + 7, ix - 6:ix + 7]
-            barw = ((now - self.barrier_t[iy - 6:iy + 7, ix - 6:ix + 7]) < BARRIER_S)
-            print(f"[plan] reach {plan['reached']} at ({x:.0f},{y:.0f}) cell {pc}: seeds {[(round(c0, 2), c) for c0, c in seeds]}; "
-                  f"player cell free={pc in self.free} edges E/N/W/S={[ecls(pj, pi, d) for d in range(4)] if 0 <= pj < H and 0 <= pi < W else None}; "
-                  f"raster classes within 24 u: {dict(zip(*np.unique(win, return_counts=True)))}; barrier px: {int(barw.sum())} hard: {int((self.barrier_n[iy - 6:iy + 7, ix - 6:ix + 7] == 255).sum())}", flush=True)
-            sym = {0: ".", STEP: "s", DOOR: "d", WALL: "#", BARRIER: "B", EXIT: "X"}
-            for r in range(iy - 8, iy + 9):
-                row = ""
-                for c_ in range(ix - 12, ix + 13):
-                    v = int(self.raster[r, c_])
-                    if v == 0 and (now - self.barrier_t[r, c_]) < BARRIER_S:
-                        v = BARRIER
-                    row += "P" if (r == iy and c_ == ix) else sym.get(v, "?")
-                print("      " + row, flush=True)
-        return plan
-
-    def segment_clear(self, a, b, allow=(NONE, STEP, DOOR), raw=False):
-        """No wall (or locked line without its key) on the straight segment between two map points."""
-        p = self.plan
-        if p is None:
-            return True
-        dil, px0, py0 = p["dil"], p["px0"], p["py0"]
-        if raw:
-            dil = self.raster[py0:py0 + dil.shape[0], px0:px0 + dil.shape[1]]
-        n = max(2, int(math.hypot(b[0] - a[0], b[1] - a[1]) / WPX) + 1)
-        for k in range(n + 1):
-            t = k / n
-            ix, iy = self.wpx(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
-            lx, ly = ix - px0, iy - py0
-            if 0 <= ly < dil.shape[0] and 0 <= lx < dil.shape[1]:
-                cls = int(dil[ly, lx])
-                if cls in allow:
-                    continue
-                if cls in LOCK_KEY and LOCK_KEY[cls] in self.keys:
-                    continue
-                return False
-        return True
-
-    def reach_cost(self, c):
-        p = self.plan
-        if p is None:
-            return None
-        j, i = c[1] - p["cy0"], c[0] - p["cx0"]
-        if 0 <= j < p["H"] and 0 <= i < p["W"] and np.isfinite(p["dist"][j, i]):
-            return float(p["dist"][j, i])
-        return None
-
-    def reach_cost_near(self, xy):
-        """Walking cost to the cell of a point or any of its neighbours (items sit beside walls)."""
-        c = self.cell(*xy)
+    def sector(self, x, y, heading, now):
+        """A direction judged over a 60-degree sector (three rays): the most open ray and the newest ground."""
         best = None
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                r = self.reach_cost((c[0] + dx, c[1] + dy))
-                if r is not None and (best is None or r < best):
-                    best = r
+        for off in (-30, 0, 30):
+            r = self.ray(x, y, heading + off, now)
+            nov = self.novelty(x, y, heading + off, r[0])
+            if best is None or r[0] + nov > best[0][0] + best[1]:
+                best = (r, nov)
         return best
 
-    def route(self, c):
-        """Cells from the player's side to c, following Dijkstra parents."""
-        p = self.plan
-        if p is None:
-            return []
-        node = (c[1] - p["cy0"], c[0] - p["cx0"])
-        if not (0 <= node[0] < p["H"] and 0 <= node[1] < p["W"]) or not np.isfinite(p["dist"][node]):
-            # not reachable exactly: route to the nearest reachable neighbour cell
-            best = None
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    r = self.reach_cost((c[0] + dx, c[1] + dy))
-                    if r is not None and (best is None or r < best[0]):
-                        best = (r, (c[1] + dy - p["cy0"], c[0] + dx - p["cx0"]))
-            if best is None:
-                return []
-            node = best[1]
-        out = [node]
-        while node in p["parent"]:
-            node = p["parent"][node]
-            out.append(node)
-        cells = [(p["cx0"] + i, p["cy0"] + j) for j, i in reversed(out)]
-        if cells and cells[0] != p["pc"]:
-            cells.insert(0, p["pc"])
-        if len(cells) > 1:
-            self.prev_step = cells[1]
-        return cells
+    def ray(self, x, y, heading, now, max_units=RAY_MAX):
+        """Walk the map from the player in one direction: (distance to the first wall-like thing or max_units,
+        distance to the first door on the way or 0, distance to an exit line or 0, class that stopped the ray)."""
+        a = math.radians(heading)
+        ca, sa = math.cos(a), math.sin(a)
+        door = 0
+        for r in range(20, max_units + 1, 4):   # the player's own body is free space
+            ix, iy = self.wpx(x + r * ca, y + r * sa)
+            c = self.klass(ix, iy, now)
+            if c in (WALL, BARRIER, LOCKED):
+                return r, door, 0, c
+            if c in LOCK_KEY:
+                if LOCK_KEY[c] in self.keys:
+                    door = door or r
+                else:
+                    return r, door, 0, c
+            elif c == EXIT:
+                return r, door, r, c
+            elif c == DOOR and not door:
+                door = r
+        return max_units, door, 0, NONE
 
-    def first_door(self, cells):
-        """The first door-like edge along the route (within the first few steps), if any."""
-        p = self.plan
-        for a, b in list(zip(cells, cells[1:]))[:3]:
-            dx, dy = b[0] - a[0], b[1] - a[1]
-            if dx and dy:
-                continue
-            d = 0 if dx > 0 else 1 if dy > 0 else 2 if dx < 0 else 3
-            cls = p["ecls"](a[1] - p["cy0"], a[0] - p["cx0"], d)
-            if cls in (DOOR, LOCK_RED, LOCK_BLUE, LOCK_YELLOW, LOCKED):
-                return self.edge_key(a, d), self.edge_mid(a, d), cls
-        return None
+    def novelty(self, x, y, heading, dist):
+        """How much of the ground that way has not been walked: 0..100 (100 = all new), over cells up to `dist`."""
+        a = math.radians(heading)
+        cells, new = 0, 0
+        for r in range(32, int(min(dist, 288)) + 1, 32):
+            c = self.cell(x + r * math.cos(a), y + r * math.sin(a))
+            cells += 1
+            if self.visited.get(c, 0) == 0:
+                new += 1
+        return int(100 * new / cells) if cells else 100
 
-    def thing_barrier(self, x, y, now, px=None, py=None):
-        """A solid thing seen at (x, y): an obstacle for as long as it is remembered (never inside the player)."""
-        if px is not None and math.hypot(x - px, y - py) < 24:
-            return
+    def nearest_exit(self, x, y, now):
+        """Nearest exit-line pixel seen within 600 units, or None."""
         ix, iy = self.wpx(x, y)
-        if 1 <= ix < self.n - 1 and 1 <= iy < self.n - 1:
-            self.barrier_t[iy - 1:iy + 2, ix - 1:ix + 2] = now
-            self.barrier_n[iy - 1:iy + 2, ix - 1:ix + 2] = 255
-
-    def hard_barrier(self, x, y, now, angle=None):
-        """The player pushed against something here and did not move: a barrier for the rest of the level,
-        whatever the automap shows (three marks across the heading so the whole cell edge is covered)."""
-        pts = [(x, y)]
-        if angle is not None:
-            px_, py_ = -math.sin(math.radians(angle)), math.cos(math.radians(angle))
-            pts += [(x + 14 * px_, y + 14 * py_), (x - 14 * px_, y - 14 * py_)]
-        for qx, qy in pts:
-            ix, iy = self.wpx(qx, qy)
-            if 1 <= ix < self.n - 1 and 1 <= iy < self.n - 1:
-                self.barrier_t[iy - 1:iy + 2, ix - 1:ix + 2] = now + 1e8
-                self.barrier_n[iy - 1:iy + 2, ix - 1:ix + 2] = 255
-
-    def fail_edge(self, key, seconds=DOOR_RETRY_S):
-        f = self.edge_fail.setdefault(key, [0, 0.0])
-        f[0] += 1
-        f[1] = time.time() + seconds * f[0]
-
-    def render(self, x, y, angle, target, cells):
-        """Draw the self-built map (for the ground display and for debugging)."""
-        if not self.free or self.plan is None:
+        r = 150
+        win = self.raster[max(0, iy - r):iy + r, max(0, ix - r):ix + r]
+        ys, xs = np.nonzero(win == EXIT)
+        if not len(xs):
             return None
-        p = self.plan
-        S = 6
-        cx0, cy0, W, H = p["cx0"], p["cy0"], p["W"], p["H"]
+        ex = self.ox + (max(0, ix - r) + xs) * WPX
+        ey = self.oy - (max(0, iy - r) + ys) * WPX
+        d = np.hypot(ex - x, ey - y)
+        k = int(d.argmin())
+        return float(ex[k]), float(ey[k]), float(d[k])
+
+    def render(self, x, y, angle):
+        """Draw the self-built map (for the ground display and the map product)."""
+        if not self.free:
+            return None
+        xs = [c[0] for c in self.free]
+        ys = [c[1] for c in self.free]
+        cx0, cx1, cy0, cy1 = min(xs) - 2, max(xs) + 3, min(ys) - 2, max(ys) + 3
+        W, H = cx1 - cx0, cy1 - cy0
+        S = 5
         img = Image.new("RGB", (W * S, H * S), (24, 24, 28))
         d = ImageDraw.Draw(img)
-        px = lambda c: ((c[0] - cx0) * S, (cy0 + H - 1 - c[1]) * S)   # map y up
+        px = lambda c: ((c[0] - cx0) * S, (cy1 - 1 - c[1]) * S)   # map y up
         for c in self.free:
             a, b = px(c)
             d.rectangle((a, b, a + S - 1, b + S - 1), fill=(64, 64, 72))
         for c, n in self.visited.items():
             a, b = px(c)
-            g = min(255, 90 + n)
-            d.rectangle((a + 2, b + 2, a + S - 3, b + S - 3), fill=(40, g, 60))
-        for _, c in p["frontier"]:
-            a, b = px(c)
-            d.rectangle((a + 1, b + 1, a + S - 2, b + S - 2), outline=(230, 190, 40))
-        # automap lines from the raster window (4 units/px -> 6 px per 32 units = 0.75 px/unit)
-        sub = self.raster[p["py0"]:p["py0"] + p["dil"].shape[0], p["px0"]:p["px0"] + p["dil"].shape[1]]
-        ys, xs = np.nonzero(sub)
-        for cls, (u, v) in zip(sub[ys, xs], zip(xs, ys)):
-            wx, wy = self.ox + (p["px0"] + u) * WPX, self.oy - (p["py0"] + v) * WPX
-            a, b = (wx / GRID - cx0) * S, (cy0 + H - wy / GRID) * S
-            d.point((a, b), fill=RENDER_RGB.get(int(cls), (200, 200, 200)))
-        for c in cells or []:
-            a, b = px(c)
-            d.rectangle((a + 2, b + 2, a + S - 3, b + S - 3), fill=(60, 150, 230))
-        if target:
-            a, b = px(self.cell(*target))
-            d.ellipse((a - 3, b - 3, a + S + 2, b + S + 2), outline=(255, 90, 60), width=2)
-        a, b = (x / GRID - cx0) * S, (cy0 + H - y / GRID) * S
+            d.rectangle((a + 1, b + 1, a + S - 2, b + S - 2), fill=(40, min(255, 90 + n), 60))
+        ix0, iy0 = self.wpx(cx0 * GRID, cy1 * GRID)
+        ix1, iy1 = self.wpx(cx1 * GRID, cy0 * GRID)
+        sub = self.raster[max(0, iy0):iy1, max(0, ix0):ix1]
+        now = time.time()
+        bar = (now - self.barrier_t[max(0, iy0):iy1, max(0, ix0):ix1]) < BARRIER_S
+        ys_, xs_ = np.nonzero((sub > 0) | bar)
+        for u, v in zip(xs_, ys_):
+            cls = BARRIER if bar[v, u] else int(sub[v, u])
+            wx, wy = self.ox + (max(0, ix0) + u) * WPX, self.oy - (max(0, iy0) + v) * WPX
+            d.point(((wx / GRID - cx0) * S, (cy1 - wy / GRID) * S), fill=RENDER_RGB.get(cls, (200, 200, 200)))
+        a, b = (x / GRID - cx0) * S, (cy1 - y / GRID) * S
         d.ellipse((a - 4, b - 4, a + 4, b + 4), fill=(255, 60, 60))
         d.line((a, b, a + 12 * math.cos(math.radians(angle)), b - 12 * math.sin(math.radians(angle))), fill=(255, 60, 60), width=2)
         return img
@@ -589,8 +344,8 @@ class Payload:
         self.wad = self._find_wad(args.wad)
         self.map = args.map
         self.game = self._make_game()
-        self.explorers = {}
         self.explorer = None
+        self.explorer_map = None
         self.goal = "EXPLORE"
         self.control = dict(move=0, strafe=0, turn=0.0, fire=0, use=0, weapon=0)
         self.last_control_time = 0.0
@@ -600,18 +355,15 @@ class Payload:
         self.level = 0
         self.positions = deque(maxlen=35)
         self.motions = deque(maxlen=35)
-        self.headings = deque(maxlen=35)
         self.stuck = False
         self.cmd_count = 0
         self.last_obs = None
-        self.target, self.target_kind, self.target_since, self.spot = None, "none", 0, None
-        self.door, self.door_presses, self.spot_presses = None, 0, 0
-        self.blocked_tics = 0
-        self.wp, self.wp_tic = None, 0   # the committed waypoint: held for a while so routes do not flip-flop
-        self.map_png_bytes, self.map_seq = None, 0
-        self.use_pending = False
         self.turn_remaining = 0.0
         self.carry = None
+        self.map_png_bytes, self.map_seq = None, 0
+        self.sense = None            # the slower sensing (rays, novelty, exit) refreshed every SENSE_EVERY tics
+        self.door_presses, self.door_at = 0, None
+        self.use_ok = False
         self.new_episode()
 
     @staticmethod
@@ -652,6 +404,7 @@ class Payload:
         return g
 
     def new_episode(self):
+        """A fresh attempt: the level restarts and so does the map (nothing carried over but weapons between levels)."""
         self.game.set_doom_map(self.map)
         self.game.new_episode()
         loadout = self.carry or {"shotgun": True, "shells": 4, "bullets": 30}
@@ -662,18 +415,15 @@ class Payload:
             self.game.send_game_command(cmd)
         self.game.make_action([0] * len(BUTTONS), 1)
         self.episode += 1
+        if self.explorer is None or self.explorer_map != self.map:
+            self.level += 1
+        self.explorer_map = self.map
+        self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
         self.positions.clear()
         self.motions.clear()
-        self.headings.clear()
         self.goal = "EXPLORE"
         self.control = dict(move=0, strafe=0, turn=0.0, fire=0, use=0, weapon=0)
-        if self.map not in self.explorers:
-            self.explorers[self.map] = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
-            self.level += 1
-        self.explorer = self.explorers[self.map]
-        self.explorer.items.clear()   # pickups respawn; the map stays (the player remembers the level)
-        self.explorer.plan = None
-        self.target, self.target_kind, self.spot, self.door = None, "none", None, None
+        self.sense, self.door_presses, self.door_at = None, 0, None
         print(f"[payload] episode {self.episode} started on {self.map} (level {self.level})", flush=True)
 
     def level_finished(self):
@@ -687,7 +437,7 @@ class Payload:
         return float(self.game.get_game_variable(getattr(vzd.GameVariable, name)))
 
     @staticmethod
-    def sector_clearance(depth_row, lo_deg, hi_deg):
+    def band_clearance(depth_row, lo_deg, hi_deg):
         """Nearest range (map units) in a bearing band of the range camera; positive bearings are left."""
         w = len(depth_row)
         best = None
@@ -698,211 +448,105 @@ class Payload:
                 best = dist if best is None else min(best, dist)
         return 2000 if best is None else int(best)
 
-    def map_clearance(self, x, y, heading):
-        """Space in a direction the camera cannot see, from the map: 0 if a wall/barrier is in the way within 1.5 cells,
-        24 (unknown) if the cell there was never seen, else 72 (known free)."""
+    def slow_sense(self, x, y, angle, now, clear_fwd, enemies):
+        """Map rays, novelty, what is ahead, exit position: refreshed every few tics."""
         ex = self.explorer
-        a = math.radians(heading)
-        far = (x + 1.5 * GRID * math.cos(a), y + 1.5 * GRID * math.sin(a))
-        if not ex.segment_clear((x, y), far, allow=(NONE, STEP)):
-            return 0
-        return 2 * GRID + 8 if ex.cell(*far) in ex.free else 24
-
-    def choose_target(self, x, y, enemies, now, tic):
-        """What to head for, from what has been seen: exit line > key > goal item/enemy > frontier > wall to try."""
-        ex = self.explorer
-        p = ex.plan
-        cur, kind = self.target, self.target_kind
-        reached = cur is not None and math.hypot(cur[0] - x, cur[1] - y) < 40
-        stale = cur is not None and tic - self.target_since > 35 * 30
-        if p is None:
-            return None, "none", "idle"
-        # 1. an exit line has been seen: go stand in front of it
-        if p["exits"]:
-            if kind != "exit" or self.spot not in {(c, d) for _, c, d in p["exits"]}:
-                _, c, d = p["exits"][0]
-                self.set_target(ex.xy(c), "exit", tic, spot=(c, d))
-            return self.target, "exit", "exit"
-        # 2. a key seen and not yet held
-        key = ex.nearest_item(x, y, "key")
-        if key and ex.reach_cost_near((key[1]["x"], key[1]["y"])) is not None:
-            if kind != "key" or cur is None:
-                self.set_target((key[1]["x"], key[1]["y"]), "key", tic)
-            return self.target, "key", "key"
-        # 3. the ground's goal: an enemy or a remembered pickup
-        if self.goal == "KILL_ENEMY" and enemies:
-            e = enemies[0][3]
-            self.set_target((e.object_position_x, e.object_position_y), "enemy", tic)
-            return self.target, "enemy", "enemy"
-        if self.goal in GOAL_KIND:
-            found = ex.nearest_item(x, y, GOAL_KIND[self.goal])
-            if found and ex.reach_cost_near((found[1]["x"], found[1]["y"])) is not None:
-                if kind != GOAL_KIND[self.goal] or cur is None:
-                    self.set_target((found[1]["x"], found[1]["y"]), GOAL_KIND[self.goal], tic)
-                return self.target, GOAL_KIND[self.goal], "item"
-        if self.goal == "HOLD":
-            return None, "none", "idle"
-        # 4. frontiers (sticky: keep the current one until reached, gone or stale)
-        want = "far_frontier" if self.goal == "SCOUT" else "frontier"
-        if kind == want and cur is not None and not reached and not stale and ex.reach_cost_near(cur) is not None:
-            return cur, want, "explore"
-        pick = self.pick_frontier(x, y, p["frontier"], farthest=(want == "far_frontier"))
-        if pick is not None:
-            self.set_target(pick, want, tic)
-            return pick, want, "explore"
-        # 5. nothing left to explore: try walls (switches) nearest first, doors that never opened first of all
-        if kind == "switch" and self.spot is not None and self.spot not in ex.used and not stale and ex.reach_cost(self.spot[0]) is not None:
-            return cur, "switch", "hunt"
-        if p["spots"] and p["reached"] >= 5:
-            _, c, d = p["spots"][0]
-            self.set_target(ex.xy(c), "switch", tic, spot=(c, d))
-            return self.target, "switch", "hunt"
-        return None, "none", "idle"
-
-    def set_target(self, xy, kind, tic, spot=None):
-        self.target, self.target_kind, self.target_since, self.spot = xy, kind, tic, spot
-        self.spot_presses = 0
-
-    def pick_frontier(self, x, y, frontier, farthest=False):
-        ex = self.explorer
-        hint = ex.hint if ex.hint and time.time() < ex.hint[1] else None
-        scored = []
-        for cost, c in frontier:
-            if cost < 2:
-                continue
-            cx, cy = ex.xy(c)
-            d = cost * GRID
-            if hint is not None:
-                off = abs((math.degrees(math.atan2(cy - y, cx - x)) - hint[0] + 180) % 360 - 180)
-                d += off * 4.0
-            scored.append((d, (cx, cy)))
-        if not scored:
-            return None
-        scored.sort()
-        return scored[-1][1] if farthest else scored[0][1]
+        ix, iy = ex.wpx(x, y)
+        ex.barrier_t[iy - 3:iy + 4, ix - 3:ix + 4] = -1e9   # the player stands here: nothing solid within 12 units
+        dirs = (("fwd", 0), ("left", 90), ("right", -90), ("back", 180))
+        rays, nov = {}, {}
+        rays["fwd"] = ex.ray(x, y, angle, now)
+        nov["fwd"] = ex.novelty(x, y, angle, rays["fwd"][0])
+        for name, off in dirs[1:]:
+            rays[name], nov[name] = ex.sector(x, y, angle + off, now)
+        # what is at arm's length ahead, from the camera's range and the map's category there
+        ahead_kind, ahead_dist = "nothing", 0
+        if clear_fwd < 120:
+            ahead_dist = clear_fwd
+            c = ex.probe(x, y, angle, clear_fwd, now)
+            if enemies and abs(enemies[0][1]) < 15 and abs(enemies[0][2] - clear_fwd) < 40:
+                ahead_kind = "thing"
+            elif c == EXIT:
+                ahead_kind = "exit"
+            elif c == DOOR or (c in LOCK_KEY and LOCK_KEY[c] in ex.keys):
+                ahead_kind = "door"
+            elif c in LOCK_KEY or c == LOCKED:
+                ahead_kind = "locked"
+            elif c == WALL:
+                ahead_kind = "wall"
+            elif c == BARRIER:
+                ahead_kind = "barrier"
+            elif c == STEP:
+                ahead_kind = "wall"       # a step the camera sees as a wall is a ledge
+            elif clear_fwd < 70:
+                ahead_kind = "barrier"    # the map shows nothing here, the eyes do (bars, a fake door)
+            else:
+                ahead_kind, ahead_dist = "nothing", 0   # too far to be sure; walk up and look
+        # a door on the forward ray counts as "door ahead" when close, even if the camera looks past its frame
+        if ahead_kind == "nothing" and rays["fwd"][1] and rays["fwd"][1] < 100:
+            ahead_kind, ahead_dist = "door", rays["fwd"][1]
+        return dict(rays=rays, nov=nov, ahead_kind=ahead_kind, ahead_dist=ahead_dist, exit_seen=ex.nearest_exit(x, y, now))
 
     def observe(self, state):
         x, y, angle = self.var("POSITION_X"), self.var("POSITION_Y"), self.var("ANGLE")
         ex = self.explorer
         now = time.time()
         depth = np.where(state.depth_buffer == 0, 255, state.depth_buffer)   # 0 is the sky (nothing there): far
-        band = depth[depth.shape[0] * 5 // 12: depth.shape[0] * 7 // 12]   # a horizontal band around eye level
-        depth_row = band.max(axis=0)                                        # farthest surface: sees past bars and sprites
+        band = depth[depth.shape[0] * 5 // 12: depth.shape[0] * 7 // 12]
+        depth_row = band.max(axis=0)                                            # farthest surface: sees past bars and sprites
         near_row = depth[196 * depth.shape[0] // 480: 222 * depth.shape[0] // 480].min(axis=0)   # nearest surface at eye level
-        for lab in state.labels:
-            if lab.object_name in SOLID_THINGS and math.hypot(lab.object_position_x - x, lab.object_position_y - y) < 400:
-                ex.thing_barrier(lab.object_position_x, lab.object_position_y, now, x, y)   # a barrel or pillar: an obstacle
-        if ex.plan is None or state.tic % ROUTE_EVERY == 0:
+        slow = state.tic % 3 == 0 or self.sense is None
+        if state.tic % SENSE_EVERY == 0 or ex.stamps == 0:
             ex.stamp(state.automap_buffer, x, y)
         ex.sweep(x, y, angle, depth_row)
-        if ex.plan is None or state.tic % ROUTE_EVERY == 0:
-            ex.replan(x, y, now)
         ex.remember_items(x, y, state.labels)
+        for lab in state.labels:
+            if lab.object_name in SOLID_THINGS and 24 < math.hypot(lab.object_position_x - x, lab.object_position_y - y) < 400:
+                ix, iy = ex.wpx(lab.object_position_x, lab.object_position_y)
+                if 1 <= ix < ex.n - 1 and 1 <= iy < ex.n - 1:
+                    ex.barrier_t[iy - 1:iy + 2, ix - 1:ix + 2] = now   # a barrel or pillar: an obstacle while remembered
         enemies = []
         for lab in state.labels:
             if lab.object_name in ENEMIES:
                 b = bearing_deg(x, y, angle, lab.object_position_x, lab.object_position_y)
                 enemies.append((abs(b), b, math.hypot(lab.object_position_x - x, lab.object_position_y - y), lab))
         enemies.sort(key=lambda e: e[0])
-        target, kind, mode = self.choose_target(x, y, enemies, now, state.tic)
-        route_bearing, route_dist, target_dist, cells = 0.0, 0, 0, []
-        use_point = None   # where a Use press should be aimed (door or wall spot), if any
-        wp_dist = 0.0
-        if target:
-            target_dist = math.hypot(target[0] - x, target[1] - y)
-            cells = ex.route(ex.cell(*target))
-            if len(cells) > 1:
-                # aim at the farthest of the next few cells that is in a straight clear line
-                wp = ex.xy(cells[1])
-                for c in cells[1:5]:
-                    if ex.segment_clear((x, y), ex.xy(c)):
-                        wp = ex.xy(c)
-                    else:
-                        break
-                route_dist = (len(cells) - 1) * GRID
-            else:
-                wp = target
-                route_dist = int(target_dist)
-            # commit to a waypoint for a while: replace it only when reached, blocked, stale, or nearly the same direction
-            if self.wp is not None and state.tic - self.wp_tic < 50 and math.hypot(self.wp[0] - x, self.wp[1] - y) > 24                     and ex.segment_clear((x, y), self.wp) and abs(bearing_deg(x, y, angle, *wp) - bearing_deg(x, y, angle, *self.wp)) > 30:
-                wp = self.wp
-            else:
-                self.wp, self.wp_tic = wp, state.tic
-            route_bearing = bearing_deg(x, y, angle, *wp)
-            wp_dist = math.hypot(wp[0] - x, wp[1] - y)
-            door = ex.first_door(cells) if cells else None
-            if door and math.hypot(door[1][0] - x, door[1][1] - y) < 80:
-                use_point, mode = door[1], "door"
-                if self.door != door[0]:
-                    self.door, self.door_presses = door[0], 0
-            elif self.spot is not None and kind in ("switch", "exit") and target_dist < 48:
-                use_point = ex.edge_mid(*self.spot)
-            if use_point is not None:
-                route_bearing = bearing_deg(x, y, angle, *use_point)
-        elif self.goal != "HOLD":
-            route_bearing = 90.0  # nowhere to go that we know of: ask for a turn so the camera sees more
-        # Stuck means: the same non-zero motion command has been held for the last 20 tics and the player
-        # still did not get anywhere. Jittering between commands does not count.
+        clear_fwd = self.band_clearance(near_row, -12, 12)
+        clear_fl = self.band_clearance(near_row, 20, 45)
+        clear_fr = self.band_clearance(near_row, -45, -20)
+        if slow:
+            self.sense = self.slow_sense(x, y, angle, now, clear_fwd, enemies)
+        s = self.sense
+        # stuck: a motion command has been held for a while and the player did not get anywhere
         self.positions.append((x, y))
         self.motions.append((self.control["move"], self.control["strafe"]))
-        self.headings.append(angle)
         pushing = len(self.motions) == self.motions.maxlen and sum(1 for m in self.motions if m != (0, 0)) >= 8
         was_stuck = self.stuck
         self.stuck = bool(pushing and math.hypot(x - self.positions[0][0], y - self.positions[0][1]) < 12)
-        if self.stuck and not was_stuck and use_point is None:
-            # pushing against something the map did not show (a blocked doorway, a ledge, a monster): remember a
-            # barrier in the direction of the push and give up on the route's first edge for a while
+        if self.stuck and not was_stuck:
             mv, st = self.control["move"], self.control["strafe"]
-            push = math.degrees(math.atan2(-st, mv)) if (mv or st) else 0.0   # strafe +1 is to the right
-            pa = angle + push
-            ex.hard_barrier(x + 22 * math.cos(math.radians(pa)), y + 22 * math.sin(math.radians(pa)), now, pa)
-            print(f"[payload] stuck pushing at ({x:.0f},{y:.0f}) toward {pa % 360:.0f} deg: barrier there, route edge dropped", flush=True)
-            self.target_kind = "none"
-            if mv > 0 and cells and len(cells) > 1:
-                a, b = cells[0], cells[1]
-                dx, dy = b[0] - a[0], b[1] - a[1]
-                if not (dx and dy):
-                    ex.fail_edge(ex.edge_key(a, 0 if dx > 0 else 1 if dy > 0 else 2 if dx < 0 else 3), 20.0)
-            ex.plan, self.target = None, None
-        clear_fwd = self.sector_clearance(near_row, -12, 12)
-        # The map says the route is open but the eyes see a wall at arm's length and nothing moves: a ledge too
-        # high, a window, a pillar. Give up on that edge for a minute so the route goes around.
-        if cells and len(cells) > 1 and use_point is None and abs(route_bearing) < 25 and clear_fwd < min(48, wp_dist - 8):
-            self.blocked_tics += 1
-        else:
-            self.blocked_tics = 0
-        if self.blocked_tics >= 8:
-            ex.hard_barrier(x + (clear_fwd + 4) * math.cos(math.radians(angle)), y + (clear_fwd + 4) * math.sin(math.radians(angle)), now, angle)
-            for a, b in list(zip(cells, cells[1:]))[:2]:
-                dx, dy = b[0] - a[0], b[1] - a[1]
-                if not (dx and dy):
-                    ex.fail_edge(ex.edge_key(a, 0 if dx > 0 else 1 if dy > 0 else 2 if dx < 0 else 3), 60.0)
-            print(f"[payload] route blocked by something the map does not show near {ex.cell(x, y)}; routing around", flush=True)
-            self.blocked_tics, self.target, self.target_kind, ex.plan = 0, None, "none", None
-        clear_left = min(self.sector_clearance(near_row, 25, 45), self.map_clearance(x, y, angle + 90))
-        clear_right = min(self.sector_clearance(near_row, -45, -25), self.map_clearance(x, y, angle - 90))
-        clear_back = self.map_clearance(x, y, angle + 180)
-        # a door / switch / wall at arm's length where the route wants to go: press Use there
-        door_ahead = bool(use_point is not None and abs(route_bearing) < 35 and math.hypot(use_point[0] - x, use_point[1] - y) < 80) \
-            or (bool(target) and abs(route_bearing) < 30 and clear_fwd < 80) or self.stuck
-        self.use_point = use_point if door_ahead else None
-        # did the door open? the range camera sees past it
-        if self.door is not None and use_point is not None and abs(route_bearing) < 20:
-            if clear_fwd > math.hypot(use_point[0] - x, use_point[1] - y) + 48:
-                self.door_presses = 0
-            elif self.door_presses >= DOOR_TRIES:
-                ex.fail_edge(self.door)
-                print(f"[payload] door {self.door} did not open after {self.door_presses} presses; trying elsewhere", flush=True)
-                self.door, self.door_presses, self.target, self.target_kind, ex.plan = None, 0, None, "none", None
-        if self.spot is not None and self.spot_presses >= (SPOT_TRIES * 2 if kind == "exit" else SPOT_TRIES):
-            ex.used[self.spot] = now
-            self.target, self.target_kind, self.spot, self.spot_presses = None, "none", None, 0
-            ex.plan = None
+            push = math.degrees(math.atan2(-st, mv)) if (mv or st) else 0.0
+            if s["ahead_kind"] not in ("door", "exit") or abs(push) > 45:
+                ex.mark_barrier(x, y, angle + push, 3600.0)
+                print(f"[payload] stuck pushing at ({x:.0f},{y:.0f}) toward {(angle + push) % 360:.0f} deg: barrier remembered", flush=True)
+                self.sense = None
+        # doors: presses are counted while something usable is at arm's length; a door that never opens becomes a wall for a while
+        usable = s["ahead_kind"] in ("door", "exit") and s["ahead_dist"] <= 80
+        self.use_ok = usable
+        if usable:
+            at = (round(x / 32), round(y / 32), round(angle / 45))
+            if at != self.door_at:
+                self.door_at, self.door_presses = at, 0
+            if self.door_presses >= DOOR_TRIES and s["ahead_kind"] == "door":
+                ex.mark_barrier(x, y, angle, DOOR_RETRY_S, dist=s["ahead_dist"] + 6)
+                print(f"[payload] door at ({x:.0f},{y:.0f}) did not open after {self.door_presses} presses; a wall for a while", flush=True)
+                self.door_presses, self.sense = 0, None
+        elif clear_fwd > 120:
+            self.door_presses = 0
         if state.tic % 35 == 0:
-            img = ex.render(x, y, angle, target, cells)
+            img = ex.render(x, y, angle)
             if img is not None:
-                self.map_png_bytes = None
-                if state.tic % 175 == 0:   # every 5 s: queue the map as an image product
+                if state.tic % 175 == 0:
                     buf = io.BytesIO()
                     img.save(buf, format="PNG")
                     self.map_png_bytes = buf.getvalue()
@@ -913,37 +557,47 @@ class Payload:
                     except OSError:
                         pass
         weapon = {1: 0, 2: 1, 3: 2}.get(int(self.var("SELECTED_WEAPON")), 3)
-        near_item = lambda k: int(min(ex.nearest_item(x, y, k)[0], 65535)) if ex.nearest_item(x, y, k) else 65535
-        p = ex.plan or {}
+        item = lambda k: ex.nearest_item(x, y, k)
+        item_b = lambda k: bearing_deg(x, y, angle, item(k)[1]["x"], item(k)[1]["y"]) if item(k) else 0.0
+        item_d = lambda k: int(min(item(k)[0], 65535)) if item(k) else 0
+        hint = ex.hint if ex.hint and now < ex.hint[1] else None
+        exit_b = bearing_deg(x, y, angle, s["exit_seen"][0], s["exit_seen"][1]) if s["exit_seen"] else 0.0
+        rays, nov = s["rays"], s["nov"]
         return dict(
             health=int(self.var("HEALTH")), armor=int(self.var("ARMOR")),
             shells=int(self.var("AMMO3")), bullets=int(self.var("AMMO2")),
             weapon=weapon, own_shotgun=int(self.var("WEAPON3") > 0), kills=int(self.var("KILLCOUNT")),
             x=x, y=y, angle=angle,
-            enemy_count=len(enemies),
-            enemy_bearing=enemies[0][1] if enemies else 0.0,
+            enemy_count=len(enemies), enemy_bearing=enemies[0][1] if enemies else 0.0,
             enemy_dist=int(min(enemies[0][2], 65535)) if enemies else 0,
-            clear_fwd=clear_fwd, clear_left=clear_left, clear_right=clear_right, clear_back=clear_back,
-            route_bearing=route_bearing, route_dist=int(min(route_dist, 65535)),
-            target_dist=int(min(target_dist, 65535)), target_kind=TARGET_KINDS.index(kind),
-            stuck=int(self.stuck), door_ahead=int(door_ahead), goal=GOALS.index(self.goal),
-            health_item=near_item("health"), ammo_item=near_item("ammo"), armor_item=near_item("armor"),
+            clear_fwd=clear_fwd, clear_fl=clear_fl, clear_fr=clear_fr,
+            clear_left=min(rays["left"][0], 65535), clear_right=min(rays["right"][0], 65535), clear_back=min(rays["back"][0], 65535),
+            clear_map_fwd=min(rays["fwd"][0], 65535),
+            new_fwd=nov["fwd"], new_left=nov["left"], new_right=nov["right"], new_back=nov["back"],
+            ahead_kind=AHEAD_KINDS.index(s["ahead_kind"]), ahead_dist=int(min(s["ahead_dist"], 65535)),
+            exit_bearing=exit_b, exit_dist=int(min(s["exit_seen"][2], 65535)) if s["exit_seen"] else 0,
+            key_bearing=item_b("key"), key_dist=item_d("key"),
+            health_item=item_d("health"), ammo_item=item_d("ammo"), armor_item=item_d("armor"),
+            health_bearing=item_b("health"), ammo_bearing=item_b("ammo"), armor_bearing=item_b("armor"),
+            stuck=int(self.stuck), door_ahead=int(usable), goal=GOALS.index(self.goal),
             tic=int(state.tic), episode=self.episode,
             dead=int(self.game.is_player_dead()),
             level_done=int(self.game.is_episode_finished() and not self.game.is_player_dead()),
-            explored=min(len(ex.visited), 65535), frontiers=min(len(p.get("frontier", [])), 65535),
-            level=self.level, keys=sum(KEY_BIT[k] for k in ex.keys), nav_mode=NAV_MODES.index(mode),
-            doors_known=min(p.get("doors_known", 0), 65535), hunt_left=min(len(p.get("spots", [])), 65535) if mode == "hunt" else 0)
+            explored=min(len(ex.visited), 65535),
+            level=self.level, keys=sum(KEY_BIT[k] for k in ex.keys),
+            hint_active=int(hint is not None),
+            hint_rel=int(round(((hint[0] - angle + 180) % 360) - 180)) if hint else 0)
 
     @staticmethod
     def pack_status(o):
         return struct.pack(STATUS_FMT, o["health"], o["armor"], o["shells"], o["bullets"], o["weapon"], o["own_shotgun"],
                            o["kills"], o["x"], o["y"], o["angle"], o["enemy_count"], o["enemy_bearing"], o["enemy_dist"],
-                           o["clear_fwd"], o["clear_left"], o["clear_right"], o["clear_back"], o["route_bearing"],
-                           o["route_dist"], o["target_dist"], o["target_kind"],
-                           o["stuck"], o["door_ahead"], o["goal"], o["health_item"], o["ammo_item"], o["armor_item"],
-                           o["tic"], o["episode"], o["dead"], o["level_done"], o["explored"], o["frontiers"],
-                           o["level"], o["keys"], o["nav_mode"], o["doors_known"], o["hunt_left"])
+                           o["clear_fwd"], o["clear_fl"], o["clear_fr"], o["clear_left"], o["clear_right"], o["clear_back"], o["clear_map_fwd"],
+                           o["new_fwd"], o["new_left"], o["new_right"], o["new_back"],
+                           o["ahead_kind"], o["ahead_dist"], o["exit_bearing"], o["exit_dist"], o["key_bearing"], o["key_dist"],
+                           o["health_item"], o["ammo_item"], o["armor_item"], o["health_bearing"], o["ammo_bearing"], o["armor_bearing"],
+                           o["stuck"], o["door_ahead"], o["goal"], o["tic"], o["episode"], o["dead"], o["level_done"], o["explored"],
+                           o["level"], o["keys"], o["hint_active"], o["hint_rel"])
 
     # ------------------------------------------------------------------ uplink
     def handle(self, kind, body):
@@ -964,8 +618,6 @@ class Payload:
         elif kind == 0x14 and len(body) >= 3:
             rel, ttl = struct.unpack("!hB", body[:3])
             self.explorer.hint = (self.var("ANGLE") + rel, time.time() + ttl)
-            if self.target_kind in ("frontier", "far_frontier"):
-                self.target, self.target_kind = None, "none"   # re-pick the frontier with the hint in force
             print(f"[payload] explore hint {rel:+d} deg for {ttl} s", flush=True)
         else:
             print(f"[payload] unknown uplink kind {kind:#x}", flush=True)
@@ -975,11 +627,8 @@ class Payload:
         if time.time() - self.last_control_time > UPLINK_TIMEOUT_S:
             return [0] * len(BUTTONS)  # safe mode: no uplink, hold still
         use = int(c["use"]) and int(tic % 8 == 0)  # Doom triggers USE on the press edge: pulse a held use
-        if use and getattr(self, "use_point", None) is not None:
-            if self.door is not None:
-                self.door_presses += 1
-            elif self.spot is not None:
-                self.spot_presses += 1
+        if use and self.use_ok:
+            self.door_presses += 1
         step = max(-6.0, min(6.0, self.turn_remaining))  # onboard attitude loop: turn to the setpoint, then stop
         self.turn_remaining -= step
         return [14 * c["move"], 14 * c["strafe"], -step, int(c["fire"]), use,
@@ -1077,7 +726,7 @@ def main():
     p.add_argument("--fps", type=int, default=10, help="frame downlink rate")
     p.add_argument("--quality", type=int, default=45, help="JPEG quality")
     p.add_argument("--status-every", type=int, default=3, help="status record every N tics (35 Hz game)")
-    p.add_argument("--map-png", default=None, help="write the self-built map here every second (diagnostics/display)")
+    p.add_argument("--map-png", default=None, help="also write the self-built map here every second (diagnostics)")
     Payload(p.parse_args()).serve()
 
 
