@@ -181,7 +181,8 @@ class Pilot:
         row = {"t": time.time(), "kind": "control", "latency_ms": reply["latency_ms"], "model": reply.get("model"),
                "answers": {k: v.get("choice") for k, v in answers.items()},
                "confidence": {k: round(v.get("confidence", 0.0), 2) for k, v in answers.items()},
-               "control": cargs, "goal": self.goal, "health": t.get("HEALTH"), "tic": t.get("TIC")}
+               "control": cargs, "goal": self.goal, "health": t.get("HEALTH"), "tic": t.get("TIC"),
+               "seen": state["navigation"], "raw": {k: t.get(k) for k in ("ROUTE_BEARING", "CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "STUCK", "POS_X", "POS_Y", "ANGLE")}}
         self.log.write(json.dumps(row) + "\n")
         summary = " ".join(f"{k}={v['choice']}" for k, v in answers.items() if k in dg.CONTROL_HEADS)
         self.set_ground({"SystemOneLatencyMs": float(reply["latency_ms"]), "ControlCommands": self.control_count,

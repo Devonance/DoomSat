@@ -45,7 +45,7 @@ while time.time() < t_end:
      c_fwd, c_left, c_right, c_back, r_bearing, r_dist, t_dist, t_kind, stuck, door, goal,
      h_item, a_item, ar_item, tic, episode, dead, done, explored, frontiers) = last
     # the same policy the decision graph expresses in words, here as code
-    turn = max(-6.0, min(6.0, -r_bearing / 8.0))
+    turn = max(-50.0, min(50.0, r_bearing))  # degrees to turn, positive left
     aligned = abs(r_bearing) <= 35
     if escape > 0:
         escape -= 1

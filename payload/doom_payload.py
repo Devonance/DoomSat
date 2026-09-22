@@ -16,7 +16,7 @@ Protocol (big-endian; the payload is the server on 127.0.0.1:4242):
      kind 1 STATUS  fixed struct (see STATUS_FMT)
      kind 2 FRAME   seq:u32 jpeg bytes
   flight -> payload   'D' kind:u8 length:u16 body
-     kind 0x10 CONTROL      move:i8 strafe:i8 turn:f32 fire:u8 use:u8 weapon:u8
+     kind 0x10 CONTROL      move:i8 strafe:i8 turn:f32 (degrees to turn, +left) fire:u8 use:u8 weapon:u8
      kind 0x11 SET_GOAL     goal:u8
      kind 0x12 RESET
      kind 0x13 FRAME_RATE   hz:u8 quality:u8
@@ -95,8 +95,7 @@ class Explorer:
             r = step
             while r < dist - GRID / 2:
                 c = self.cell(x + r * math.cos(a), y + r * math.sin(a))
-                if c not in self.known:
-                    self.known[c] = True
+                self.known[c] = True  # seeing through a cell beats an older hit there (monsters move)
                 r += step
             if d < DEPTH_FAR:
                 c = self.cell(x + dist * math.cos(a), y + dist * math.sin(a))
@@ -174,7 +173,7 @@ class Explorer:
         hint = self.hint if self.hint and time.time() < self.hint[1] else None
         scored = []
         for c in cells:
-            if c not in dist or dist[c] < 3:  # unreachable, or the cells we are standing in
+            if c not in dist or dist[c] < 4:  # unreachable, or too close to be worth a trip
                 continue
             cx, cy = self.xy(c)
             d = dist[c] * GRID
@@ -183,9 +182,16 @@ class Explorer:
                 d += off * 4.0  # 90 degrees off the hint costs as much as 360 units of distance
             scored.append((d, (cx, cy)))
         if not scored:
-            return None
+            # Nothing unexplored in reach: go to the farthest known place not walked yet (a look around)
+            far = [(dist[c], c) for c in dist if c not in self.visited and dist[c] >= 3]
+            if not far:
+                return None
+            return self.xy(max(far)[1])
         scored.sort()
         return scored[-1][1] if farthest else scored[0][1]
+
+    def reachable(self, x, y, xy):
+        return self.cell(*xy) in self.reach(x, y)
 
     def is_frontier(self, xy):
         c = self.cell(*xy)
@@ -272,6 +278,7 @@ class Payload:
         self.cmd_count = 0
         self.last_obs = None
         self.frontier_target, self.frontier_since, self.frontier_kind = None, 0, None
+        self.turn_remaining = 0.0
         self.new_episode()
 
     def _make_game(self):
@@ -356,12 +363,17 @@ class Payload:
             # or a while passes without progress. Otherwise the choice flips as the view changes.
             kind = "far_frontier" if self.goal == "SCOUT" else "frontier"
             cur = self.frontier_target
-            reached = cur is not None and math.hypot(cur[0] - x, cur[1] - y) < 48
-            stale = cur is not None and (state.tic - self.frontier_since > 35 * 20 or not ex.is_frontier(cur))
-            if cur is None or reached or stale or self.frontier_kind != kind:
+            # A chosen frontier stays the destination until it is reached, turns out to be a wall or
+            # unreachable, or a while passes; it need not stay a frontier (it is still a waypoint).
+            reached = cur is not None and math.hypot(cur[0] - x, cur[1] - y) < 40
+            gone = cur is not None and (ex.known.get(ex.cell(*cur)) is False or not ex.reachable(x, y, cur))
+            stale = cur is not None and state.tic - self.frontier_since > 35 * 25
+            if cur is None or reached or gone or stale or self.frontier_kind != kind:
                 cur = ex.pick_frontier(x, y, angle, farthest=(kind == "far_frontier"))
                 self.frontier_target, self.frontier_since, self.frontier_kind = cur, state.tic, kind
             target = cur
+            if target is None:
+                kind = "none"
         route_bearing, route_dist, target_dist, path = 0.0, 0, 0, []
         if target:
             target_dist = math.hypot(target[0] - x, target[1] - y)
@@ -374,6 +386,8 @@ class Payload:
                     cached_wp, cached_len = target, int(target_dist)
                 ex.route_cache = (target, cached_wp, cached_len, state.tic)
             route_bearing, route_dist = bearing_deg(x, y, angle, *cached_wp), cached_len
+        elif self.goal != "HOLD":
+            route_bearing = 90.0  # nowhere to go that we know of: ask for a turn so the camera sees more
         self.positions.append((x, y))
         moving = self.control["move"] != 0 or self.control["strafe"] != 0
         self.stuck = bool(moving and len(self.positions) == self.positions.maxlen
@@ -427,7 +441,8 @@ class Payload:
         self.cmd_count += 1
         if kind == 0x10 and len(body) >= 9:
             move, strafe, turn, fire, use, weapon = struct.unpack("!bbfBBB", body[:9])
-            self.control = dict(move=move, strafe=strafe, turn=max(-6.0, min(6.0, turn)), fire=fire, use=use, weapon=weapon)
+            self.control = dict(move=move, strafe=strafe, turn=max(-180.0, min(180.0, turn)), fire=fire, use=use, weapon=weapon)
+            self.turn_remaining = self.control["turn"]  # degrees still to turn, positive left
             self.last_control_time = time.time()
         elif kind == 0x11 and body:
             self.goal = GOALS[body[0]] if body[0] < len(GOALS) else "HOLD"
@@ -449,7 +464,9 @@ class Payload:
         if time.time() - self.last_control_time > UPLINK_TIMEOUT_S:
             return [0] * len(BUTTONS)  # safe mode: no uplink, hold still
         use = int(c["use"]) and int(tic % 8 == 0)  # Doom triggers USE on the press edge: pulse a held use
-        return [14 * c["move"], 14 * c["strafe"], c["turn"], int(c["fire"]), use,
+        step = max(-6.0, min(6.0, self.turn_remaining))  # onboard attitude loop: turn to the setpoint, then stop
+        self.turn_remaining -= step
+        return [14 * c["move"], 14 * c["strafe"], -step, int(c["fire"]), use,
                 int(c["weapon"] == 1), int(c["weapon"] == 2)]
 
     # ------------------------------------------------------------------ main loop

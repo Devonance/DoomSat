@@ -163,7 +163,8 @@ def goal_question():
 GOAL_FROM_CHOICE = {"Kill enemies": "KILL_ENEMY", "Restore health": "RESTORE_HEALTH", "Stock ammo": "STOCK_AMMO",
                     "Add armor": "ADD_ARMOR", "Explore": "EXPLORE", "Scout": "SCOUT", "Upgrade weapon": "UPGRADE_WEAPON"}
 
-TURN_RATE = {"Hard left": -5.0, "Left": -2.5, "Fine left": -0.8, "Hold": 0.0, "Fine right": 0.8, "Right": 2.5, "Hard right": 5.0}
+# Degrees to turn per decision (executed onboard as a heading setpoint); positive is left, like the bearings.
+TURN_DEG = {"Hard left": 50.0, "Left": 22.0, "Fine left": 6.0, "Hold": 0.0, "Fine right": -6.0, "Right": -22.0, "Hard right": -50.0}
 
 
 def control_args(answers):
@@ -175,5 +176,5 @@ def control_args(answers):
     move = 1 if a.get("move") == "Forward" else -1 if a.get("move") == "Backward" or a.get("dodge") == "Dodge back" else 0
     strafe = -1 if sideways in ("Dodge left", "Strafe left") else 1 if sideways in ("Dodge right", "Strafe right") else 0
     weapon = {"Pistol": "PISTOL", "Shotgun": "SHOTGUN"}.get(a.get("weapon"), "FIST")
-    return {"move": move, "strafe": strafe, "turn": TURN_RATE.get(a.get("turn", "Hold"), 0.0),
+    return {"move": move, "strafe": strafe, "turn": TURN_DEG.get(a.get("turn", "Hold"), 0.0),
             "fire": a.get("fire") == "Fire", "use": a.get("use") == "Use", "weapon": weapon}

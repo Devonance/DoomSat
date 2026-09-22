@@ -7,7 +7,7 @@ let p = await ctx.newPage();
 p.on("console", (m) => { if (m.type() === "error") console.log("omct console:", m.text().slice(0, 160)); });
 p.on("pageerror", (e) => console.log("omct pageerror:", String(e).slice(0, 160)));
 await p.goto("http://localhost:9000/", { waitUntil: "load", timeout: 60000 });
-await p.waitForTimeout(30000);
+await p.waitForTimeout(45000);
 console.log("omct title", await p.title(), "tree items", await p.locator(".c-tree__item").count());
 for (const name of ["fprime-project", "DoomGround"]) {
   const item = p.locator(".c-tree__item", { hasText: name }).first();

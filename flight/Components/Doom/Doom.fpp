@@ -66,7 +66,7 @@ module DoomMission {
         async command CONTROL(
             move: I8      @< -1 backward, 0 hold, 1 forward
             strafe: I8    @< -1 left, 0 hold, 1 right
-            turn: F32     @< turn rate, negative left, positive right (degrees per tic, +-4)
+            turn: F32     @< degrees to turn (heading setpoint executed onboard), positive left
             fire: bool    @< hold the trigger
             $use: bool    @< press use (doors, switches)
             weapon: Weapon @< weapon to select (FIST/OTHER = keep current)
