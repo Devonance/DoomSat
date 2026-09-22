@@ -148,6 +148,8 @@ class Pilot:
                     self.publish_frame(*done)
             else:
                 v = pv.eng_value
+                if v == "True" or v == "False":  # F´ bools arrive as enumerated strings; "False" must not be truthy
+                    v = v == "True"
                 self.telemetry[name] = v
                 self.telemetry_time = time.time()
                 if name == "HEALTH":
