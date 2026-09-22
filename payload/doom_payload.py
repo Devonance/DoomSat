@@ -474,6 +474,9 @@ class Payload:
         rays["fwd"], nov["fwd"] = ex.sector(x, y, angle, now)
         for name, off in dirs[1:]:
             rays[name], nov[name] = ex.sector(x, y, angle + off, now)
+        for name in rays:   # a door on the way is worth more than novelty: NEW_* 200..254 = door at (v-200)*8 units
+            if rays[name][1] and rays[name][1] < 440:
+                nov[name] = 200 + min(54, int(rays[name][1]) // 8)
         # what is at arm's length ahead, from the camera's range and the map's category there
         ahead_kind, ahead_dist = "nothing", 0
         if clear_fwd < 120:

@@ -55,8 +55,10 @@ def where_words(b, d):
 
 
 def ground_words(pct):
-    if pct >= 200:
+    if pct >= 255:
         return "unexplored (never seen)"
+    if pct >= 200:
+        return f"a door on the way, {dist_words((pct - 200) * 8 + 1)}"
     return "new" if pct >= 60 else "partly walked" if pct >= 25 else "walked before"
 
 
@@ -128,8 +130,7 @@ def control_questions(t, goal, cfg):
         dodges = ["Carry on"] + (["Dodge left"] if sur["left"]["space"] == "open" else []) + \
                  (["Dodge right"] if sur["right"]["space"] == "open" else []) + (["Dodge back"] if sur["behind"]["space"] == "open" else [])
         heads["dodge"] = _question(cfg, "dodge", dodges)
-        if goal == "KILL_ENEMY":
-            heads["turn"] = _question(cfg, "turn")
+        heads["turn"] = _question(cfg, "turn")   # an enemy in view: aim at it (a person does not keep exploring under fire)
     return heads
 
 
@@ -186,6 +187,9 @@ def control_args(answers, cfg, t=None, memory=None):
     weapon = {"Pistol": "PISTOL", "Shotgun": "SHOTGUN"}.get(a.get("weapon", {}).get("choice"), "FIST")
     turn = WAY_TURN.get(way, 0.0)
     move = 0
+    if "turn" in a:   # an enemy in view: the aim head overrides the way this tick
+        way = "ahead"
+        memory["way"] = "ahead"
     if way == "ahead":
         move = 1 if advance else 0
         if "turn" in a:   # fighting: aim at the enemy instead of steering

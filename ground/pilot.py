@@ -439,6 +439,7 @@ class Pilot:
                 self.episode = ep
                 self.goal = "EXPLORE"
                 self.nav_memory = {}
+                self.level_start_t = time.time()   # a new life is a new attempt: a fresh budget
             lv = self.telemetry.get("LEVEL")
             if lv is not None and lv != self.level:
                 if self.level is not None:

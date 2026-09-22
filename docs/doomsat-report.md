@@ -60,20 +60,28 @@ lines" option, sector or line geometry from the game state, monster counts, item
 script exists for the developer (choosing which levels to demo, checking results) and is never imported by the
 payload.
 
-### 3.3 The onboard navigator
+### 3.3 The onboard senses (there is no planner)
 
-The payload stamps the automap into a world raster (4 map units per pixel), sweeps free floor with the range
-camera, and plans on a 32-unit grid with a Dijkstra search whose edge costs come from the line categories: walls
-block, floor steps cost a little, doors cost more and get a Use press when reached, locked doors need the key of
-their colour, exit lines are destinations. Targets in priority order: an exit line it has seen, a key it has
-seen, the ground's goal item or enemy, the nearest unexplored frontier, and, when nothing is left, walls to try
-with Use (the exit switch is a wall until pressed). Things the automap does not draw, such as barred windows,
-fake doors and barrels, are learned: barrels and pillars from their labels, everything else by pushing against it
-once, after which that spot is a barrier for the rest of the level.
+The first version of the payload carried a route planner: a grid, a Dijkstra search over the automap lines,
+frontier targets, door and switch handling. It was replaced. Every failure it produced was a sensing error
+dressed up as a plan, and a planner hides those from the model that is supposed to be playing. The payload now
+only senses and remembers:
 
-The navigator hands the ground a route bearing, a route length, clearances in the four directions (camera ahead,
-map to the sides and behind), what it is doing (exploring, at a door, fetching a key, hunting for a switch,
-heading for the exit) and what it is heading for.
+- it stamps the automap into a world raster (4 map units per pixel) and sweeps the floor it has seen with the
+  range camera;
+- it counts where the player has walked, per 32-unit cell;
+- for eight directions around the player (every 45 degrees, three rays each) it reports how far the map is open
+  and whether the ground that way is unexplored (never seen), new (seen, not walked), partly walked, or walked
+  before;
+- it reports what is at arm's length ahead: a wall, a door, the exit switch, a locked door, a monster or barrel,
+  or something the map does not show (barred windows and fake doors, which a depth camera sees but the automap
+  never draws);
+- it remembers where an exit line, a key and pickups were seen, and whether the player is stuck;
+- what it bumps into becomes a barrier for the rest of the level; barrels and pillars become barriers from their
+  labels.
+
+The map of a level is kept across attempts, as a player remembers a layout after dying; the game itself restarts
+from the beginning with everything in it.
 
 ### 3.4 The flight software and the link
 
@@ -98,24 +106,30 @@ a nearest enemy at 120 units is "close". The questions are the *heads* of the gr
 criteria, and code decides which options are on the menu (Backward only when the space behind is known clear,
 strafes only when a side is clear, Use only when something is at arm's length):
 
-| Head | Options | Decides |
-|---|---|---|
-| steer | Follow route / Left / Right / Back / Turn around | which way now, from the four clearances, when the route's way is blocked or the character is stuck |
-| dodge | Carry on / Dodge left / right / back | evasion from a close enemy |
-| move | Forward / Hold / Backward | advance |
-| turn | Hard left ... Hard right / Turn around | put the aim (route waypoint or enemy) in the crosshair |
-| fire | Fire / Hold fire | only with a living enemy in the crosshair and ammunition |
-| weapon | Keep / Pistol / Shotgun | ammunition scarcity |
-| use | Use / Wait | doors, switches, walls at arm's length |
-| goal (every 4th tick) | Kill enemies / Restore health / Stock ammo / Add armor / Explore / Scout / Upgrade weapon | what the navigator should head for |
+jev is a System One model: it classifies a structured state document in one forward pass and returns, per
+question, an option with probabilities (Choice) or a yes-probability (Noul). It does not reason, plan or
+remember. So the graph is written the way such a model is meant to be used: one narrow question per head,
+options with contrastive criteria (what it covers, what it is not for, examples) that reference fields of the
+state, yes-no questions as Nouls, and code combining the answers.
 
-The answers map onto one `CONTROL` command. The steer head is the one that keeps the character from walking
-into the same wall twice: the onboard map is optimistic about things it cannot see, and when the eyes disagree
-with the route it is jev, not code, that picks the way out; the payload then remembers the dead end.
+| Head | Type | Options | Decides |
+|---|---|---|---|
+| way | Choice | the open directions among ahead, ahead-left, left, behind-left, behind, behind-right, right, ahead-right, each with its own "now": space and ground | the direction; jev is the navigator |
+| advance | Noul | yes / no | walk forward this tick |
+| use | Noul | yes / no | press Use (asked only with a door, the exit or a locked door at arm's length, or when stuck) |
+| fire | Noul | yes / no | only with a living enemy in the crosshair and ammunition |
+| dodge | Choice | Carry on / Dodge left / right / back (only the open sides are offered) | evasion from a close enemy |
+| turn | Choice | Hard left ... Hard right / Turn around | aim at the enemy when the goal is to fight |
+| weapon | Choice | Keep / Pistol / Shotgun | ammunition scarcity |
+| goal (every 8th tick) | Choice | Kill enemies / Restore health / Stock ammo / Add armor / Explore | what to prioritise |
 
-Turning is an onboard setpoint (the command says "turn 60 degrees", the payload executes it over ten tics),
-because a held turn rate with a half-second decision loop over-rotates. The pilot compensates bearings for the
-part of a commanded turn the heading does not show yet, and only that part.
+The answers map onto one `CONTROL` command: the way becomes a turn setpoint of 0, 45, 90, 135 or 180 degrees
+(or a step backward when the way behind is open), advance becomes the move, and the option probabilities give
+hysteresis: the direction only changes when jev is clearly surer of the new one than of the last. A large turn
+is allowed to finish before the next question is asked, or every half second would re-issue it.
+
+Turning is an onboard setpoint (the command says "turn 90 degrees", the payload executes it at six degrees per
+tic), because a held turn rate with a half-second decision loop over-rotates.
 
 ### 3.6 System Two: the minute bump and the after-action review
 
@@ -224,14 +238,28 @@ picture to a sentence, then ask the fast model.
 
 ## 8. Results
 
-See the run table in the README's status section and `python tools/run_report.py` for the current run. The
-figures in the table below are from the runs of 22 September 2026 (shareware E1M1, jev live, Sonnet after-action).
+Runs of 22 September 2026 on shareware E1M1, jev live through the whole stack, Sonnet 5 as System Two. Each
+cycle is run / review / edit / run; the numbers are for the first 150 to 300 jev decisions of each cycle unless
+stated. "Cells" are 32-unit map cells the character has stood in.
 
-| Run | jev decisions | Explored cells | Distance walked | Stuck ticks | Levels finished | Notes |
+| Cycle | Change | Decisions | Cells | Stuck ticks | Where it got | Notes |
 |---|---|---|---|---|---|---|
-| 1, no steer head | 687 | 121 | 27k units | 60 | 0 | walked into the fake door repeatedly; turns alternated hard left/right |
-| 2, steer head | 202 | 147 | 7.3k units | 0 | 0 | jev chose Left/Right/Back/Turn around in 52 of 202 decisions; turns still alternated |
-| 3, steer head + turn compensation fix | see README | | | | | |
+| planner v1 | frontier planner over the automap | 687 | 121 | 60 | start room | walked into a fake door repeatedly; turns alternated hard left/right |
+| planner + steer head | jev picks the way out when blocked | 202 | 147 | 0 | start room | jev chose Left/Right/Back in 52 of 202 decisions; the planner still sealed its own cell |
+| local 1 | no planner; four directions, prose criteria | 124 | 56 | 1 | start room | "Turn around" 62 times: sides read blocked in every corridor |
+| local 2 | eight directions, structured criteria, Nouls | 151 | 91 | 4 | start + north room | balanced directions, advance yes 60% |
+| local 3 | rays stop at unseen ground; big turns finish first | 155 | 103 | 1 | start + north + west | first clean run |
+| local 4 | unseen ground is "unexplored", the strongest pull | 155 | 126 | 0 | west wing (a dead end) | 4.8k units walked |
+| local 5 | map kept across attempts | 250 | 246 | 7 | whole west + north | second attempt doubles the map |
+| local 6 | doors on the way in each direction's words | 295 | 275 | 3 | through the silver door into the big room | first door opened (23 Use presses); died to the first monsters, 0 kills |
+| local 7 | aim/dodge whenever an enemy is visible; fresh budget on death | see the README status | | | | |
+
+What the stack did throughout: jev answered 6 to 8 heads per call in ~450 ms median including the Yamcs hop;
+commands were issued through Yamcs in ~45 ms; telemetry arrived at 12 Hz and frames at 10 fps with about one
+incomplete frame per thousand; the map product (a PNG a few kilobytes) rode the same chunk path every 5 s.
+Sonnet produced graph revisions v2 to v5 from the after-action reports, each with a rationale tied to a number in
+the report (a Hold rate, a revisit ratio, a truncated standing order it noticed and repaired), and one
+exploration bump per minute.
 
 ## 9. Honest limits
 

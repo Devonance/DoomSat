@@ -61,10 +61,18 @@ HUD variables & health, armor, ammo, position, heading & ViZDoom game variables 
 \end{center}
 Only the automap's colours are changed, so that code can read the categories off the pixels; no category is added and no unseen line is drawn. Not used: the automap's whole-map or show-objects modes, the "show trigger lines" option, sector or line geometry from the game state, monster counts, item lists, cheats. A WAD statistics script exists for the developer (choosing which levels to demo, checking results) and is never imported by the payload.
 
-\subsection*{3.3 The onboard navigator}
-The payload stamps the automap into a world raster (4 map units per pixel), sweeps free floor with the range camera, and plans on a 32-unit grid with a Dijkstra search whose edge costs come from the line categories: walls block, floor steps cost a little, doors cost more and get a Use press when reached, locked doors need the key of their colour, exit lines are destinations. Targets in priority order: an exit line it has seen, a key it has seen, the ground's goal item or enemy, the nearest unexplored frontier, and, when nothing is left, walls to try with Use (the exit switch is a wall until pressed). Things the automap does not draw, such as barred windows, fake doors and barrels, are learned: barrels and pillars from their labels, everything else by pushing against it once, after which that spot is a barrier for the rest of the level.
+\subsection*{3.3 The onboard senses (there is no planner)}
+The first version of the payload carried a route planner: a grid, a Dijkstra search over the automap lines, frontier targets, door and switch handling. It was replaced. Every failure it produced was a sensing error dressed up as a plan, and a planner hides those from the model that is supposed to be playing. The payload now only senses and remembers:
 
-The navigator hands the ground a route bearing, a route length, clearances in the four directions (camera ahead, map to the sides and behind), what it is doing (exploring, at a door, fetching a key, hunting for a switch, heading for the exit) and what it is heading for.
+\begin{itemize}
+  \item it stamps the automap into a world raster (4 map units per pixel) and sweeps the floor it has seen with the range camera;
+  \item it counts where the player has walked, per 32-unit cell;
+  \item for eight directions around the player (every 45 degrees, three rays each) it reports how far the map is open and whether the ground that way is unexplored (never seen), new (seen, not walked), partly walked, or walked before;
+  \item it reports what is at arm's length ahead: a wall, a door, the exit switch, a locked door, a monster or barrel, or something the map does not show (barred windows and fake doors, which a depth camera sees but the automap never draws);
+  \item it remembers where an exit line, a key and pickups were seen, and whether the player is stuck;
+  \item what it bumps into becomes a barrier for the rest of the level; barrels and pillars become barriers from their labels.
+\end{itemize}
+The map of a level is kept across attempts, as a player remembers a layout after dying; the game itself restarts from the beginning with everything in it.
 
 \subsection*{3.4 The flight software and the link}
 The F\'{} deployment is a fprime-bootstrap project with one custom component, \texttt{DoomMission::Doom}, on a 20 Hz rate group. It is a TCP client to the payload: a 76-byte status record twelve times a second becomes 44 telemetry channels, and each JPEG frame is split into 960-byte \texttt{FrameChunk} records that go straight into the com queue as telemetry packets (bypassing the channel sampler, which would drop most of them). Five commands go the other way: \texttt{CONTROL} (move, strafe, turn in degrees, fire, use, weapon), \texttt{SET\_GOAL}, \texttt{RESET\_GAME}, \texttt{FRAME\_RATE}, \texttt{EXPLORE\_HINT}. Events mark episodes, levels, keys, goals and dropped frames.
@@ -74,28 +82,32 @@ Downlink is the stock F\'{} \texttt{ComCcsds} stack: Space Packets (APID 1 telem
 \subsection*{3.5 The ground pilot and jev's decision graph}
 \texttt{ground/pilot.py} subscribes to the Doom channels, reassembles frames, and every \textasciitilde{}0.5 s turns the numbers into words and asks jev. jev never sees a number: a route bearing of 37$^\circ$ is "left"; a clearance of 60 units is "tight"; a nearest enemy at 120 units is "close". The questions are the \emph{heads} of the graph, each a typed choice with criteria, and code decides which options are on the menu (Backward only when the space behind is known clear, strafes only when a side is clear, Use only when something is at arm's length):
 
+jev is a System One model: it classifies a structured state document in one forward pass and returns, per question, an option with probabilities (Choice) or a yes-probability (Noul). It does not reason, plan or remember. So the graph is written the way such a model is meant to be used: one narrow question per head, options with contrastive criteria (what it covers, what it is not for, examples) that reference fields of the state, yes-no questions as Nouls, and code combining the answers.
+
 \begin{center}\small
-\begin{tabular}{p{0.18\textwidth} p{0.34\textwidth} p{0.42\textwidth}}
+\begin{tabular}{p{0.16\textwidth} p{0.14\textwidth} p{0.34\textwidth} p{0.28\textwidth}}
 \toprule
-\textbf{Head} & \textbf{Options} & \textbf{Decides} \\
+\textbf{Head} & \textbf{Type} & \textbf{Options} & \textbf{Decides} \\
 \midrule
-steer & Follow route / Left / Right / Back / Turn around & which way now, from the four clearances, when the route's way is blocked or the character is stuck \\ \rowrule
-dodge & Carry on / Dodge left / right / back & evasion from a close enemy \\ \rowrule
-move & Forward / Hold / Backward & advance \\ \rowrule
-turn & Hard left ... Hard right / Turn around & put the aim (route waypoint or enemy) in the crosshair \\ \rowrule
-fire & Fire / Hold fire & only with a living enemy in the crosshair and ammunition \\ \rowrule
-weapon & Keep / Pistol / Shotgun & ammunition scarcity \\ \rowrule
-use & Use / Wait & doors, switches, walls at arm's length \\ \rowrule
-goal (every 4th tick) & Kill enemies / Restore health / Stock ammo / Add armor / Explore / Scout / Upgrade weapon & what the navigator should head for \\
+way & Choice & the open directions among ahead, ahead-left, left, behind-left, behind, behind-right, right, ahead-right, each with its own "now": space and ground & the direction; jev is the navigator \\ \rowrule
+advance & Noul & yes / no & walk forward this tick \\ \rowrule
+use & Noul & yes / no & press Use (asked only with a door, the exit or a locked door at arm's length, or when stuck) \\ \rowrule
+fire & Noul & yes / no & only with a living enemy in the crosshair and ammunition \\ \rowrule
+dodge & Choice & Carry on / Dodge left / right / back (only the open sides are offered) & evasion from a close enemy \\ \rowrule
+turn & Choice & Hard left ... Hard right / Turn around & aim at the enemy when the goal is to fight \\ \rowrule
+weapon & Choice & Keep / Pistol / Shotgun & ammunition scarcity \\ \rowrule
+goal (every 8th tick) & Choice & Kill enemies / Restore health / Stock ammo / Add armor / Explore & what to prioritise \\
 \bottomrule
 \end{tabular}
 \end{center}
-The answers map onto one \texttt{CONTROL} command. The steer head is the one that keeps the character from walking into the same wall twice: the onboard map is optimistic about things it cannot see, and when the eyes disagree with the route it is jev, not code, that picks the way out; the payload then remembers the dead end.
+The answers map onto one \texttt{CONTROL} command: the way becomes a turn setpoint of 0, 45, 90, 135 or 180 degrees (or a step backward when the way behind is open), advance becomes the move, and the option probabilities give hysteresis: the direction only changes when jev is clearly surer of the new one than of the last. A large turn is allowed to finish before the next question is asked, or every half second would re-issue it.
 
-Turning is an onboard setpoint (the command says "turn 60 degrees", the payload executes it over ten tics), because a held turn rate with a half-second decision loop over-rotates. The pilot compensates bearings for the part of a commanded turn the heading does not show yet, and only that part.
+Turning is an onboard setpoint (the command says "turn 90 degrees", the payload executes it at six degrees per tic), because a held turn rate with a half-second decision loop over-rotates.
 
-\subsection*{3.6 System Two: the after-action review}
-When an episode ends (death, level finished, run end) code writes a report of about two kilobytes: outcome, level, duration, decisions, health trace, damage taken with no enemy in view, cells explored, distance walked, stuck ticks, turn-direction flips, longest hold streak, per-head answer distributions with mean confidence, the navigator modes used and the last eight decisions in words. Sonnet gets the report and the current graph and returns a revised graph through a JSON-schema call: wording, criteria, thresholds (what counts as blocked, tight, close, critical), the turn sizes, how often the goal is re-asked, the standing order. Code validates the reply (fixed option names, known placeholders, numeric ranges), stores it as \texttt{graph\_v<N>.json} with the rationale in a changelog, and the next episode is played with it. The Claude CLI is run with non-essential model calls disabled, so the review is one Sonnet call and nothing else.
+\subsection*{3.6 System Two: the minute bump and the after-action review}
+System Two is consulted on two clocks. Every minute the pilot sends Sonnet a progress check: seconds into the level attempt, map cells gained in the last minute, position and heading, what the navigator is doing, the walk of the last two minutes (most visited 64-unit bins) and the navigator's map product rendered as text (walls, seen floor, walked cells, unexplored edges, the player). Sonnet answers with a compass bearing, how long to hold it and a goal; the pilot sends them as \texttt{EXPLORE\_HINT} and \texttt{SET\_GOAL}, and the navigator re-picks its frontier with the hint in force. That is the bump out of a random walk.
+
+Each level attempt has a budget of three minutes. If the level is not finished by then, the pilot resets the game (\texttt{RESET\_GAME}); the payload starts a new episode on the same level, keeping the map it built, and the episode boundary triggers the after-action review. When an episode ends (death, level finished, budget spent, run end) code writes a report of about two kilobytes: outcome, level, duration, decisions, health trace, damage taken with no enemy in view, cells explored, distance walked, stuck ticks, turn-direction flips, longest hold streak, per-head answer distributions with mean confidence, the navigator modes used, the walk (distinct 128-unit bins, revisit ratio, most visited spots, bumps received) and the last eight decisions in words. Sonnet gets the report and the current graph and returns a revised graph through a JSON-schema call: wording, criteria, thresholds (what counts as blocked, tight, close, critical), the turn sizes, how often the goal is re-asked, the standing order. Code validates the reply (fixed option names, known placeholders, numeric ranges), stores it as \texttt{graph\_v<N>.json} with the rationale in a changelog, and the next episode is played with it. The Claude CLI is run with non-essential model calls disabled, so the review is one Sonnet call and nothing else.
 
 \subsection*{3.7 Displays}
 Three views of the same Yamcs instance: the Yamcs web UI (parameters, command history, events, archive), Open MCT through the \texttt{openmct-yamcs} plugin (plots and the image product), and a one-page mission dashboard written for the recording, which shows the reassembled frame, the telemetry, jev's latest answers with the request latency, Sonnet's latest rationale, F\'{} events, the command archive and the map the navigator built.
@@ -109,7 +121,7 @@ Three views of the same Yamcs instance: the Yamcs web UI (parameters, command hi
 \midrule
 Flight code (F\'{} + payload) & 35 Hz / 20 Hz & safety (uplink loss $\rightarrow$ hold still), the heading loop, the map, the route, door and switch attempts, level progression & any decision that a person would call judgement \\ \rowrule
 jev (System One) & every \textasciitilde{}0.5 s & every control decision and the goal, from words & numbers, memory, the level layout \\ \rowrule
-Claude Sonnet 5 (System Two) & between episodes & rewording and re-tuning the graph from evidence & anything live; it never touches the controls \\
+Claude Sonnet 5 (System Two) & every minute, and between episodes & pushing exploration in a direction from the map; rewording and re-tuning the graph from evidence & the controls; it never answers a control head \\
 \bottomrule
 \end{tabular}
 \end{center}
