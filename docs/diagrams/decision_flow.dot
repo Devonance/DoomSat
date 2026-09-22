@@ -1,0 +1,15 @@
+digraph F {
+  graph [bgcolor="#0f1116", rankdir=TB, fontname="DejaVu Sans Mono", fontcolor="#d8dde6", labelloc=t, labeljust=l, nodesep=0.3, ranksep=0.35, pad=0.4,
+         label="DOOMSAT . ONE DECISION END TO END (episode 7, graph v14, 22 Sep 2026 10:41:59 UTC)\l"];
+  node [shape=box, style="rounded,filled", fillcolor="#161a22", fontname="DejaVu Sans Mono", fontsize=11, fontcolor="#d8dde6", penwidth=1.4, margin="0.2,0.12"];
+  edge [color="#8b93a1", fontname="DejaVu Sans Mono", fontsize=10, fontcolor="#8b93a1", penwidth=1.2];
+  n [label="Yamcs parameters (12 Hz), this tick:\lCLEAR ahead 116  ahead-left 48  left 28  behind-left 20\lbehind 24  behind-right 248  right 212  ahead-right 120\l(units)\lNEW ahead 0  ahead-left 100  left 0  behind-left 0  behind 0\lbehind-right 14  right 50  ahead-right 33\lAHEAD_KIND NOTHING  EXIT_DIST 0  STUCK false  ENEMY_COUNT 0\lHEALTH 100  ARMOR 0  KILLS 0\lPOS 1347,-2725  ANGLE 216  EXPLORED_CELLS 544  LEVEL 1  KEYS 0\l", color="#4a5160"];
+  w [label="state document (code, no model):\lahead: open, walked before, nothing near\lahead-left: tight, new\lleft / behind-left / behind: blocked, walked before\lbehind-right: long (a passage or a big room), walked\lbefore\lright: open, partly walked\lahead-right: open, partly walked\lexit: not seen . enemy: none in view . health: full .\larmor: none\lgoal word: Explore\l", color="#4a5160"];
+  j [label="jev, one request, 469 ms,\lreq_01a0c8b54b2c73dd8ec79b57a6f3a1b6:\lway (Choice over the 5 open directions) -> ahead-left 0.82 .\lahead 0.14 . right 0.03 . ahead-right 0.01 . behind-right 0.00\ladvance (Noul) -> yes 0.75\lfire (Noul) -> no 0.98\lweapon (Choice) -> Keep 0.82 . Shotgun 0.18 . Pistol 0.00\lgoal (Choice, this was a goal tick) -> Add armor 0.86 .\lExplore 0.14\l", color="#d9a441"];
+  r [label="code rules:\lway: previous way 'ahead' held 0.14, new 0.82 >= 0.14 +\lway_margin -> switch; ahead-left = +45 deg\la turn of 45 deg or more is issued alone: move = 0 this tick,\lwalking resumes when the turn has landed\lfire 0.98 no -> fire = 0; use not asked (nothing at arm's\llength) -> use = 0\lweapon Keep -> no switch\lgoal Add armor -> SET_GOAL(ADD_ARMOR) on the goal tick; the\lword 'Add armor' enters the next documents\l", color="#3fae6a"];
+  c [label="CONTROL(move=0, strafe=0, turn=+45, fire=0, use=0, weapon=no\lchange)\lYamcs HTTP -> CCSDS TC -> UDP -> F´ CmdDispatcher -> Doom\lcomponent -> payload turn setpoint (6 deg per tic)\lissued in 50 ms; F´ events: OpCodeDispatched, OpCodeCompleted\l", color="#4f8fd6"];
+  n -> w [label=" telemetry -> words (bands, novelty, direction names); no number reaches jev"];
+  w -> j [label=" HTTPS POST /v1/systemone: state + 5 typed questions with criteria"];
+  j -> r [label=" choices with probabilities, Noul probabilities"];
+  r -> c [label=" one command per decision"];
+}

@@ -78,17 +78,18 @@ Integration findings worth keeping:
 
 | Path | What |
 |---|---|
-| `flight/Components/Doom/` | F´ component: commands, 44 telemetry channels, events, FrameChunk downlink (FPP + C++) |
+| `flight/Components/Doom/` | F´ component: commands, 56 telemetry channels, events, FrameChunk downlink (frames and the map product) (FPP + C++) |
 | `flight/DoomSat/Top/`, `flight/config/` | topology/instances/rate groups, com-buffer override (copied into the WSL project) |
-| `payload/doom_payload.py` | the game as an instrument: automap + range camera + labels, the onboard navigator, level progression |
+| `payload/doom_payload.py` | the game as an instrument: automap (seen lines) + range camera + labels, local sensing in eight directions, map memory, level progression |
 | `payload/selfplay.py`, `payload/nav_probe.py` | code-only drivers of the navigator (no models) for fast iteration |
 | `ground/pilot.py` | the loop: Yamcs subscriptions, frame reassembly, jev control step, after-action reviews, commands |
 | `ground/decision_graph.py`, `ground/graph_config.py` | telemetry -> words, the seven control heads + goal head, the graph as data (versioned in `ground/graph/`) |
 | `ground/after_action.py` | the episode report and the System Two review call |
 | `ground/providers.py` | System One: TypeSafe (jev) or any OpenAI-compatible endpoint; System Two: Claude CLI, Anthropic API or OpenAI-compatible |
 | `ground/yamcs/`, `ground/openmct/`, `ground/dashboard/` | Yamcs config + ground XTCE, Open MCT config, the mission dashboard page |
-| `docs/` | diagrams (Graphviz sources + renders), report (`doomsat-report.md/.tex/.pdf`), images |
-| `scripts/`, `tools/` | start/stop/build helpers (WSL), run report, screenshots/recording, developer probes |
+| `docs/` | diagrams (Graphviz sources + renders), report (`doomsat-report.md/.tex/.pdf`), handoff (`HANDOFF.md`), images, charts, `video/` |
+| `runs/<date>/` | the day's decision logs (one row per jev decision: state words, answers, probabilities, request id, latency, telemetry), pilot log, final graph, map |
+| `scripts/`, `tools/` | start/stop/build helpers (WSL), run report, charts, decision-graph figures, screenshots/recording, developer probes |
 
 ## Running it
 
@@ -108,7 +109,9 @@ scripts/start_pilot.sh --duration 1800     # jev plays; Sonnet bumps every 60 s,
 scripts/start_pilot.sh --bump-every 0 --level-budget 0   # no bumps, no budget: jev + graph only
 scripts/start_pilot.sh --no-after-action   # jev + code only, graph frozen at ground/graph/graph_current.json
 python tools/run_report.py                 # what each layer did in the last run (levels, decisions, reviews)
-node tools/dashboard_shot.mjs record out/recording 600   # 1080p recording of the dashboard (webm)
+node tools/dashboard_record.mjs out/dashrec 120         # 1080p dashboard capture (frames); python tools/stack_video.py --frames out/dashrec out/dash.mp4
+node tools/stack_record.mjs out/stackrec 120            # dashboard + Yamcs telemetry + Yamcs commands + Open MCT; python tools/stack_video.py out/stackrec out/stack.mp4
+python tools/charts.py                     # charts for the report from out/decisions*.jsonl
 scripts/start_pilot.sh --system-one openai --openai-base-url http://localhost:1234/v1 --system-one-model <local>
 ```
 
@@ -123,14 +126,32 @@ After editing anything under `flight/`: `scripts/flight.sh build` (incremental) 
 | System One: jev | every ~0.5 s, live | one narrow typed question per head over a structured state: `way` (which of the open directions), `advance` (Noul), `use` (Noul), `fire` (Noul), `dodge`, `turn` (aim at an enemy), `weapon`, and every 8th tick the `goal`; options carry what / not_for / examples criteria and code uses the option probabilities for hysteresis |
 | System Two: Claude Sonnet 5 | every minute, and after an episode | every minute: reads the map product and the recent walk and pushes exploration in a direction (`EXPLORE_HINT`, optionally `SET_GOAL`); after an episode (death, level finished, or the 3-minute level budget spent -> `RESET_GAME`): reads the condensed after-action report and revises the decision graph jev plays with next |
 
+![Decision graph](docs/diagrams/decision_graph.png)
+
+![One decision end to end](docs/diagrams/decision_flow.png)
+
 Nothing slower than jev sits in the live loop. The graph is data (`ground/graph_config.py`); every revision is
 validated by code (fixed option names, known placeholders, numeric ranges) and stored as
 `ground/graph/graph_v<N>.json` with Sonnet's rationale in `ground/graph/CHANGELOG.md`.
 
-## Status
+## Status (22 September 2026)
 
-See `docs/doomsat-report.md` for the run log and numbers of the latest campaign (shareware Doom E1M1 onward).
-`python tools/run_report.py` prints the current run.
+The stack works end to end under load and every layer is measured; the autonomous player explores, opens the
+first door and dies honestly, but does not yet finish E1M1. The report `docs/doomsat-report.md` (also `.tex`
+and `.pdf`) has the numbers, the data flow, the results per cycle and the reasons. `docs/HANDOFF.md` is the
+handoff for the next pass: what made us stuck and the research leads (a vision decision model for "what is this
+surface", direction scoring, combat, height). `python tools/run_report.py` prints the current run.
+
+Recordings of the last run of the day, 1080p, jev live through the stack:
+
+- `docs/video/doomsat_dashboard_1080p.mp4`: the mission dashboard (frames, telemetry, jev's decisions, Sonnet's bumps and reviews, F´ events, the command archive, the map product), all read from Yamcs.
+- `docs/video/doomsat_stack_1080p.mp4`: the dashboard, the Yamcs telemetry page, the Yamcs command history and Open MCT side by side.
+
+![Dashboard](docs/images/dashboard.png)
+
+![Open MCT imagery of the frame product](docs/images/openmct_imagery.png)
+
+![Exploration per cycle](docs/images/chart_exploration.png)
 
 ## Sources
 

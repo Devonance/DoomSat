@@ -1,0 +1,276 @@
+[pilot] System One = jev (key apikey_<redacted>) plays; System Two = claude-cli (sonnet) reviews after each episode; graph v8
+[pilot] #40 jev 469 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=159 lost=1
+[pilot] #60 jev 488 ms cmd 49 ms  hp=100 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=242 lost=1
+[pilot] #70 jev 368 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep use=yes -> 0/0  frames ok=283 lost=1
+[pilot] #80 jev 471 ms cmd 48 ms  hp=101 goal=EXPLORE way=right advance=yes fire=no weapon=Keep -> 0/-90  frames ok=330 lost=1
+[pilot] #110 jev 440 ms cmd 49 ms  hp=101 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=447 lost=1
+[pilot] #120 jev 415 ms cmd 45 ms  hp=101 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=487 lost=1
+[pilot] #130 jev 336 ms cmd 43 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep use=yes -> 0/45  frames ok=525 lost=1
+[pilot] #140 jev 363 ms cmd 57 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=575 lost=1
+[pilot] #150 jev 454 ms cmd 44 ms  hp=101 goal=EXPLORE way=right advance=yes fire=no weapon=Keep -> 0/-90  frames ok=622 lost=1
+[pilot] System Two bump: bearing 260 deg (relative +78) for 20 s, goal Explore: Barrier blocks the current westward heading and the visited cluster sits north/northeast, so pivot southwest into unexplored space away from the trodden area.
+[pilot] #170 jev 489 ms cmd 50 ms  hp=101 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=699 lost=1
+[pilot] #200 jev 419 ms cmd 44 ms  hp=101 goal=EXPLORE way=behind-left advance=yes fire=no weapon=Keep use=yes -> 0/135  frames ok=807 lost=1
+[pilot] #210 jev 433 ms cmd 46 ms  hp=101 goal=EXPLORE way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=841 lost=1
+[pilot] #230 jev 448 ms cmd 51 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=915 lost=1
+[pilot] #250 jev 506 ms cmd 44 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=992 lost=1
+[pilot] #260 jev 424 ms cmd 53 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/20  frames ok=1033 lost=1
+[pilot] #270 jev 510 ms cmd 49 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=1074 lost=1
+[pilot] #280 jev 447 ms cmd 50 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/20  frames ok=1111 lost=1
+[pilot] System Two bump: bearing 128 deg (relative +0) for 20 s, goal Explore: Door ahead with exit line detected leads away from the heavily backtracked cluster around (576,-3136); push through it into new territory.
+[pilot] #290 jev 371 ms cmd 50 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=1151 lost=1
+[pilot] #300 jev 446 ms cmd 52 ms  hp=101 goal=EXPLORE way=behind advance=yes fire=no weapon=Keep -> -1/0  frames ok=1195 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #310 jev 452 ms cmd 47 ms  hp=101 goal=ADD_ARMOR way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=1237 lost=1
+[pilot] #320 jev 483 ms cmd 45 ms  hp=101 goal=ADD_ARMOR way=right advance=yes fire=no weapon=Keep -> 0/-90  frames ok=1269 lost=1
+[pilot] #370 jev 473 ms cmd 47 ms  hp=101 goal=ADD_ARMOR way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=1442 lost=1
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] level 1 not finished within 180 s: reset, review, try again (attempt 2)
+[pilot] after-action review (level not finished within the 180 s budget (attempt 1), 238 decisions, graph v8)...
+[pilot] #480 jev 502 ms cmd 47 ms  hp=100 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=1844 lost=1
+[pilot] #490 jev 453 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=1888 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #520 jev 435 ms cmd 44 ms  hp=100 goal=ADD_ARMOR way=behind advance=yes fire=no weapon=Keep -> -1/0  frames ok=2012 lost=1
+[pilot] #530 jev 353 ms cmd 46 ms  hp=100 goal=ADD_ARMOR way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=2052 lost=1
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #540 jev 419 ms cmd 49 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=2091 lost=1
+[pilot] #550 jev 349 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=2126 lost=1
+[pilot] stall consult failed: 'charmap' codec can't encode character '\u2264' in position 134: character maps to <undefined>
+[pilot] #560 jev 469 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=2163 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #590 jev 485 ms cmd 54 ms  hp=100 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=2284 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #610 jev 423 ms cmd 45 ms  hp=100 goal=ADD_ARMOR way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=2366 lost=1
+[pilot] #620 jev 392 ms cmd 46 ms  hp=100 goal=ADD_ARMOR way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=2418 lost=1
+[pilot] #630 jev 509 ms cmd 45 ms  hp=100 goal=ADD_ARMOR way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=2463 lost=1
+[pilot] #640 jev 432 ms cmd 47 ms  hp=100 goal=ADD_ARMOR way=behind-left advance=yes fire=no weapon=Keep use=yes -> 0/135  frames ok=2500 lost=1
+[pilot] #650 jev 435 ms cmd 43 ms  hp=100 goal=ADD_ARMOR way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=2544 lost=1
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #660 jev 445 ms cmd 44 ms  hp=102 goal=EXPLORE way=behind advance=no fire=no weapon=Keep -> -1/0  frames ok=2589 lost=1
+[pilot] graph v9 (claude-sonnet-5, 122938 ms): Three text fields were truncated mid-word in the given config (standing_order ended '...its ground tu', way.focus ended '...as the l', way.not_for ended '...adjacent to bars/a'), garbling jev's actual prompt. This matches the failure: in last_moments, jev picked way=behind even with an open door/new ground ahead, contradicting the (cut-off) rule to prefer doors/unexplored ground - producing revisit_ratio 0.9, only 24 distinct 128u bins over 8748 path_units, and no exit found in 180s. Rewrote those three fields as complete sentences and made 'behind = last resort only' explicit. Left thresholds/turn sizes/combat heads unchanged; only 1 tick had an enemy in view, so combat isn't implicated.
+         - standing_order: 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. If a turn away from a wall was just made, keep committing to that same side only as long as that side keeps opening into new or unexplored ground; if it hits a wall again or its ground tu' -> 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back.'
+         - questions.way.instructions reworded
+         - questions.way.criteria[direction] reworded
+[pilot] System Two bump: bearing 80 deg (relative +85) for 20 s, goal None: Wall blocks the near-north heading and the trodden cluster is west/south; angling northeast skirts the wall toward space not yet in the visited bins.
+[pilot] #700 jev 397 ms cmd 51 ms  hp=102 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=2736 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #730 jev 438 ms cmd 50 ms  hp=102 goal=ADD_ARMOR way=right advance=yes fire=no weapon=Keep -> 0/-90  frames ok=2845 lost=1
+[pilot] #740 jev 442 ms cmd 48 ms  hp=102 goal=ADD_ARMOR way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=2873 lost=1
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #750 jev 521 ms cmd 46 ms  hp=102 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=2918 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #760 jev 374 ms cmd 44 ms  hp=102 goal=ADD_ARMOR way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=2966 lost=1
+[pilot] #780 jev 416 ms cmd 43 ms  hp=102 goal=ADD_ARMOR way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=3040 lost=1
+[pilot] #790 jev 476 ms cmd 43 ms  hp=102 goal=ADD_ARMOR way=left advance=no fire=no weapon=Keep -> 0/90  frames ok=3077 lost=1
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] level 1 not finished within 180 s: reset, review, try again (attempt 3)
+[pilot] after-action review (level not finished within the 180 s budget (attempt 2), 230 decisions, graph v9)...
+[pilot] #820 jev 423 ms cmd 44 ms  hp=100 goal=EXPLORE way=left advance=no fire=no weapon=Keep -> 0/90  frames ok=3187 lost=1
+[pilot] #840 jev 502 ms cmd 47 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/-20  frames ok=3261 lost=1
+[pilot] #860 jev 526 ms cmd 52 ms  hp=101 goal=EXPLORE way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=3335 lost=1
+[pilot] #880 jev 482 ms cmd 47 ms  hp=101 goal=EXPLORE way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=3410 lost=1
+[pilot] #890 jev 424 ms cmd 42 ms  hp=101 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=3446 lost=1
+[pilot] #900 jev 482 ms cmd 44 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/-20  frames ok=3482 lost=1
+[pilot] #920 jev 447 ms cmd 50 ms  hp=101 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/90  frames ok=3566 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #940 jev 458 ms cmd 51 ms  hp=101 goal=ADD_ARMOR way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=3646 lost=1
+[pilot] System Two bump: bearing 22 deg (relative +0) for 20 s, goal None: Heavily revisited bins cluster southwest of current position; heading NE toward the door keeps pushing into fresh territory beyond the exit-line sighting.
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #950 jev 400 ms cmd 46 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=3693 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #1000 jev 372 ms cmd 58 ms  hp=101 goal=ADD_ARMOR way=behind-left advance=yes fire=no weapon=Keep -> 0/135  frames ok=3872 lost=1
+[pilot] after-action review failed: 'charmap' codec can't encode character '\u2192' in position 409: character maps to <undefined>
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #1030 jev 455 ms cmd 47 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=3985 lost=1
+[pilot] #1050 jev 449 ms cmd 49 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=4061 lost=1
+[pilot] #1060 jev 472 ms cmd 47 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/20  frames ok=4110 lost=1
+[pilot] #1090 jev 465 ms cmd 44 ms  hp=75 goal=EXPLORE way=behind advance=no fire=no weapon=Keep -> 0/-45  frames ok=4240 lost=1
+[pilot] System Two bump: bearing 30 deg (relative +156) for 20 s, goal None: Wall blocks heading 234, and all heavily-trodden bins lie west/south of the player, so pushing northeast should reach unexplored space beyond the worn area.
+[pilot] #1100 jev 501 ms cmd 58 ms  hp=75 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep dodge=Carry on turn=Hard left -> 1/70  frames ok=4286 lost=1
+[pilot] #1110 jev 483 ms cmd 46 ms  hp=63 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=4317 lost=1
+[pilot] #1120 jev 450 ms cmd 49 ms  hp=57 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep dodge=Dodge back turn=Right -> -1/-35  frames ok=4359 lost=1
+[pilot] goal EXPLORE -> KILL_ENEMY (jev)
+[pilot] #1130 jev 427 ms cmd 49 ms  hp=45 goal=KILL_ENEMY way=ahead advance=yes fire=no weapon=Keep -> 1/20  frames ok=4392 lost=1
+[pilot] goal KILL_ENEMY -> ADD_ARMOR (jev)
+[pilot] #1140 jev 514 ms cmd 45 ms  hp=45 goal=ADD_ARMOR way=ahead advance=yes fire=no weapon=Keep dodge=Carry on turn=Fine left -> 1/8  frames ok=4436 lost=1
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #1160 jev 476 ms cmd 42 ms  hp=45 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=4509 lost=1
+[pilot] goal EXPLORE -> STOCK_AMMO (jev)
+[pilot] #1180 jev 465 ms cmd 52 ms  hp=45 goal=STOCK_AMMO way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=4586 lost=1
+[pilot] goal STOCK_AMMO -> RESTORE_HEALTH (jev)
+[pilot] #1210 jev 400 ms cmd 49 ms  hp=45 goal=RESTORE_HEALTH way=left advance=no fire=no weapon=Keep -> 0/90  frames ok=4683 lost=1
+[pilot] level 1 not finished within 180 s: reset, review, try again (attempt 4)
+[pilot] after-action review (level not finished within the 180 s budget (attempt 3), 228 decisions, graph v10)...
+[pilot] #1240 jev 442 ms cmd 45 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=4791 lost=1
+[pilot] #1250 jev 343 ms cmd 45 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=4830 lost=1
+[pilot] #1280 jev 478 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=4951 lost=1
+[pilot] #1290 jev 387 ms cmd 50 ms  hp=100 goal=EXPLORE way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=4991 lost=1
+[pilot] #1300 jev 524 ms cmd 45 ms  hp=100 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=5036 lost=1
+[pilot] #1330 jev 480 ms cmd 49 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=5156 lost=1
+[pilot] #1340 jev 503 ms cmd 46 ms  hp=100 goal=EXPLORE way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=5194 lost=1
+[pilot] #1350 jev 426 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=5233 lost=1
+[pilot] #1360 jev 464 ms cmd 42 ms  hp=100 goal=EXPLORE way=behind-right advance=no fire=no weapon=Keep -> 0/-135  frames ok=5276 lost=1
+[pilot] #1370 jev 484 ms cmd 44 ms  hp=100 goal=EXPLORE way=behind advance=yes fire=no weapon=Keep -> -1/0  frames ok=5312 lost=1
+[pilot] System Two bump: bearing 209 deg (relative +0) for 20 s, goal None: No map yet and nothing ahead is blocking; current heading already points away from the dense revisited cluster to the northeast, so continue exploring forward to find fresh cells.
+[pilot] #1380 jev 447 ms cmd 42 ms  hp=100 goal=EXPLORE way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=5360 lost=1
+[pilot] #1390 jev 472 ms cmd 58 ms  hp=100 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=5396 lost=1
+[pilot] #1400 jev 350 ms cmd 49 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/20  frames ok=5434 lost=1
+[pilot] #1410 jev 412 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=5473 lost=1
+[pilot] #1420 jev 439 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=5508 lost=1
+[pilot] #1430 jev 506 ms cmd 61 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=5543 lost=1
+[pilot] #1440 jev 446 ms cmd 42 ms  hp=100 goal=EXPLORE way=behind advance=yes fire=no weapon=Keep -> -1/0  frames ok=5585 lost=1
+[pilot] after-action review failed: 'charmap' codec can't encode character '\u2192' in position 399: character maps to <undefined>
+[pilot] #1480 jev 477 ms cmd 43 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=5731 lost=1
+[pilot] #1500 jev 456 ms cmd 43 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/-20  frames ok=5824 lost=1
+[pilot] System Two bump: bearing 60 deg (relative -39) for 20 s, goal None: Barrier blocks due path and all heavy foot-traffic bins sit south/southwest of here, so angle northeast to break into unexplored space away from the trodden loop.
+[pilot] #1520 jev 356 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/-20  frames ok=5895 lost=1
+[pilot] #1540 jev 408 ms cmd 49 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=5967 lost=1
+[pilot] #1550 jev 494 ms cmd 42 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/-20  frames ok=6010 lost=1
+[pilot] #1580 jev 583 ms cmd 45 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=6128 lost=1
+[pilot] #1610 jev 411 ms cmd 46 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/20  frames ok=6253 lost=1
+[pilot] level 1 not finished within 180 s: reset, review, try again (attempt 5)
+[pilot] #1620 jev 397 ms cmd 52 ms  hp=100 goal=EXPLORE way=behind-left advance=yes fire=no weapon=Keep -> 0/135  frames ok=6291 lost=1
+[pilot] after-action review (level not finished within the 180 s budget (attempt 4), 241 decisions, graph v11)...
+[pilot] #1640 jev 507 ms cmd 52 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=6361 lost=1
+[pilot] #1660 jev 439 ms cmd 51 ms  hp=100 goal=EXPLORE way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=6437 lost=1
+[pilot] #1670 jev 453 ms cmd 47 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=6463 lost=1
+[pilot] #1680 jev 475 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=6502 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #1710 jev 427 ms cmd 44 ms  hp=100 goal=ADD_ARMOR way=ahead advance=no fire=no weapon=Keep -> 0/-20  frames ok=6616 lost=1
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #1720 jev 491 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=6658 lost=1
+[pilot] #1740 jev 472 ms cmd 48 ms  hp=100 goal=EXPLORE way=left advance=no fire=no weapon=Keep -> 0/90  frames ok=6735 lost=1
+[pilot] #1750 jev 475 ms cmd 45 ms  hp=100 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=6770 lost=1
+[pilot] #1760 jev 419 ms cmd 49 ms  hp=100 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=6807 lost=1
+[pilot] System Two bump: bearing 100 deg (relative +46) for 20 s, goal None: Wall blocks 54�; turn north past it toward unvisited space away from the dense southern cluster of walked bins.
+[pilot] #1780 jev 461 ms cmd 49 ms  hp=100 goal=EXPLORE way=left advance=no fire=no weapon=Keep -> 0/90  frames ok=6885 lost=1
+[pilot] #1810 jev 742 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=6989 lost=1
+[pilot] graph v12 (claude-sonnet-5, 105779 ms): Episode never left a tiny pocket: 23 distinct bins over 241 decisions, revisit_ratio 0.9, top cells hit 16-34x near a door. last_moments shows 'way' oscillating tick-to-tick between near-opposite directions once nearby ground was all walked, i.e. stuck flip-flopping in a dead end. Root cause: standing_order and way.focus strings were both truncated mid-sentence, so the anti-oscillation guidance never reached the model intact, and way_margin (0.5) was too weak to keep the prior direction winning. Fix: completed both strings with explicit 'hold direction 5-8 ticks' guidance, added a not_for clause naming the swinging pattern, raised way_margin to 1.0 for stronger hysteresis. Other heads untouched � no combat/damage this episode.
+         - standing_order: 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back. If ahead is blocked and the remaining offered directions are all already-walked ground, do not alternate between them tick to tick � keep the same heading you just committed to for a few more steps before trying yet another direction, since switch' -> 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back. If ahead is blocked and the remaining offered directions are all already-walked ground, do not alternate between them tick to tick: pick one direction and hold it for at least 5-8 ticks before trying yet another, since switching every tick just re'
+         - questions.way.instructions reworded
+         - questions.way.criteria[direction] reworded
+[pilot] #1880 jev 491 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=7258 lost=1
+[pilot] #1890 jev 538 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=7303 lost=1
+[pilot] #1900 jev 476 ms cmd 42 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=7342 lost=1
+[pilot] System Two bump: bearing 250 deg (relative +55) for 20 s, goal None: Barrier blocks the current heading and the trodden cluster lies north/east of me, so pivot southwest toward unexplored space.
+[pilot] #1930 jev 468 ms cmd 52 ms  hp=100 goal=EXPLORE way=behind-left advance=yes fire=no weapon=Keep -> 0/135  frames ok=7457 lost=1
+[pilot] #1940 jev 492 ms cmd 48 ms  hp=100 goal=EXPLORE way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=7496 lost=1
+[pilot] #1950 jev 544 ms cmd 47 ms  hp=100 goal=EXPLORE way=behind-left advance=yes fire=no weapon=Keep -> 0/135  frames ok=7529 lost=1
+[pilot] #1970 jev 437 ms cmd 42 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=7601 lost=1
+[pilot] #1980 jev 467 ms cmd 42 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/20  frames ok=7643 lost=1
+[pilot] #2000 jev 435 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/20  frames ok=7720 lost=1
+[pilot] #2010 jev 468 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=7757 lost=1
+[pilot] #2030 jev 452 ms cmd 46 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=7835 lost=1
+[pilot] level 1 not finished within 180 s: reset, review, try again (attempt 6)
+[pilot] #2040 jev 506 ms cmd 42 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=7878 lost=1
+[pilot] after-action review (level not finished within the 180 s budget (attempt 5), 214 decisions, graph v12)...
+[pilot] #2060 jev 435 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=7950 lost=1
+[pilot] #2080 jev 431 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8021 lost=1
+[pilot] #2090 jev 414 ms cmd 49 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8073 lost=1
+[pilot] #2100 jev 430 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8124 lost=1
+[pilot] #2110 jev 464 ms cmd 47 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8175 lost=1
+[pilot] #2120 jev 504 ms cmd 45 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8229 lost=1
+[pilot] #2130 jev 496 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8278 lost=1
+[pilot] #2140 jev 477 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8328 lost=1
+[pilot] #2150 jev 498 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8380 lost=1
+[pilot] #2160 jev 423 ms cmd 57 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8429 lost=1
+[pilot] System Two bump: bearing 340 deg (relative +89) for 20 s, goal None: Ahead is a wall and this spot is heavily trodden (x83); turning north-northwest steers away from the overworked cluster toward map edges not yet in the visited-bin list.
+[pilot] #2170 jev 414 ms cmd 46 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8480 lost=1
+[pilot] #2180 jev 503 ms cmd 47 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=8532 lost=1
+[pilot] #2200 jev 435 ms cmd 42 ms  hp=101 goal=EXPLORE way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=8613 lost=1
+[pilot] #2210 jev 432 ms cmd 47 ms  hp=101 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=8647 lost=1
+[pilot] #2220 jev 498 ms cmd 50 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/-20  frames ok=8689 lost=1
+[pilot] #2240 jev 423 ms cmd 47 ms  hp=101 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=8765 lost=1
+[pilot] #2250 jev 367 ms cmd 43 ms  hp=101 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=8795 lost=1
+[pilot] #2260 jev 517 ms cmd 42 ms  hp=101 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 1/20  frames ok=8840 lost=1
+[pilot] #2270 jev 459 ms cmd 49 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=8873 lost=1
+[pilot] #2280 jev 483 ms cmd 45 ms  hp=101 goal=EXPLORE way=behind advance=yes fire=no weapon=Keep -> 0/180  frames ok=8912 lost=1
+[pilot] #2290 jev 458 ms cmd 50 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=8946 lost=1
+[pilot] #2300 jev 556 ms cmd 42 ms  hp=101 goal=EXPLORE way=right advance=yes fire=no weapon=Keep -> 0/-90  frames ok=8986 lost=1
+[pilot] System Two bump: bearing 161 deg (relative +0) for 20 s, goal None: Continue current heading away from the heavily revisited cluster near (960,-3520) toward the unexplored edge ahead, since no walls block progress.
+[pilot] #2310 jev 523 ms cmd 44 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=9026 lost=1
+[pilot] #2320 jev 467 ms cmd 61 ms  hp=101 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=9063 lost=1
+[pilot] graph v13 (claude-sonnet-5, 140568 ms): Episode looped: 0.88 revisit ratio over 25 bins, top tiles hit 15-33x, last_moments show ahead/left/right all walked with agent swinging between adjacent options. Root causes: (1) standing_order and way.focus were truncated mid-sentence in stored config, so intended anti-loop guidance never reached the model - rewrote both fully. (2) way's not_for over-restricted 'behind' as near-permanent last resort; once ahead/left/right all became walked, agent had no escape and paced between remaining options. Added exception: once all three are walked for several ticks, behind becomes deliberate retrace-to-branch choice. Raised way_margin 0.5->0.65 for more commitment. Other heads unchanged - no combat/damage/stuck evidence there.
+         - questions.way.criteria[direction] reworded
+[pilot] #2330 jev 471 ms cmd 47 ms  hp=101 goal=EXPLORE way=right advance=yes fire=no weapon=Keep -> 0/-90  frames ok=9105 lost=1
+[pilot] #2390 jev 526 ms cmd 44 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=9335 lost=1
+[pilot] #2410 jev 468 ms cmd 51 ms  hp=101 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=9415 lost=1
+[pilot] level 1 not finished within 180 s: reset, review, try again (attempt 7)
+[pilot] #2420 jev 490 ms cmd 48 ms  hp=101 goal=EXPLORE way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=9456 lost=1
+[pilot] after-action review (level not finished within the 180 s budget (attempt 6), 243 decisions, graph v13)...
+[pilot] #2430 jev 517 ms cmd 52 ms  hp=100 goal=EXPLORE way=behind-left advance=no fire=no weapon=Keep -> 0/135  frames ok=9490 lost=1
+[pilot] #2440 jev 506 ms cmd 43 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=9525 lost=1
+[pilot] #2450 jev 480 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead advance=no fire=no weapon=Keep -> 0/0  frames ok=9580 lost=1
+[pilot] #2470 jev 471 ms cmd 46 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=9676 lost=1
+[pilot] #2480 jev 455 ms cmd 49 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-90  frames ok=9715 lost=1
+[pilot] #2490 jev 521 ms cmd 46 ms  hp=100 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=9753 lost=1
+[pilot] #2510 jev 483 ms cmd 46 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/-20  frames ok=9829 lost=1
+[pilot] #2520 jev 536 ms cmd 53 ms  hp=100 goal=EXPLORE way=behind-left advance=no fire=no weapon=Keep -> 0/135  frames ok=9875 lost=1
+[pilot] #2530 jev 507 ms cmd 66 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=9908 lost=1
+[pilot] #2560 jev 475 ms cmd 53 ms  hp=100 goal=EXPLORE way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=10019 lost=1
+[pilot] #2570 jev 515 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=10056 lost=1
+[pilot] System Two bump: bearing 90 deg (relative -18) for 20 s, goal Explore: Visited bins cluster heavily south around y=-3520/-3584; pushing north breaks the loop toward unexplored space where the exit likely lies.
+[pilot] #2600 jev 484 ms cmd 54 ms  hp=100 goal=EXPLORE way=right advance=yes fire=no weapon=Keep -> 0/-90  frames ok=10175 lost=1
+[pilot] #2610 jev 519 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=10211 lost=1
+[pilot] #2640 jev 452 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=10325 lost=1
+[pilot] after-action review failed: 'charmap' codec can't encode character '\u2192' in position 362: character maps to <undefined>
+[pilot] done
+[pilot] System One = jev (key apikey_<redacted>) plays; System Two = claude-cli (sonnet) reviews after each episode; graph v14
+[pilot] #30 jev 495 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=117 lost=1
+[pilot] #40 jev 429 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=158 lost=1
+[pilot] #60 jev 509 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=243 lost=1
+[pilot] #70 jev 413 ms cmd 45 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=282 lost=1
+[pilot] #80 jev 393 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=313 lost=1
+[pilot] #110 jev 484 ms cmd 45 ms  hp=100 goal=EXPLORE way=behind-left advance=no fire=no weapon=Keep use=yes -> 0/135  frames ok=435 lost=1
+[pilot] #140 jev 512 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=558 lost=1
+[pilot] #150 jev 438 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=594 lost=1
+[pilot] System Two bump: bearing 0 deg (relative -45) for 20 s, goal Explore: Wall blocks the 45° heading and all heavy foot traffic is clustered west/south of here, so push due east into unvisited space instead.
+[pilot] #160 jev 435 ms cmd 44 ms  hp=100 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=634 lost=1
+[pilot] #170 jev 528 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=664 lost=1
+[pilot] goal EXPLORE -> ADD_ARMOR (jev)
+[pilot] #210 jev 511 ms cmd 57 ms  hp=100 goal=ADD_ARMOR way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=821 lost=1
+[pilot] #240 jev 510 ms cmd 50 ms  hp=100 goal=ADD_ARMOR way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/20  frames ok=939 lost=1
+[pilot] #260 jev 452 ms cmd 47 ms  hp=100 goal=ADD_ARMOR way=ahead advance=yes fire=no weapon=Keep -> 1/-20  frames ok=1013 lost=1
+[pilot] #270 jev 550 ms cmd 46 ms  hp=100 goal=ADD_ARMOR way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/0  frames ok=1055 lost=1
+[pilot] #280 jev 525 ms cmd 46 ms  hp=100 goal=ADD_ARMOR way=ahead advance=yes fire=no weapon=Keep -> 1/0  frames ok=1093 lost=1
+[pilot] System Two bump: bearing 101 deg (relative +0) for 20 s, goal Explore: Door is directly ahead and current heading already points away from the dense trodden cluster to the south/west, so push through it into unexplored space.
+[pilot] #290 jev 473 ms cmd 4 ms  hp=100 goal=ADD_ARMOR way=behind-left advance=no fire=no weapon=Keep -> 0/135  frames ok=1135 lost=1
+[pilot] #310 jev 457 ms cmd 49 ms  hp=100 goal=ADD_ARMOR way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=1210 lost=1
+[pilot] #320 jev 457 ms cmd 42 ms  hp=100 goal=ADD_ARMOR way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=1255 lost=1
+[pilot] goal ADD_ARMOR -> EXPLORE (jev)
+[pilot] #330 jev 523 ms cmd 47 ms  hp=100 goal=EXPLORE way=right advance=yes fire=no weapon=Keep -> 0/-90  frames ok=1300 lost=1
+[pilot] #340 jev 502 ms cmd 46 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep use=yes -> 1/-20  frames ok=1335 lost=1
+[pilot] #350 jev 489 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> -1/0  frames ok=1369 lost=1
+[pilot] #360 jev 517 ms cmd 51 ms  hp=100 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/20  frames ok=1407 lost=1
+[pilot] #370 jev 428 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=1445 lost=1
+[pilot] System One = jev (key apikey_<redacted>) plays; System Two = claude-cli (sonnet) reviews after each episode; graph v14
+[pilot] #100 jev 471 ms cmd 48 ms  hp=100 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=359 lost=1
+[pilot] #110 jev 565 ms cmd 43 ms  hp=100 goal=EXPLORE way=left advance=no fire=no weapon=Keep -> 0/90  frames ok=397 lost=1
+[pilot] #120 jev 489 ms cmd 50 ms  hp=100 goal=EXPLORE way=ahead-right advance=no fire=no weapon=Keep -> 0/-45  frames ok=437 lost=1
+[pilot] System Two bump: bearing 300 deg (relative -174) for 20 s, goal None: Ahead is a wall and heavily trodden cells lie north/northeast; swing southwest away from the visited cluster toward unexplored space.
+[pilot] #170 jev 507 ms cmd 53 ms  hp=97 goal=EXPLORE way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=658 lost=1
+[pilot] #200 jev 480 ms cmd 58 ms  hp=55 goal=EXPLORE way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=765 lost=1
+[pilot] #210 jev 509 ms cmd 49 ms  hp=46 goal=EXPLORE way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=799 lost=1
+[pilot] #220 jev 557 ms cmd 51 ms  hp=46 goal=EXPLORE way=ahead advance=yes fire=no weapon=Keep -> 1/20  frames ok=828 lost=1
+[pilot] goal EXPLORE -> RESTORE_HEALTH (jev)
+[pilot] #230 jev 497 ms cmd 48 ms  hp=22 goal=RESTORE_HEALTH way=ahead advance=yes fire=yes weapon=Keep dodge=Carry on turn=Hold -> 1/0  frames ok=868 lost=1
+[pilot] #260 jev 473 ms cmd 46 ms  hp=13 goal=RESTORE_HEALTH way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=982 lost=1
+[pilot] System Two bump: bearing 30 deg (relative +129) for 20 s, goal Explore: Visited bins cluster tightly in x1216-1344,y-2496 to -2944, so push northeast away from that trodden box toward unexplored territory.
+[pilot] #310 jev 540 ms cmd 49 ms  hp=13 goal=RESTORE_HEALTH way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=1178 lost=1
+[pilot] #340 jev 485 ms cmd 42 ms  hp=13 goal=RESTORE_HEALTH way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=1306 lost=1
+[pilot] #350 jev 477 ms cmd 52 ms  hp=13 goal=RESTORE_HEALTH way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=1343 lost=1
+[pilot] #400 jev 555 ms cmd 50 ms  hp=13 goal=RESTORE_HEALTH way=right advance=no fire=no weapon=Keep -> 0/-90  frames ok=1546 lost=1
+[pilot] level 1 not finished within 180 s: reset, review, try again (attempt 2)
+[pilot] after-action review (level not finished within the 180 s budget (attempt 1), 212 decisions, graph v14)...
+[pilot] #460 jev 538 ms cmd 50 ms  hp=100 goal=EXPLORE way=behind advance=yes fire=no weapon=Keep -> 0/180  frames ok=1763 lost=1
+[pilot] #530 jev 473 ms cmd 46 ms  hp=101 goal=EXPLORE way=left advance=yes fire=no weapon=Keep -> 0/90  frames ok=2003 lost=1
+[pilot] #540 jev 473 ms cmd 45 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/90  frames ok=2039 lost=1
+[pilot] #550 jev 437 ms cmd 50 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/45  frames ok=2073 lost=1
+[pilot] #560 jev 537 ms cmd 48 ms  hp=101 goal=EXPLORE way=ahead-left advance=no fire=no weapon=Keep -> 0/90  frames ok=2112 lost=1
+[pilot] #580 jev 496 ms cmd 43 ms  hp=101 goal=EXPLORE way=behind-right advance=yes fire=no weapon=Keep -> 0/-135  frames ok=2181 lost=1
+[pilot] System Two bump: bearing 210 deg (relative +165) for 20 s, goal None: Nearly all trodden bins lie north/northeast of current position (y from -2560 to -3072), so push southwest to break away from that cluster into unexplored territory.
+[pilot] #610 jev 466 ms cmd 43 ms  hp=101 goal=EXPLORE way=behind-left advance=no fire=no weapon=Keep -> 0/135  frames ok=2281 lost=1
+[pilot] #630 jev 450 ms cmd 44 ms  hp=101 goal=EXPLORE way=behind-right advance=no fire=no weapon=Keep -> 0/-135  frames ok=2342 lost=1
+[pilot] #690 jev 517 ms cmd 43 ms  hp=101 goal=EXPLORE way=ahead-left advance=yes fire=no weapon=Keep -> 0/45  frames ok=2533 lost=1
+[pilot] #700 jev 578 ms cmd 45 ms  hp=101 goal=EXPLORE way=ahead-right advance=yes fire=no weapon=Keep -> 0/-45  frames ok=2570 lost=1

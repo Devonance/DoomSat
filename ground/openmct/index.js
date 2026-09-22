@@ -121,112 +121,17 @@ const openmct = window.openmct;
         openmct.install(timelinePlugin);
         if (openmct.plugins.EventTimestripPlugin) openmct.install(openmct.plugins.EventTimestripPlugin(timelinePlugin.extendedLinesBus));
 
-        // setup example display layout
-        openmct.on('start', async () => {
-            if (localStorage.getItem('exampleLayout') !== null) {
-                return;
-            }
-
-            // try to import the example display layout, fail gracefully
-            try {
-                // Function to fetch JSON content as text
-                async function fetchJsonText(url) {
-                    const response = await fetch(url);
-                    const text = await response.text();
-
-                    return text;
+        // Land on the Doom frame product (imagery view from Yamcs) instead of the plugin's example layout, whose
+        // demo objects (instance "myproject") do not exist here and raise "Error requesting telemetry data".
+        openmct.on('start', () => {
+            // the router lands on My Items a moment after start; only redirect if the user did not ask for something else
+            setTimeout(() => {
+                const h = window.location.hash;
+                if (!h || h === '#/' || h.startsWith('#/browse/mine')) {
+                    openmct.router.navigate('#/browse/taxonomy:spacecraft/taxonomy:~DoomGround/taxonomy:~DoomGround~DoomFrame'
+                        + '?tc.mode=local&tc.startDelta=1800000&tc.endDelta=0&tc.timeSystem=utc&view=example.imagery');
                 }
-
-                async function getExampleLayoutPath() {
-                    const objects = Object.values(JSON.parse(localStorage.getItem('mct')));
-                    const exampleLayout = objects.find(object => object.name === 'Example Flexible Layout');
-                    let path = await openmct.objects.getOriginalPath(exampleLayout.identifier);
-
-                    path.pop();
-                    path = path.reverse();
-                    path = path.reduce((prev, curr) => {
-                        return prev + '/' + openmct.objects.makeKeyString(curr.identifier);
-                    }, '#/browse');
-
-                    return path;
-                }
-
-                // poll for the localStorage item
-                function mctItemExists() {
-                    return new Promise((resolve, reject) => {
-                        const startTime = Date.now();
-
-                        function checkItem() {
-                            if (localStorage.getItem('mct') !== null) {
-                                resolve(true);
-
-                                return;
-                            }
-
-                            if (Date.now() - startTime > MAX_POLL_TIME) {
-                                reject(new Error('Timeout waiting for mct localStorage item'));
-
-                                return;
-                            }
-
-                            setTimeout(checkItem, POLL_INTERVAL);
-                        }
-
-                        checkItem();
-                    });
-                }
-
-                // wait for the 'mct' item to exist
-                await mctItemExists();
-
-                // setup to use import as JSON action
-                const importAction = openmct.actions.getAction('import.JSON');
-                const myItems = await openmct.objects.get('mine');
-                const exampleDisplayText = await fetchJsonText('./example-display.json');
-                const selectFile = {
-                    body: exampleDisplayText
-                };
-
-                // import the example display layout
-                importAction.onSave(myItems, { selectFile });
-
-                // the importAction has asynchronous code, so we will need to check
-                // the composition of My Items to confirm the import was successful
-                const compositionCollection = openmct.composition.get(myItems);
-                let compositionLength = 0;
-                let composition;
-
-                let retryCount = 0;
-                while (compositionLength === 0 && retryCount < MAX_COMPOSITION_RETRIES) {
-                    composition = await compositionCollection.load();
-                    compositionLength = composition.length;
-
-                    if (compositionLength === 0) {
-                        retryCount++;
-                        await new Promise(resolve => setTimeout(resolve, COMPOSITION_RETRY_DELAY));
-                    }
-                }
-
-                if (compositionLength === 0) {
-                    throw new Error('Failed to load composition after maximum retries');
-                }
-
-                const exampleLayoutPath = await getExampleLayoutPath();
-
-                // give everything time to initialize
-                await new Promise(resolve => setTimeout(resolve, 250));
-
-                openmct.notifications.info('Navigated to Example Display Layout');
-
-                // navigate to the "Example Display Layout"
-                openmct.router.navigate(exampleLayoutPath);
-
-                // set the localStorage item to prevent this from running again
-                localStorage.setItem('exampleLayout', 'true');
-            } catch (error) {
-                console.error('Failed to set up example display layout:', error);
-                openmct.notifications.error('Failed to load example display layout: ' + error.message);
-            }
+            }, 1000);
         });
     }
 })();

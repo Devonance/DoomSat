@@ -1,0 +1,64 @@
+run span 2908 s
+System One (jev-1.13.0): 3307 decisions, 1.14/s, latency median 466 ms p95 553 ms; command issue median 48 ms p95 55 ms
+  move    None 3307
+  turn    None 3258, Right 12, Left 10, Hold 7
+  strafe  None 3307
+  dodge   None 3250, Carry on 36, Dodge right 11, Dodge left 7
+  fire    no 3301, yes 6
+  use     None 3097, yes 210
+  weapon  Keep 3307
+  player: x -140..1520  y -3650..-2448  path length ~110807 units  stuck 31/3307
+  health: start 100 min 13 end 101
+  System Two bumps: 29 (median 4950 ms): 90 deg/20 s; 0 deg/20 s; 101 deg/20 s; 300 deg/20 s; 30 deg/20 s; 210 deg/20 s
+  levels finished: 0 ; episodes played: 8
+  at arm's length: NOTHING 1690, WALL 1179, BARRIER 253, DOOR 181, THING 4
+System Two: 10 after-action reviews, 4 errors
+  [died] -> graph v5 118306 ms $0.289 sonnet:164113in/15278out
+     Two fixes, each tied to a data point. (1) standing_order was truncated mid-word ("...huggi"); completed it, added: if every direction is walked-before, turn around fully. Addresses severe looping: revisit_ratio 0.83, onl
+     - standing_order: 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. If a turn away from a wall was just made, keep committing to that same side only as long as that side keeps opening into new ground; if it hits a wall again, switch sides instead of huggi' -> 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. If a turn away from a wall was just made, keep committing to that same side only as long as that side keeps opening into new or unexplored ground; if it hits a wall again or its ground tu'
+     - questions.way.instructions reworded
+     - questions.way.criteria[direction] reworded
+     - questions.advance.criteria[false] reworded
+     - questions.use.criteria[false] reworded
+     - questions.goal.criteria[Explore] reworded
+  [level not finished within the 180 s budget (attempt 1)] -> graph v6 139758 ms $0.289 sonnet:123779in/15908out
+     Bot stayed in ~4 bins (revisit_ratio 0.96, 8 distinct bins/217 decisions), ahead=WALL 73% of ticks. Trace shows why: with ahead offering "open, new" ground, way picked "behind-right" toward a door only "close" (not adjac
+     - way_margin: 0.2 -> 0.35
+     - questions.way.instructions reworded
+     - questions.way.criteria[direction] reworded
+  [level not finished within the 180 s budget (attempt 2)] -> graph v7 104672 ms $0.252 sonnet:118084in/13342out
+     Never finished: revisit_ratio 0.91, only 22 distinct bins, one cell visited 61x, longest_hold_streak=0 (way flipped nearly every tick). Two fixes: raised way_margin 0.35->0.55 for hysteresis against flip-flopping; reorde
+     - way_margin: 0.35 -> 0.5
+     - questions.way.instructions reworded
+     - questions.way.criteria[direction] reworded
+     - questions.goal.criteria[Add armor] reworded
+  [level not finished within the 180 s budget (attempt 3)] -> graph v8 100145 ms $0.196 sonnet:73178in/10018out
+     Two issues drove the failure: (1) standing_order was truncated mid-sentence ("...its ground tu") — completed it and added explicit dead-end guidance. (2) walk/last_moments show severe pacing-in-place: revisit_ratio 0.95,
+     - questions.way.criteria[direction] reworded
+  [level not finished within the 180 s budget (attempt 1)] -> graph v9 122938 ms $0.307 sonnet:167648in/16427out
+     Three text fields were truncated mid-word in the given config (standing_order ended '...its ground tu', way.focus ended '...as the l', way.not_for ended '...adjacent to bars/a'), garbling jev's actual prompt. This matche
+     - standing_order: 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. If a turn away from a wall was just made, keep committing to that same side only as long as that side keeps opening into new or unexplored ground; if it hits a wall again or its ground tu' -> 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back.'
+     - questions.way.instructions reworded
+     - questions.way.criteria[direction] reworded
+  [level not finished within the 180 s budget (attempt 2)] -> graph v10 91484 ms $0.209 sonnet:74419in/10839out
+     Episode never escaped a tiny pocket: 88% revisit ratio, one bin visited 70x, path_units 7397 but only 276 explored_cells, and last_moments show the same ahead-blocked/left-long/right-tight state with 'way' bouncing betwe
+     - standing_order: 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back.' -> 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back. If ahead is blocked and the remaining offered directions are all already-walked ground, do not alternate between them tick to tick — keep the same heading you just committed to for a few more steps before trying yet another direction, since switch'
+     - goal_every: 5 -> 10
+     - questions.way.instructions reworded
+     - questions.goal.criteria[Add armor] reworded
+  [level not finished within the 180 s budget (attempt 3)] -> graph v11 109108 ms $0.267 sonnet:121335in/14302out
+     Episode failed: revisit_ratio 0.86, one spot visited 21x, health stuck at 45 whole run — player looped chasing an unreachable RESTORE_HEALTH target. Fixes: (1) added not_for guard to Restore Health mirroring Add Armor's,
+     - questions.goal.criteria[Restore health] reworded
+  [level not finished within the 180 s budget (attempt 4)] -> graph v12 105779 ms $0.261 sonnet:120234in/13879out
+     Episode never left a tiny pocket: 23 distinct bins over 241 decisions, revisit_ratio 0.9, top cells hit 16-34x near a door. last_moments shows 'way' oscillating tick-to-tick between near-opposite directions once nearby g
+     - standing_order: 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back. If ahead is blocked and the remaining offered directions are all already-walked ground, do not alternate between them tick to tick — keep the same heading you just committed to for a few more steps before trying yet another direction, since switch' -> 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back. If ahead is blocked and the remaining offered directions are all already-walked ground, do not alternate between them tick to tick: pick one direction and hold it for at least 5-8 ticks before trying yet another, since switching every tick just re'
+     - questions.way.instructions reworded
+     - questions.way.criteria[direction] reworded
+  [level not finished within the 180 s budget (attempt 5)] -> graph v13 140568 ms $0.274 sonnet:121434in/14860out
+     Episode looped: 0.88 revisit ratio over 25 bins, top tiles hit 15-33x, last_moments show ahead/left/right all walked with agent swinging between adjacent options. Root causes: (1) standing_order and way.focus were trunca
+     - questions.way.criteria[direction] reworded
+  [level not finished within the 180 s budget (attempt 6)] -> graph v14 118027 ms $0.285 sonnet:123401in/15608out
+     Main failure wasn't combat (fire always no, enemy visible only 2 ticks) but exploration deadlock: 121/243 decisions sat in one 128u bin, revisit_ratio 0.93, only 17 distinct bins in 182s. last_moments show 'way' flip-flo
+     - standing_order: 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back. If ahead is blocked and the remaining offered directions are all already-walked ground, do not alternate between them tick to tick: pick one direction and hold it for at least 5-8 ticks before trying yet another, since switching every tick just re' -> 'Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back. If ahead is blocked and the remaining offered directions are all already-walked ground, do not alternate between them tick to tick: pick one direction and hold it for at least 5-8 ticks before trying another, since switching every tick just retrac'
+     - questions.way.instructions reworded
+     - questions.way.criteria[direction] reworded

@@ -1,0 +1,78 @@
+digraph G {
+  graph [bgcolor="#0f1116", fontname="DejaVu Sans Mono", fontcolor="#d8dde6", labelloc=t, labeljust=l, nodesep=0.35, ranksep=0.25, pad=0.4,
+         label="DOOMSAT . DECISION GRAPH . one narrow typed question per head, over words that code made from telemetry; every answer is consumed by a rule\lmeasured 22 Sep 2026: 5,872 jev decisions through the stack, ~450-520 ms per call with 5-8 heads, ~45 ms to issue the command; Sonnet: a bump per minute, 14 graph versions in the day\l"];
+  node [shape=box, style="rounded,filled", fillcolor="#161a22", fontname="DejaVu Sans Mono", fontsize=11, fontcolor="#d8dde6", penwidth=1.4, margin="0.18,0.12"];
+  edge [color="#4a5160", arrowhead=none, penwidth=1.0];
+  { rank=same; h0 [shape=plaintext, fillcolor="#0f1116", fontcolor="#4a5160", label="STATE (what code turns into words)"]; h1 [shape=plaintext, fillcolor="#0f1116", fontcolor="#d9a441", label="JEV . TYPED QUESTION"]; h2 [shape=plaintext, fillcolor="#0f1116", fontcolor="#4f8fd6", label="WHEN ASKED"]; h3 [shape=plaintext, fillcolor="#0f1116", fontcolor="#3fae6a", label="RULE THAT CONSUMES THE ANSWER"] }
+  h0 -> h1 -> h2 -> h3 [style=invis];
+  r0c0 [label="1. way (the navigator)\l\leight directions around the player, 45 deg\lapart, each in words: space (blocked / tight /\lopen / long) and ground (unexplored / new /\lpartly walked / walked before / a door on the\lway at N units); what is at arm's length\lahead; where the exit and a key were seen; the\lgoal word\l", color="#4a5160"];
+  r0c1 [label="Choice over the directions that are not\lblocked (2 to 8 options); every option\lcarries what / not_for / examples\lcriteria plus its own 'now'\l", color="#d9a441"];
+  r0c2 [label="every tick (~0.5 s), one\lrequest with all heads\l", color="#4f8fd6"];
+  r0c3 [label="turn setpoint by direction: 0 / 45 / 90 / 135 / 180\ldeg (right = negative); the previous way is kept\lunless P(new) >= P(previous) + way_margin (hysteresis\lon the probabilities); 'behind' with open ground\lbehind = one step back instead of a U-turn; a turn of\l45 deg or more is issued alone and finishes before the\lnext ask\l", color="#3fae6a"];
+  { rank=same; r0c0; r0c1; r0c2; r0c3 }
+  r0c0 -> r0c1 -> r0c2 -> r0c3;
+  h0 -> r0c0 [style=invis];
+  r1c0 [label="2. advance\l\lthe same state document; 'ahead' carries\lspace, ground and what is at arm's length\l", color="#4a5160"];
+  r1c1 [label="Noul: walk forward this tick?\l", color="#d9a441"];
+  r1c2 [label="every tick\l", color="#4f8fd6"];
+  r1c3 [label="move = 1 if P(yes) >= 0.5; suppressed while an enemy\lis in view and the aim is off by more than aligned_deg\l(35)\l", color="#3fae6a"];
+  { rank=same; r1c0; r1c1; r1c2; r1c3 }
+  r1c0 -> r1c1 -> r1c2 -> r1c3;
+  r0c0 -> r1c0 [style=invis];
+  r2c0 [label="3. use\l\lat arm's length ahead: door / exit switch /\llocked door (with the key colour) / wall /\lnothing; stuck flag\l", color="#4a5160"];
+  r2c1 [label="Noul: press Use now?\l", color="#d9a441"];
+  r2c2 [label="only when a door, the exit\lor a locked door is at\larm's length, or the\lplayer is stuck\l", color="#4f8fd6"];
+  r2c3 [label="use = 1 if P(yes) >= 0.5; the payload marks a door\lthat stays shut after its presses as a barrier for 120\ls\l", color="#3fae6a"];
+  { rank=same; r2c0; r2c1; r2c2; r2c3 }
+  r2c0 -> r2c1 -> r2c2 -> r2c3;
+  r1c0 -> r2c0 [style=invis];
+  r3c0 [label="4. fire\l\lnearest enemy: bearing in words (in the\lcrosshair / left / right / behind), distance\lband, health, ammo\l", color="#4a5160"];
+  r3c1 [label="Noul: shoot now?\l", color="#d9a441"];
+  r3c2 [label="every tick\l", color="#4f8fd6"];
+  r3c3 [label="fire = 1 if P(yes) >= 0.5 and the enemy is within\lfire_range (450 u) and crosshair_deg (8); never\lwithout ammo\l", color="#3fae6a"];
+  { rank=same; r3c0; r3c1; r3c2; r3c3 }
+  r3c0 -> r3c1 -> r3c2 -> r3c3;
+  r2c0 -> r3c0 [style=invis];
+  r4c0 [label="5. dodge\l\lnearest enemy bearing and distance band; which\lsides are open\l", color="#4a5160"];
+  r4c1 [label="Choice: Carry on / Dodge left / Dodge\lright / Dodge back (only the open sides\lare offered)\l", color="#d9a441"];
+  r4c2 [label="whenever an enemy is in\lview\l", color="#4f8fd6"];
+  r4c3 [label="strafe = -1 / +1, or move = -1 for 'Dodge back';\ldanger_dist (180 u) gates the question's 'close' word\l", color="#3fae6a"];
+  { rank=same; r4c0; r4c1; r4c2; r4c3 }
+  r4c0 -> r4c1 -> r4c2 -> r4c3;
+  r3c0 -> r4c0 [style=invis];
+  r5c0 [label="6. turn (the aim)\l\lnearest enemy bearing in words\l", color="#4a5160"];
+  r5c1 [label="Choice: Hard left / Left / Fine left /\lHold / Fine right / Right / Hard right /\lTurn around\l", color="#d9a441"];
+  r5c2 [label="whenever an enemy is in\lview\l", color="#4f8fd6"];
+  r5c3 [label="overrides the way's turn with the aim table (turn_deg:\l60 / 25 / 8 / 0 / -8 / -25 / -60 / 150 deg); a person\ldoes not keep exploring under fire\l", color="#3fae6a"];
+  { rank=same; r5c0; r5c1; r5c2; r5c3 }
+  r5c0 -> r5c1 -> r5c2 -> r5c3;
+  r4c0 -> r5c0 [style=invis];
+  r6c0 [label="7. weapon\l\lweapon in hand, shells, bullets, enemy\ldistance band\l", color="#4a5160"];
+  r6c1 [label="Choice: Keep / Pistol / Shotgun\l", color="#d9a441"];
+  r6c2 [label="every tick\l", color="#4f8fd6"];
+  r6c3 [label="weapon field of CONTROL; 'Keep' sends no switch\l", color="#3fae6a"];
+  { rank=same; r6c0; r6c1; r6c2; r6c3 }
+  r6c0 -> r6c1 -> r6c2 -> r6c3;
+  r5c0 -> r6c0 [style=invis];
+  r7c0 [label="8. goal\l\lhealth and armor bands, ammo, kills, enemies\lin view, cells walked, exit seen, pickups seen\lwith bearings\l", color="#4a5160"];
+  r7c1 [label="Choice: Explore / Kill enemies / Restore\lhealth / Stock ammo / Add armor\l", color="#d9a441"];
+  r7c2 [label="every goal_every ticks (8)\lor when the picture\lchanges\l", color="#4f8fd6"];
+  r7c3 [label="SET_GOAL command; the goal word enters the next state\ldocuments and the payload's pickup targeting\l", color="#3fae6a"];
+  { rank=same; r7c0; r7c1; r7c2; r7c3 }
+  r7c0 -> r7c1 -> r7c2 -> r7c3;
+  r6c0 -> r7c0 [style=invis];
+  r8c0 [label="System Two: bump (Claude Sonnet 5)\l\lseconds into the attempt, cells gained,\lposition, most visited spots, the map product\las text\l", color="#8f6fe0"];
+  r8c1 [label="not jev: a JSON-schema reply with\lbearing, hold time and an optional goal\l", color="#8f6fe0"];
+  r8c2 [label="every 60 s\l", color="#4f8fd6"];
+  r8c3 [label="EXPLORE_HINT(bearing, ttl): the payload steers 'ahead'\ltoward the bearing while it lasts; jev still answers\levery head\l", color="#3fae6a"];
+  { rank=same; r8c0; r8c1; r8c2; r8c3 }
+  r8c0 -> r8c1 -> r8c2 -> r8c3;
+  r7c0 -> r8c0 [style=invis];
+  r9c0 [label="System Two: after-action (Claude Sonnet 5)\l\lthe episode report: outcome, health, damage,\lcells, distance, stuck ticks, answer\ldistributions per head, the walk, the last\leight decisions in words, plus the current\lgraph\l", color="#8f6fe0"];
+  r9c1 [label="not jev: a revised graph (criteria text,\lthresholds, way_margin, goal_every) with\la rationale\l", color="#8f6fe0"];
+  r9c2 [label="after every episode:\ldeath, level done, or the\l180 s budget\l", color="#4f8fd6"];
+  r9c3 [label="code validates (fixed option names, known\lplaceholders, clamped thresholds), stores\lgraph_v<N>.json, and jev plays the next attempt with\lit\l", color="#3fae6a"];
+  { rank=same; r9c0; r9c1; r9c2; r9c3 }
+  r9c0 -> r9c1 -> r9c2 -> r9c3;
+  r8c0 -> r9c0 [style=invis];
+}

@@ -99,7 +99,7 @@ class GraphError(ValueError):
 def _clean_entry(v, depth=0):
     """Instructions/criteria may be strings, objects or arrays (System One understands structure); bound their size."""
     if isinstance(v, str):
-        return v[:400]
+        return v[:700]
     if isinstance(v, list) and depth < 3:
         return [_clean_entry(x, depth + 1) for x in v[:8]]
     if isinstance(v, dict) and depth < 3:
@@ -112,7 +112,7 @@ def validate(cfg):
     if not isinstance(cfg, dict):
         raise GraphError("config must be an object")
     out = copy.deepcopy(DEFAULT)
-    out["standing_order"] = str(cfg.get("standing_order", out["standing_order"]))[:300]
+    out["standing_order"] = str(cfg.get("standing_order", out["standing_order"]))[:600]
     out["goal_every"] = int(max(1, min(20, cfg.get("goal_every", out["goal_every"]))))
     try:
         out["way_margin"] = float(max(0.0, min(0.5, float(cfg.get("way_margin", out["way_margin"])))))

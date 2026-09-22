@@ -293,6 +293,8 @@ class Explorer:
     def novelty(self, x, y, heading, dist):
         """How much of the ground that way has not been walked: 0..100 (100 = all new), over cells up to `dist`."""
         a = math.radians(heading)
+        if dist < 48:
+            return 0   # a wall at arm's length: nothing to walk there
         cells, new = 0, 0
         for r in range(32, int(min(dist, 288)) + 1, 32):
             c = self.cell(x + r * math.cos(a), y + r * math.sin(a))

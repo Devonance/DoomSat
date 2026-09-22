@@ -115,9 +115,7 @@ async function poll() {
     $("episode").textContent = `episode ${v.EPISODE ?? "-"}  |  ${v.STUCK === "True" ? "STUCK" : ""}`;
     $("s1lat").textContent = v.SystemOneLatencyMs ? `${Math.round(v.SystemOneLatencyMs)} ms per decision, ${v.ControlCommands} commands` : "";
     $("controls").textContent = v.Controls ? String(v.Controls).replace(/ (?=\w+=)/g, "\n") : "-";
-    $("plan").textContent = (v.SystemTwoHint ? "Latest bump: " + v.SystemTwoHint + "
-
-" : "") + (v.Plan || "no after-action review yet (first episode)");
+    $("plan").textContent = (v.SystemTwoHint ? "Latest bump: " + v.SystemTwoHint + "\n\n" : "") + (v.Plan || "no after-action review yet (first episode)");
     $("s2lat").textContent = v.SystemTwoLatencyMs ? `${(v.SystemTwoLatencyMs / 1000).toFixed(0)} s review` : "";
     if (v.DoomFrame && v.DoomFrame !== lastFrame) { lastFrame = v.DoomFrame; $("frame").src = v.DoomFrame.replace(/^https?:\/\/[^/]+/, ""); }
     if (v.DoomMap) window.lastMap = v.DoomMap;
