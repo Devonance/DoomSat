@@ -101,6 +101,8 @@ class Pilot:
         self.progress_mark = (time.time(), 0)
         self.plan_busy = False
         self.control_count = 0
+        self.resubscribes = 0
+        self.subscription = None
         self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
         self.recent_health = deque(maxlen=20)
         self.last_enemy_seen = 0.0
@@ -119,7 +121,23 @@ class Pilot:
 
     def subscribe(self):
         names = [f"{SPACE_SYSTEM}/{c}" for c in STATUS_CHANNELS + ["FRAME_CHUNK"]]
-        self.processor.create_parameter_subscription(names, on_data=self.on_data)
+        self.subscription = self.processor.create_parameter_subscription(names, on_data=self.on_data)
+        self.telemetry_time = time.time()
+
+    def resubscribe(self):
+        """The Yamcs WebSocket drops now and then; rebuild the client and the subscription."""
+        try:
+            self.subscription.cancel()
+        except Exception:
+            pass
+        try:
+            self.client = YamcsClient(self.args.yamcs)
+            self.processor = self.client.get_processor(self.instance, "realtime")
+            self.subscribe()
+            self.resubscribes += 1
+            print(f"[pilot] telemetry went stale: resubscribed (#{self.resubscribes})", flush=True)
+        except Exception as e:
+            print(f"[pilot] resubscribe failed: {e}", file=sys.stderr)
 
     def on_data(self, data):
         for pv in data.parameters:
@@ -166,6 +184,9 @@ class Pilot:
 
     # ------------------------------------------------------------ System One loop
     def control_step(self):
+        if time.time() - self.telemetry_time > 4.0:
+            self.resubscribe()
+            return None
         if time.time() - self.telemetry_time > 2.0:
             return None  # stale telemetry: hold what the payload holds (its own uplink timeout releases controls)
         t = dict(self.telemetry)

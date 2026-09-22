@@ -274,6 +274,7 @@ class Payload:
         self.frame_seq = 0
         self.episode = 0
         self.positions = deque(maxlen=20)
+        self.motions = deque(maxlen=20)
         self.stuck = False
         self.cmd_count = 0
         self.last_obs = None
@@ -311,6 +312,7 @@ class Payload:
         self.game.make_action([0] * len(BUTTONS), 1)
         self.episode += 1
         self.positions.clear()
+        self.motions.clear()
         self.goal = "EXPLORE"
         self.control = dict(move=0, strafe=0, turn=0.0, fire=0, use=0, weapon=0)
         self.explorer.items.clear()  # pickups respawn; the map stays (the player remembers the level)
@@ -388,10 +390,12 @@ class Payload:
             route_bearing, route_dist = bearing_deg(x, y, angle, *cached_wp), cached_len
         elif self.goal != "HOLD":
             route_bearing = 90.0  # nowhere to go that we know of: ask for a turn so the camera sees more
+        # Stuck means: the same non-zero motion command has been held for the last 20 tics and the player
+        # still did not get anywhere. Jittering between commands does not count (that made stuck latch on).
         self.positions.append((x, y))
-        moving = self.control["move"] != 0 or self.control["strafe"] != 0
-        self.stuck = bool(moving and len(self.positions) == self.positions.maxlen
-                          and math.hypot(x - self.positions[0][0], y - self.positions[0][1]) < 12)
+        self.motions.append((self.control["move"], self.control["strafe"]))
+        same = len(self.motions) == self.motions.maxlen and len(set(self.motions)) == 1 and self.motions[0] != (0, 0)
+        self.stuck = bool(same and math.hypot(x - self.positions[0][0], y - self.positions[0][1]) < 12)
         clear_fwd = self.sector_clearance(depth_row, -20, 20)
         clear_left = min(self.sector_clearance(depth_row, 25, 45), ex.side_clearance(x, y, angle, 90))
         clear_right = min(self.sector_clearance(depth_row, -45, -25), ex.side_clearance(x, y, angle, -90))
