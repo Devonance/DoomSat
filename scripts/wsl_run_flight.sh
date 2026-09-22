@@ -6,7 +6,7 @@ PROJ=/root/doom/doom-mission
 REPO=/mnt/c/Users/Kevin/Genai/doom-mission
 mkdir -p $RUN
 stop() {
-  pkill -f "doom_payloa[d].py" 2>/dev/null
+  pkill -f "doom_payloa[d].py --fps" 2>/dev/null
   pkill -f "fprime_yamc[s]" 2>/dev/null
   pkill -f "YamcsServe[r]" 2>/dev/null
   pkill -f "bin/DoomSa[t]" 2>/dev/null
@@ -15,9 +15,9 @@ stop() {
 case "${1:-start}" in
   stop) stop; echo stopped ;;
   payload)
-    pkill -f "doom_payloa[d].py" 2>/dev/null; sleep 1
+    pkill -f "doom_payloa[d].py --fps" 2>/dev/null; sleep 1
     cd $PROJ
-    nohup /root/doom/payload-venv/bin/python $REPO/payload/doom_payload.py --fps ${FPS:-10} --quality ${QUALITY:-45} --map-png /mnt/c/Users/Kevin/Genai/doom-mission/out/payload_map.png > $RUN/payload.log 2>&1 &
+    nohup /root/doom/payload-venv/bin/python $REPO/payload/doom_payload.py --fps ${FPS:-10} --quality ${QUALITY:-45} --wad ${WAD:-doom1.wad} --map ${MAP:-E1M1} --map-png /mnt/c/Users/Kevin/Genai/doom-mission/out/payload_map.png > $RUN/payload.log 2>&1 &
     echo "payload restarted" ;;
   status)
     ps aux | grep -E "doom_payloa[d]|fprime_yamc[s]|YamcsServe[r]|bin/DoomSa[t]" | awk '{print $11, $12, $13}' | sort | uniq -c
@@ -25,7 +25,7 @@ case "${1:-start}" in
   start)
     stop
     cd $PROJ
-    nohup /root/doom/payload-venv/bin/python $REPO/payload/doom_payload.py --fps ${FPS:-10} --quality ${QUALITY:-45} --map-png /mnt/c/Users/Kevin/Genai/doom-mission/out/payload_map.png > $RUN/payload.log 2>&1 &
+    nohup /root/doom/payload-venv/bin/python $REPO/payload/doom_payload.py --fps ${FPS:-10} --quality ${QUALITY:-45} --wad ${WAD:-doom1.wad} --map ${MAP:-E1M1} --map-png /mnt/c/Users/Kevin/Genai/doom-mission/out/payload_map.png > $RUN/payload.log 2>&1 &
     . fprime-venv/bin/activate
     export FPRIME_DOWNLINK_DIR=$RUN/downlink
     nohup fprime-yamcs --deployment build-artifacts/Linux/DoomSat --skip-browser-open \

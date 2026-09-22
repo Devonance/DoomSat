@@ -29,6 +29,12 @@ if raw:
 hp = [r["health"] for r in ctrl if r.get("health") is not None]
 if hp:
     print(f"  health: start {hp[0]} min {min(hp)} end {hp[-1]}")
+levels = [r for r in rows if r.get("kind") == "level"]
+episodes = sorted({r.get("episode") for r in ctrl if r.get("episode") is not None})
+print(f"  levels finished: {len(levels)} " + ", ".join(f"level {r['finished']} after {r['controls']} decisions" for r in levels) + f"; episodes played: {len(episodes)}")
+modes = Counter(str((r.get("raw") or {}).get("NAV_MODE")) for r in ctrl if (r.get("raw") or {}).get("NAV_MODE") is not None)
+if modes:
+    print("  navigator: " + ", ".join(f"{k} {v}" for k, v in modes.most_common()))
 reviews = [r for r in rows if r.get("kind") == "after_action"]
 rerr = [r for r in rows if r.get("kind") == "after_action_error"]
 print(f"System Two: {len(reviews)} after-action reviews, {len(rerr)} errors" + (f"; {len(plans)} live plans (old mode)" if plans else ""))

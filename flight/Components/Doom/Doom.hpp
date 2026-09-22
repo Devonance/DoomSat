@@ -54,6 +54,8 @@ class Doom final : public DoomComponentBase {
     U32 m_cmdsReceived;
     U16 m_lastEpisode;
     bool m_wasDead;
+    U8 m_lastLevel;
+    U8 m_lastKeys;
     bool m_wasDone;
 };
 

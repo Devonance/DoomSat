@@ -1,0 +1,39 @@
+// Architecture flow chart: who runs where and who talks to whom. Render: dot -Tpng -Gdpi=150 architecture.dot -o architecture.png
+digraph architecture {
+  rankdir=TB;
+  graph [fontname="Helvetica", fontsize=12, pad=0.3, nodesep=0.3, ranksep=0.5, bgcolor="white", newrank=true];
+  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#444444", penwidth=1.2];
+  edge  [fontname="Helvetica", fontsize=9, color="#555555", arrowsize=0.8];
+
+  subgraph cluster_flight {
+    label="Flight side (WSL / Linux)"; style="rounded,filled"; fillcolor="#eef3fb"; color="#7a8fb5"; fontsize=13;
+    doom    [label="Doom (ViZDoom, shareware E1M1...)\npayload/doom_payload.py\n35 Hz game, depth + labels + automap", fillcolor="#fde9d9"];
+    nav     [label="Onboard navigator\n(part of the payload)\nseen-lines automap -> map, frontiers,\ndoors, keys, exit line, barriers", fillcolor="#fde9d9"];
+    fprime  [label="F´ v4.3 flight software\nDoomSat deployment\nDoomMission::Doom component\ncommands, 44 telemetry channels, events", fillcolor="#dbe8f7"];
+    ccsds   [label="F´ ComCcsds stack\nSpacePacket + TM frames (1024 B)\nTC deframing", fillcolor="#dbe8f7"];
+    {rank=same; doom; nav; fprime; ccsds;}
+    doom -> nav [dir=both, label="sensing"];
+    nav -> fprime [label="STATUS (76 B) @ 12 Hz\nJPEG frames @ 10 fps", dir=both];
+    fprime -> ccsds [dir=both];
+  }
+
+  subgraph cluster_ground {
+    label="Ground side"; style="rounded,filled"; fillcolor="#f2f7ee"; color="#8fb57a"; fontsize=13;
+    yamcs   [label="Yamcs 5.12 (fprime-yamcs)\nXTCE MDB generated from the F´ dictionary\nTM/TC, archive, buckets, web UI", fillcolor="#e2efd9"];
+    openmct [label="Open MCT (openmct-yamcs)\ntelemetry plots, image product", fillcolor="#e2efd9"];
+    pilot   [label="Ground pilot\nground/pilot.py\ntelemetry -> words -> commands", fillcolor="#fff2cc"];
+    {rank=same; yamcs; openmct; pilot;}
+    ccsds -> yamcs [label="TM frames / TC (UDP)", dir=both];
+    yamcs -> openmct [label="WebSocket"];
+    yamcs -> pilot [label="parameter subscription\n(WebSocket)"];
+    pilot -> yamcs [label="CONTROL / SET_GOAL\ncommands (HTTP)"];
+  }
+
+  subgraph cluster_models {
+    label="Models"; style="rounded,filled"; fillcolor="#f8eef8"; color="#b57ab5"; fontsize=13;
+    jev     [label="System One: jev (TypeSafe)\nlive play, ~0.5 s per decision\n7 control heads + goal head", fillcolor="#ead1ea"];
+    sonnet  [label="System Two: Claude Sonnet 5\nafter-action review only\nrewrites the decision graph", fillcolor="#ead1ea"];
+    pilot -> jev [label="typed questions\n(Choice)", dir=both];
+    pilot -> sonnet [label="after-action report\n(per episode)", dir=both];
+  }
+}

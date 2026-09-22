@@ -1,120 +1,147 @@
 # DoomSat: playing Doom through a real mission stack
 
-Freedoom runs as a **payload** behind an **F´ (F Prime) flight computer**; telemetry and image
-products go down through **Yamcs** (via `fprime-yamcs`, whose XTCE mission database is generated
-from the F´ dictionary) and are displayed in the **Yamcs web UI** and **Open MCT**; a ground pilot
-plays the game by uplinking commands: **jev** (TypeSafe's System One model) answers the fast control
-questions, **Claude Sonnet 5** (System Two) sets goals from the telemetry and the downlinked frame,
-and code owns the loop.
+Doom runs as a **payload** behind an **F´ (F Prime) flight computer**. Telemetry and image products go
+down through **CCSDS frames** into **Yamcs** (via `fprime-yamcs`; the XTCE mission database is generated from
+the F´ dictionary) and are displayed in the **Yamcs web UI**, **Open MCT** and a small mission dashboard. A
+ground pilot plays the game by uplinking commands: **jev** (TypeSafe's System One model) answers the fast
+control questions every half second, and **Claude Sonnet 5** (System Two) reviews each episode afterwards and
+rewrites the decision graph jev plays with. Code owns the loop and never reads the level file.
 
-```
- WSL (Ubuntu 24.04)                                            Windows
- ┌─────────────────────┐ TCP 4242 ┌──────────────────────┐        ┌─────────────────────────────┐
- │ payload/            │<-------->│ F´ DoomSat (v4.3.0)  │  TCP   │ Open MCT (:9000)            │
- │ doom_payload.py     │ status,  │  Components/Doom     │ 50000  │   openmct-yamcs plugin      │
- │ ViZDoom + Freedoom  │ frames   │  CdhCore/ComCcsds/.. │<------>│ Yamcs web (:8090)           │
- │ range camera, labels│ controls │  CCSDS TM/TC frames  │        │ ground/pilot.py             │
- │ self-built map      │          └──────────────────────┘        │   jev  <- TypeSafe API      │
- └─────────────────────┘             ^  fprime-yamcs bridge -> Yamcs 5.12 (WSL, bundled JRE)      │
-                                     └──── commands (CONTROL, SET_GOAL, EXPLORE_HINT, ...) ─────┘
-```
+![Architecture](docs/diagrams/architecture.png)
 
-## What is proven (21 Sep 2026)
+## Data flow
+
+Every message, its type and its rate, from the game to the models and back:
+
+![Data flow](docs/diagrams/dataflow.png)
+
+The dashboard (`tools/serve_dashboard.py`, everything on it comes from Yamcs) during a live jev run:
+
+![Dashboard](docs/images/dashboard.png)
+
+## What the player side is allowed to see
+
+The rule for this demo: jev and code go in blind, like a person who knows how to play Doom but has never seen
+the level. Nothing from the WAD reaches the payload or the models.
+
+| Sense | What it stands in for | Source |
+|---|---|---|
+| Depth buffer (range camera) | where the walls are | ViZDoom depth buffer; calibrated: 7.16 map units per step, perpendicular distance |
+| Object labels | recognising monsters, pickups, keys, barrels | ViZDoom labels buffer (only things in view) |
+| In-game automap, *seen lines only* | the map a player sees on Tab | ZDoom automap in `NORMAL` mode: lines the player has looked at, in the engine's default categories (wall, floor step, ceiling change = door, locked door in its key colour, exit line); only the colours are changed so code can read them |
+| HUD variables | health, armor, ammo, position, heading | ViZDoom game variables |
+
+Not used: whole-map or "show objects" automap modes, the "show trigger lines" option, sector/line geometry
+from the game state, monster counts, item lists, warp cheats. `tools/wad_stats.py` reads WADs but only as a
+developer check for choosing levels and verifying results; the payload never imports it.
+
+The onboard navigator (`payload/doom_payload.py`) stamps the automap into a world raster, sweeps free floor with
+the range camera, and plans on a 32-unit grid: frontiers first, doors on the route are opened with Use, keys it
+has seen are fetched, an exit line it has seen becomes the destination, and when nothing is left to explore it
+tries walls and switches. Obstacles the automap does not draw (window bars, fake doors, barrels) are learned by
+pushing against them once. jev decides, every ~0.5 s, whether to advance, turn, sidestep, fire, press Use and
+which weapon, from words only; every number is bucketed before jev sees it.
+
+## What is proven
 
 - F´ dictionary -> XTCE -> Yamcs: 148 parameters / 54 commands load; every Doom channel decodes.
-- Image products: each JPEG frame (320x240, ~8 KB) is split onboard into 960-byte `FrameChunk`
-  telemetry records that bypass `Svc.TlmChan` sampling (they go straight into the com queue,
-  APID 1) and ride the CCSDS TM frames; the ground reassembles ~10 fps with <1% loss and stores
-  them in the Yamcs bucket `doomframes` (`/DoomGround/DoomFrame` carries the URL for Open MCT).
-- Uplink: CONTROL commands every ~300 ms; the F´ command dispatcher, the Doom component and the
-  payload all report them (events `OpCodeDispatched/Completed`, `GoalSet`, `ExploreHint`).
-- jev: 7 control heads per request, ~470 ms median including the Yamcs round trip.
-- Claude Sonnet 5 via the local `claude` CLI as the after-action reviewer: one tool-free schema call per
-  episode (~70 s, ~$0.25 with the CLI's context), returning the revised graph. The CLI is run with
-  `DISABLE_NON_ESSENTIAL_MODEL_CALLS=1` so it makes no Haiku helper calls; `--system-two anthropic` uses
-  the API directly with a key.
+- Image products: each JPEG frame (320x240, ~8 KB) is split onboard into 960-byte `FrameChunk` telemetry
+  records that bypass `Svc.TlmChan` sampling (straight into the com queue, APID 1) and ride the CCSDS TM frames;
+  the ground reassembles ~10 fps with <1% loss and publishes them to the Yamcs bucket `doomframes`
+  (`/DoomGround/DoomFrame` carries the URL for Open MCT and the dashboard).
+- Uplink: CONTROL commands every ~0.5 s; the F´ command dispatcher, the Doom component and the payload all
+  report them (events `OpCodeDispatched/Completed`, `GoalSet`, `LevelStarted`, `KeyPickedUp`).
+- jev: 7 control heads per request, ~450 ms median including the Yamcs round trip; every decision row in
+  `out/decisions.jsonl` carries the TypeSafe request id.
+- Claude Sonnet 5 via the `claude` CLI as the after-action reviewer: one tool-free schema call per episode,
+  returning the revised graph. The CLI runs with `DISABLE_NON_ESSENTIAL_MODEL_CALLS=1`, so no helper-model calls;
+  `--system-two anthropic` uses the API directly.
 
 Integration findings worth keeping:
-1. F´ `string` telemetry is serialized length-prefixed, but `fprime-xtce` emits a fixed-size
-   string type, so Yamcs rejects every packet carrying one (`TARGET_NAME` became an enum).
-2. Opaque byte arrays need the `!binary` annotation (`fprime-xtce` PR #8, installed from the
-   branch); the whole-struct form rejects array members, the array form works.
-3. `FW_COM_BUFFER_MAX_SIZE` must be raised (512 -> 1000) through a `CONFIGURATION_OVERRIDES`
-   config module (`flight/config`), not `settings.ini`'s `config_directory`.
-4. `Svc.LinuxTimer` must tick faster than 1 Hz or the `ComAggregator` holds the last chunk of a
-   frame until its timeout; the deployment runs a 20 Hz base clock.
+1. F´ `string` telemetry is serialized length-prefixed, but `fprime-xtce` emits a fixed-size string type, so
+   Yamcs rejects every packet carrying one (the string channel became an enum).
+2. Opaque byte arrays need the `!binary` annotation (`fprime-xtce` PR #8, installed from the branch); the
+   whole-struct form rejects array members, the array form works.
+3. `FW_COM_BUFFER_MAX_SIZE` must be raised (512 -> 1000) through a `CONFIGURATION_OVERRIDES` config module
+   (`flight/config`), not `settings.ini`'s `config_directory`.
+4. `Svc.LinuxTimer` must tick faster than 1 Hz or the `ComAggregator` holds the last chunk of a frame until its
+   timeout; the deployment runs a 20 Hz base clock.
+5. Yamcs delivers F´ booleans as the strings "True"/"False"; a Yamcs bucket holds at most 1000 objects (image
+   products are written into a ring of 20 names); the parameter WebSocket drops after a few minutes.
+6. The ViZDoom depth buffer is perpendicular (z) distance at 7.16 units per step, its value 0 is the sky, and the
+   crosshair is drawn into it; the automap draws the player arrow over the lines beneath it.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `flight/Components/Doom/` | F´ component: commands, telemetry, events, FrameChunk downlink (FPP + C++) |
+| `flight/Components/Doom/` | F´ component: commands, 44 telemetry channels, events, FrameChunk downlink (FPP + C++) |
 | `flight/DoomSat/Top/`, `flight/config/` | topology/instances/rate groups, com-buffer override (copied into the WSL project) |
-| `payload/doom_payload.py` | the game as an instrument: depth-buffer range camera, labels, self-built map, frontier exploration |
-| `ground/pilot.py` | the loop: Yamcs subscriptions, frame reassembly, jev control step, Claude plan step, commands |
-| `ground/decision_graph.py` | telemetry -> words, the seven control questions, answers -> CONTROL arguments |
+| `payload/doom_payload.py` | the game as an instrument: automap + range camera + labels, the onboard navigator, level progression |
+| `payload/selfplay.py`, `payload/nav_probe.py` | code-only drivers of the navigator (no models) for fast iteration |
+| `ground/pilot.py` | the loop: Yamcs subscriptions, frame reassembly, jev control step, after-action reviews, commands |
+| `ground/decision_graph.py`, `ground/graph_config.py` | telemetry -> words, the seven control heads + goal head, the graph as data (versioned in `ground/graph/`) |
+| `ground/after_action.py` | the episode report and the System Two review call |
 | `ground/providers.py` | System One: TypeSafe (jev) or any OpenAI-compatible endpoint; System Two: Claude CLI, Anthropic API or OpenAI-compatible |
-| `ground/yamcs/` | Yamcs config dir for `fprime-yamcs` plus the ground-side XTCE (`DoomGround`) |
-| `ground/openmct/` | Open MCT example config pointed at the `fprime-project` instance |
-| `scripts/` | `flight.sh start|stop|check|build|rebuild`, `start_openmct.sh`, `start_pilot.sh`, WSL helpers |
-| `tools/` | stack screenshots + grid, one-shot patch scripts |
+| `ground/yamcs/`, `ground/openmct/`, `ground/dashboard/` | Yamcs config + ground XTCE, Open MCT config, the mission dashboard page |
+| `docs/` | diagrams (Graphviz sources + renders), report (`doomsat-report.md/.tex/.pdf`), images |
+| `scripts/`, `tools/` | start/stop/build helpers (WSL), run report, screenshots/recording, developer probes |
 
 ## Running it
 
-Prerequisites already on this machine: WSL distro `ros2` with `/root/doom/doom-mission` (F´ v4.3.0
-bootstrap + `fprime-yamcs`), `/root/doom/payload-venv` (ViZDoom 1.3.0), `ground/.venv` (yamcs-client),
-`external/openmct-yamcs` with an Open MCT build, the `claude` CLI, and today's TypeSafe key in
-`ground/.env` (`TYPESAFE_API_KEY=...`).
+Prerequisites on this machine: WSL distro `ros2` with `/root/doom/doom-mission` (F´ v4.3.0 bootstrap +
+`fprime-yamcs`), `/root/doom/payload-venv` (ViZDoom 1.3.0), the shareware `doom1.wad` in `/root/doom/wads`
+(`tools/get_doom1.sh`; Freedoom is bundled with ViZDoom as a fallback: `WAD=freedoom2.wad MAP=MAP01`),
+`ground/.venv` (yamcs-client), `external/openmct-yamcs` with an Open MCT build, the `claude` CLI, and the day's
+TypeSafe key in `ground/.env` (`TYPESAFE_API_KEY=...`).
 
 ```
-scripts/flight.sh start          # WSL: payload + fprime-yamcs (Yamcs :8090) + DoomSat binary
-scripts/flight.sh check          # telemetry, frame chunks, events, links
-scripts/start_openmct.sh         # Open MCT on :9000 (proxies to Yamcs)
-scripts/start_pilot.sh --duration 300      # jev plays; Sonnet reviews after each episode; logs in out/
+scripts/flight.sh start                    # WSL: payload (E1M1) + fprime-yamcs (Yamcs :8090) + DoomSat binary
+scripts/flight.sh payload                  # restart only the game process (after editing the payload)
+scripts/flight.sh check                    # telemetry, frame chunks, events, links
+python tools/serve_dashboard.py            # mission dashboard on :8070 (proxies the Yamcs API)
+scripts/start_openmct.sh                   # Open MCT on :9000
+scripts/start_pilot.sh --duration 1500     # jev plays; Sonnet reviews after each episode; logs in out/
 scripts/start_pilot.sh --no-after-action   # jev + code only, graph frozen at ground/graph/graph_current.json
-python tools/run_report.py                 # what each layer did in the last run
+python tools/run_report.py                 # what each layer did in the last run (levels, decisions, reviews)
+node tools/dashboard_shot.mjs record out/recording 600   # 1080p recording of the dashboard (webm)
 scripts/start_pilot.sh --system-one openai --openai-base-url http://localhost:1234/v1 --system-one-model <local>
 ```
 
-After editing anything under `flight/`: `scripts/flight.sh build` (incremental) or `rebuild`.
+After editing anything under `flight/`: `scripts/flight.sh build` (incremental) or `rebuild`, then
+`scripts/flight.sh start`.
 
 ## Who decides what
 
 | Layer | Runs | Decides |
 |---|---|---|
-| Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, range-camera map, frontier route, target choice |
-| System One: jev | every ~0.6 s, live | the control heads (dodge, move, strafe, turn, fire, weapon, use) and, every few ticks, the goal (explore / fight / supplies / scout) |
+| Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, the map, the route, the target (exit line > key > goal item > frontier > walls to try), door/switch attempts |
+| System One: jev | every ~0.5 s, live | the control heads (dodge, move, strafe, turn, fire, weapon, use) and, every few ticks, the goal (explore / fight / supplies / scout) |
 | System Two: Claude Sonnet 5 | after an episode (death, level finished, run end) | reads the after-action report and revises the decision graph jev plays with next: question wording, criteria, thresholds, turn sizes, goal cadence, standing order |
 
-Nothing slower than jev sits in the live loop. The graph is data (`ground/graph_config.py`), every
-revision is validated by code (fixed option names, known placeholders, numeric ranges) and stored
-as `ground/graph/graph_v<N>.json` with Sonnet's rationale in `ground/graph/CHANGELOG.md`.
-`tools/run_report.py` prints what each layer did in a run.
-
-## Honest play
-
-The payload never reads the level file. It sees the depth buffer (calibrated as a range camera),
-the labels buffer (visible enemies and pickups, remembered once seen), and its own HUD variables.
-It builds an occupancy map from range sweeps and explores toward frontiers; the exit is found, not
-known. Claude can bias exploration with a steer hint after looking at a frame. jev decides the
-moment-to-moment controls from words only; every number is bucketed before it sees it.
+Nothing slower than jev sits in the live loop. The graph is data (`ground/graph_config.py`); every revision is
+validated by code (fixed option names, known placeholders, numeric ranges) and stored as
+`ground/graph/graph_v<N>.json` with Sonnet's rationale in `ground/graph/CHANGELOG.md`.
 
 ## Status
 
-Whole path works end to end and the split is as intended. Latest 6-minute run (graph v2 -> v3):
+See `docs/doomsat-report.md` for the run log and numbers of the latest campaign (shareware Doom E1M1 onward).
+`python tools/run_report.py` prints the current run.
 
-| | |
-|---|---|
-| jev decisions | 630 (1.75/s), median 460 ms incl. the Yamcs hop; command issue 48 ms |
-| player | explored x -224..672, y -304..240, ~37k units walked, stuck on 6 ticks of 630 |
-| System Two | 1 after-action review at run end, Sonnet only, 114 s, $0.34; graph v3 |
-| frames | ~10 fps, 1 incomplete |
+## Sources
 
-Open: the level exit has not been reached yet (the explorer still stalls at some walls; that is
-what the after-action reviews are now tuning), and Open MCT (built from master) loads and connects
-to Yamcs but headless Chrome will not paint it for screenshots.
+Frameworks and services used, with the versions in this repository:
 
-Things learned the hard way (all fixed): Yamcs delivers F´ booleans as the strings "True"/"False";
-the Yamcs WebSocket subscription drops after a few minutes; a held turn rate over-rotates with a
-0.6 s decision loop (turn is now an onboard heading setpoint, and the pilot compensates bearings for
-a turn still in flight); frame uploads must not share the command client's HTTP session.
+- NASA F´ flight software framework, v4.3.0: https://github.com/nasa/fprime
+- fprime-yamcs (Yamcs bridge and launcher for F´) 0.2.1 and fprime-xtce (dictionary -> XTCE, PR #8 branch for `!binary`): https://github.com/fprime-community/fprime-yamcs, https://github.com/FarkasJoseph/fprime-xtce/tree/feature/binary-annotation-combined
+- Yamcs mission control 5.12.8: https://github.com/yamcs/yamcs
+- NASA Open MCT (built from master): https://github.com/nasa/openmct
+- openmct-yamcs plugin: https://github.com/akhenry/openmct-yamcs
+- TypeSafe jev (System One) and the Python SDK: https://docs.typesafe.ai/introduction, https://docs.typesafe.ai/sdk/python/api
+- Claude Sonnet 5 through Claude Code (System Two): https://code.claude.com/docs
+- ViZDoom 1.3.0 (Doom engine bindings; ZDoom automap/depth/labels buffers): https://vizdoom.farama.org, https://github.com/Farama-Foundation/ViZDoom
+- Shareware Doom IWAD (`doom1.wad`, from the Debian `doom-wad-shareware` package) and Freedoom: https://freedoom.github.io
+- yamcs-client (Python) 2.1: https://github.com/yamcs/python-yamcs-client
+- System One demo that this decision graph descends from (its Doom demo reads the WAD; ours does not): https://github.com/sgoedecke/system-one
+- Prior LLM-plays-Doom work for comparison: https://adriandewynter.substack.com/p/will-gpt-4-and-5-run-doom
+- Graphviz (diagrams), Playwright + Chrome (screenshots, recording), tectonic (PDF report)

@@ -51,9 +51,14 @@ def summarise(rows, episode_rows, outcome, cfg):
         s = r.get("seen", {})
         last.append(f"hp={r.get('health')} goal={r.get('goal')} aim={s.get('aim_offset')} ahead={s.get('space_ahead')} "
                     f"stuck={s.get('stuck')} enemy={s.get('enemy_where', '-')[:30]} -> " + " ".join(f"{k}={v}" for k, v in r["answers"].items()))
+    modes = Counter(str(r.get("NAV_MODE")) for r in raw if r.get("NAV_MODE") is not None)
     return {
         "graph_version": cfg.get("version"),
         "outcome": outcome,
+        "level": max((r.get("LEVEL", 0) or 0) for r in raw) if raw else None,
+        "navigator_modes_ticks": dict(modes.most_common()),
+        "doors_seen": max((r.get("DOORS_KNOWN", 0) or 0) for r in raw) if raw else None,
+        "keys_held_at_end": (raw[-1].get("KEYS") if raw else None),
         "duration_s": round(span),
         "decisions": len(ctrl),
         "kills": max((r.get("kills", 0) or 0) for r in ctrl) if any("kills" in r for r in ctrl) else None,

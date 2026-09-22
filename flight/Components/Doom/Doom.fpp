@@ -22,6 +22,21 @@ module DoomMission {
         WEAPON = 5
         FAR_FRONTIER = 6
         NONE = 7
+        KEY = 8            @< A key card seen earlier
+        SWITCH = 9         @< A wall or switch to try with Use
+        EXIT = 10          @< An exit line seen on the automap
+    }
+
+    @ What the onboard navigator is doing
+    enum NavMode : U8 {
+        EXPLORE = 0        @< Heading for an unexplored frontier
+        DOOR = 1           @< At a door on the route, pressing Use
+        KEY = 2            @< Fetching a key seen earlier
+        HUNT = 3           @< Nothing left to explore: trying walls and switches
+        IDLE = 4           @< Nothing to head for
+        ITEM = 5           @< Fetching a pickup for the ground's goal
+        ENEMY = 6          @< Closing on an enemy
+        EXIT = 7           @< Heading for an exit line seen on the automap
     }
 
     @ Weapon the player currently holds
@@ -133,6 +148,11 @@ module DoomMission {
         telemetry FRAME_CHUNK: FrameChunk id 36
         telemetry EXPLORED_CELLS: U16 id 37 @< cells of the self-built map the player has stood in
         telemetry FRONTIERS: U16 id 38 @< known-free cells bordering the unexplored
+        telemetry LEVEL: U8 id 39 @< levels started so far (1 = the first map)
+        telemetry KEYS: U8 id 40 @< keys held, bitmask red=1 blue=2 yellow=4
+        telemetry NAV_MODE: NavMode id 41
+        telemetry DOORS_KNOWN: U16 id 42 @< door edges seen on the automap
+        telemetry HUNT_LEFT: U16 id 43 @< walls still to try when hunting for a switch
 
         # ----------------------------------------------------------------------
         # Events
@@ -147,6 +167,8 @@ module DoomMission {
         event ExploreHint(bearing: I16, ttl: U8) severity activity low id 8 format "Exploration hint {} degrees for {} s"
         event FrameTooLarge(bytes: U32) severity warning low id 6 format "Frame of {} bytes exceeds the chunk budget; dropped"
         event BadPayloadMessage(kind: U8) severity warning low id 7 format "Unknown payload message kind {}"
+        event LevelStarted(level: U8) severity activity high id 9 format "Now playing level {}"
+        event KeyPickedUp(keys: U8) severity activity high id 10 format "Keys held (bitmask red=1 blue=2 yellow=4): {}"
 
         # ----------------------------------------------------------------------
         # Standard ports

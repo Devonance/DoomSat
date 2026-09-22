@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DoomSat mission dashboard</title>
+<style>
+  :root { --bg:#0f1218; --panel:#171c26; --line:#2a3242; --fg:#e6e9ef; --dim:#8b95a7; --acc:#7cc4ff; --warn:#ffb454; --bad:#ff6b6b; --ok:#7ee081; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font: 15px/1.35 "Segoe UI", Helvetica, Arial, sans-serif; width:1920px; height:1080px; overflow:hidden; }
+  header { height:64px; display:flex; align-items:center; gap:24px; padding:0 24px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { font-size:20px; margin:0; font-weight:600; letter-spacing:.3px; }
+  header .chain { color:var(--dim); font-size:14px; }
+  header .level { margin-left:auto; font-size:22px; font-weight:700; color:var(--acc); }
+  header .level small { color:var(--dim); font-weight:400; font-size:14px; margin-left:10px; }
+  main { display:grid; grid-template-columns: 960px 1fr; grid-template-rows: 1fr 300px; gap:14px; padding:14px 24px; height:1016px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; overflow:hidden; }
+  .panel h2 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); font-weight:600; }
+  #view { position:relative; }
+  #frame { width:932px; height:699px; image-rendering:auto; background:#000; border-radius:6px; display:block; }
+  #frameinfo { position:absolute; left:26px; bottom:22px; background:rgba(0,0,0,.55); padding:4px 8px; border-radius:4px; font-size:12px; color:#ccc; }
+  #right { display:grid; grid-template-rows: auto auto 1fr; gap:14px; }
+  table { border-collapse:collapse; width:100%; }
+  td { padding:3px 6px; border-bottom:1px solid #202737; font-variant-numeric: tabular-nums; }
+  td.k { color:var(--dim); width:46%; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
+  .big { font-size:26px; font-weight:700; }
+  .ok { color:var(--ok);} .warn { color:var(--warn);} .bad { color:var(--bad);} .acc { color:var(--acc);}
+  #controls { font-family: Consolas, "Courier New", monospace; font-size:14px; line-height:1.5; white-space:pre-wrap; }
+  #plan { font-size:13px; color:#cfd6e2; white-space:pre-wrap; max-height:150px; overflow:hidden; }
+  #bottom { grid-column: 1 / span 2; display:grid; grid-template-columns: 1fr 1fr 420px; gap:14px; }
+  #events, #cmds { font-family: Consolas, "Courier New", monospace; font-size:12.5px; line-height:1.45; white-space:pre; overflow:hidden; }
+  #map { height:250px; display:block; margin:auto; image-rendering:pixelated; }
+  .bar { height:10px; background:#222a38; border-radius:5px; overflow:hidden; margin-top:3px; }
+  .bar > div { height:100%; background:var(--ok); }
+</style>
+</head>
+<body>
+<header>
+  <h1>DoomSat</h1>
+  <span class="chain">Doom (payload) &rarr; F&acute; flight software &rarr; CCSDS &rarr; Yamcs &rarr; ground pilot &rarr; jev (System One) / Claude Sonnet 5 (System Two)</span>
+  <span class="level" id="level">level &ndash;<small id="episode"></small></span>
+</header>
+<main>
+  <section class="panel" id="view">
+    <h2>Image product: FRAME_CHUNK records reassembled on the ground (JPEG 320&times;240 via 960-byte telemetry records)</h2>
+    <img id="frame" alt="game frame">
+    <div id="frameinfo">frame &ndash;</div>
+  </section>
+  <div id="right">
+    <section class="panel">
+      <h2>Telemetry (Yamcs realtime processor, XTCE from the F&acute; dictionary)</h2>
+      <div class="grid2">
+        <table><tbody>
+          <tr><td class="k">Health</td><td><span id="HEALTH" class="big"></span><div class="bar"><div id="hpbar"></div></div></td></tr>
+          <tr><td class="k">Armor</td><td id="ARMOR"></td></tr>
+          <tr><td class="k">Weapon / shells / bullets</td><td><span id="WEAPON"></span> / <span id="SHELLS"></span> / <span id="BULLETS"></span></td></tr>
+          <tr><td class="k">Kills</td><td id="KILLS"></td></tr>
+          <tr><td class="k">Enemies in view</td><td><span id="ENEMY_COUNT"></span> <span id="ENEMY_DIST" class="warn"></span></td></tr>
+          <tr><td class="k">Keys held</td><td id="KEYS"></td></tr>
+          <tr><td class="k">Position / heading</td><td><span id="POS"></span> / <span id="ANGLE"></span>&deg;</td></tr>
+        </tbody></table>
+        <table><tbody>
+          <tr><td class="k">Navigator</td><td id="NAV_MODE" class="acc"></td></tr>
+          <tr><td class="k">Target</td><td><span id="TARGET_KIND"></span> <span id="TARGET_DIST" class="dim"></span></td></tr>
+          <tr><td class="k">Route bearing / space ahead</td><td><span id="ROUTE_BEARING"></span>&deg; / <span id="CLEAR_FWD"></span> u</td></tr>
+          <tr><td class="k">Frontiers / doors seen</td><td><span id="FRONTIERS"></span> / <span id="DOORS_KNOWN"></span></td></tr>
+          <tr><td class="k">Stuck / use ahead</td><td><span id="STUCK"></span> / <span id="DOOR_AHEAD"></span></td></tr>
+          <tr><td class="k">Goal (set by jev)</td><td id="GOAL"></td></tr>
+          <tr><td class="k">Game tic / frames sent</td><td><span id="TIC"></span> / <span id="FRAMES_SENT"></span></td></tr>
+        </tbody></table>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>System One: jev (TypeSafe) &mdash; live decisions every ~0.5 s <span id="s1lat" style="float:right"></span></h2>
+      <div id="controls">&ndash;</div>
+    </section>
+    <section class="panel">
+      <h2>System Two: Claude Sonnet 5 &mdash; after-action review, revises the decision graph <span id="s2lat" style="float:right"></span></h2>
+      <div id="plan">&ndash;</div>
+    </section>
+  </div>
+  <div id="bottom">
+    <section class="panel"><h2>F&acute; events (Yamcs event archive)</h2><div id="events"></div></section>
+    <section class="panel"><h2>Commands (Yamcs command archive)</h2><div id="cmds"></div></section>
+    <section class="panel"><h2>Onboard map the navigator built (payload diagnostic image)</h2><img id="map" alt="onboard map"></section>
+  </div>
+</main>
+<script>
+const SS = "/DoomSat_DoomSat/DoomSat/doom/", G = "/DoomGround/";
+const TLM = ["HEALTH","ARMOR","SHELLS","BULLETS","WEAPON","KILLS","POS_X","POS_Y","ANGLE","ENEMY_COUNT","ENEMY_DIST","CLEAR_FWD",
+  "ROUTE_BEARING","TARGET_KIND","TARGET_DIST","STUCK","DOOR_AHEAD","GOAL","TIC","EPISODE","LEVEL","KEYS","NAV_MODE","DOORS_KNOWN",
+  "HUNT_LEFT","FRONTIERS","FRAMES_SENT"];
+const GND = ["DoomFrame","FrameSeq","FramesComplete","FramesIncomplete","SystemOneLatencyMs","ControlCommands","Controls","Plan","SystemTwoLatencyMs"];
+const MODE = {EXPLORE:"exploring toward a frontier", DOOR:"at a door, pressing Use", KEY:"fetching a key", HUNT:"trying walls and switches",
+  IDLE:"nothing to head for", ITEM:"fetching a pickup", ENEMY:"closing on an enemy", EXIT:"heading for the exit line"};
+const $ = id => document.getElementById(id);
+function val(pv) { const e = pv.engValue || {}; for (const k of Object.keys(e)) if (k.endsWith("Value")) return e[k]; return null; }
+let lastFrame = "";
+async function poll() {
+  try {
+    const body = {id: [...TLM.map(n => ({name: SS + n})), ...GND.map(n => ({name: G + n}))]};
+    const r = await fetch("/api/processors/fprime-project/realtime/parameters:batchGet", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const j = await r.json();
+    const v = {};
+    for (const pv of (j.value || [])) v[pv.id.name.split("/").pop()] = val(pv);
+    for (const n of TLM) if ($(n) && v[n] !== undefined) $(n).textContent = typeof v[n] === "number" ? (Number.isInteger(v[n]) ? v[n] : v[n].toFixed(1)) : String(v[n]);
+    const hp = Number(v.HEALTH || 0);
+    $("HEALTH").className = "big " + (hp > 60 ? "ok" : hp > 30 ? "warn" : "bad");
+    $("hpbar").style.width = Math.max(0, Math.min(100, hp)) + "%";
+    $("POS").textContent = v.POS_X !== undefined ? `${Math.round(v.POS_X)}, ${Math.round(v.POS_Y)}` : "";
+    $("NAV_MODE").textContent = (v.NAV_MODE || "") + (MODE[v.NAV_MODE] ? " - " + MODE[v.NAV_MODE] : "") + (v.NAV_MODE === "HUNT" ? ` (${v.HUNT_LEFT} walls left)` : "");
+    $("TARGET_DIST").textContent = v.TARGET_DIST ? `${v.TARGET_DIST} u away` : "";
+    const keys = Number(v.KEYS || 0); $("KEYS").textContent = keys ? [keys & 1 && "red", keys & 2 && "blue", keys & 4 && "yellow"].filter(Boolean).join(", ") : "none";
+    $("ENEMY_DIST").textContent = Number(v.ENEMY_COUNT) ? `nearest ${v.ENEMY_DIST} u` : "";
+    $("level").firstChild.textContent = `level ${v.LEVEL ?? "-"}`;
+    $("episode").textContent = `episode ${v.EPISODE ?? "-"}  |  ${v.STUCK === "True" ? "STUCK" : ""}`;
+    $("s1lat").textContent = v.SystemOneLatencyMs ? `${Math.round(v.SystemOneLatencyMs)} ms per decision, ${v.ControlCommands} commands` : "";
+    $("controls").textContent = v.Controls ? String(v.Controls).replace(/ (?=\w+=)/g, "\n") : "-";
+    $("plan").textContent = v.Plan || "no review yet (first episode)";
+    $("s2lat").textContent = v.SystemTwoLatencyMs ? `${(v.SystemTwoLatencyMs / 1000).toFixed(0)} s review` : "";
+    if (v.DoomFrame && v.DoomFrame !== lastFrame) { lastFrame = v.DoomFrame; $("frame").src = v.DoomFrame.replace(/^https?:\/\/[^/]+/, ""); }
+    $("frameinfo").textContent = `frame ${v.FrameSeq ?? "-"}  complete ${v.FramesComplete ?? "-"}  lost ${v.FramesIncomplete ?? "-"}`;
+  } catch (e) { console.log(e); }
+}
+async function pollArchive() {
+  try {
+    const ev = await (await fetch("/api/archive/fprime-project/events?limit=40&order=desc")).json();
+    const lines = (ev.event || []).filter(e => e.source !== "FprimePacketPreprocessor").slice(0, 9)
+      .map(e => `${e.generationTime.substr(11, 8)} ${(e.severity || "").padEnd(8)} ${e.message}`);
+    $("events").textContent = lines.join("\n");
+    const cm = await (await fetch("/api/archive/fprime-project/commands?limit=9&order=desc")).json();
+    $("cmds").textContent = (cm.entry || []).map(c => {
+      const args = (c.assignments || []).filter(a => a.userInput).map(a => `${a.name}=${val({engValue: a.value})}`).join(" ");
+      return `${new Date(Number(c.commandId.generationTime)).toISOString().substr(11, 8)} ${c.commandId.commandName.split("/").pop().padEnd(9)} ${args}`;
+    }).join("\n");
+    $("map").src = "/out/payload_map.png?" + Date.now();
+  } catch (e) { console.log(e); }
+}
+setInterval(poll, 250); setInterval(pollArchive, 1000); poll(); pollArchive();
+</script>
+</body>
+</html>

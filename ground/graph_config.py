@@ -27,10 +27,10 @@ DEFAULT = {
                 "Dodge right": "Threat is danger, left is not clear, space right is clear.",
                 "Dodge back": "Threat is danger, sides not clear, space behind is clear."}},
         "move": {
-            "question": "Advance now? Route aligned ahead: {aligned}. Space ahead: {ahead}. Stuck: {stuck}. Space behind: {behind}.",
+            "question": "Advance now? Route aligned ahead: {aligned}. Space ahead: {ahead}. Stuck: {stuck}. Space behind: {behind}. Navigator: {mode}.",
             "criteria": {
-                "Forward": "Route aligned ahead is yes and space ahead is clear or tight. Also forward to close on a distant enemy.",
-                "Hold": "Route aligned ahead is no (turn first), or space ahead is blocked, or the destination is here, or stuck with nothing known clear around (turn instead).",
+                "Forward": "Route aligned ahead is yes and space ahead is clear or tight. Also forward to close on a distant enemy, and forward when at a door (walk up to it while it opens).",
+                "Hold": "Route aligned ahead is no (turn first), or space ahead is blocked and not at a door, or the destination is here, or stuck with nothing known clear around (turn instead).",
                 "Backward": "Stuck is yes and space behind is clear."}},
         "strafe": {
             "question": "Recovery sidestep? Stuck: yes. Space left: {left}, right: {right}.",
@@ -57,18 +57,18 @@ DEFAULT = {
                 "Pistol": "Shotgun shells are zero and pistol bullets remain.",
                 "Shotgun": "Owns a shotgun with shells and the pistol is equipped."}},
         "use": {
-            "question": "Press use (open a door, flip a switch)? Route blocked at arm length: {blocked_route}. Stuck: {stuck}. Walls in this game are often doors.",
+            "question": "Press use (open a door, flip a switch, try a wall)? Navigator: {mode}. Route blocked at arm length: {blocked_route}. Stuck: {stuck}.",
             "criteria": {
-                "Use": "Route blocked at arm length is yes, or stuck is yes: try the door or switch.",
-                "Wait": "Neither: nothing to operate."}},
+                "Use": "Route blocked at arm length is yes, or stuck is yes, or the navigator is at a door, at the exit line, or trying walls: press it.",
+                "Wait": "Nothing within reach to operate."}},
         "goal": {
-            "question": "Immediate priority? Health: {health}. Threat: {threat} ({enemy_where}). Ammunition: {ammo}. Armor: {armor}. Nearby pickups: health {health_pickup}, ammo {ammo_pickup}, armor {armor_pickup}. Unexplored frontiers: {frontiers}.",
+            "question": "Immediate priority? Level {level}. Health: {health}. Threat: {threat} ({enemy_where}). Ammunition: {ammo}. Armor: {armor}. Nearby pickups: health {health_pickup}, ammo {ammo_pickup}, armor {armor_pickup}. Unexplored frontiers: {frontiers}. Navigator: {mode}.",
             "criteria": {
                 "Kill enemies": "An enemy is visible at close or mid range, health is not critical and ammunition is ready.",
                 "Restore health": "Health is critical, or low with a health pickup seen and no close enemy.",
                 "Stock ammo": "Ammunition is empty or scarce and an ammo pickup was seen.",
                 "Add armor": "Armor is none, an armor pickup was seen, health fine, no close enemy.",
-                "Explore": "No close enemy, health fine, ammunition ready: keep exploring toward the nearest frontier to find the exit.",
+                "Explore": "No close enemy, health fine, ammunition ready: keep exploring toward the nearest frontier to find the exit. Also Explore whenever the navigator is at a door, fetching a key, heading for the exit or trying walls: let it finish.",
                 "Scout": "The nearest frontier is exhausted or the player keeps getting stuck: head for a far unexplored part of the map.",
                 "Upgrade weapon": "No shotgun owned, a weapon was seen, no close enemy."}},
     },
@@ -77,7 +77,8 @@ DEFAULT = {
 # Placeholders each question may use (System Two must keep at least the ones it needs; code renders with format_map).
 FACT_KEYS = ["threat", "enemy_where", "left", "right", "behind", "ahead", "aligned", "stuck", "blocked_route", "aim_target",
              "aim", "in_crosshair", "equipped_ammo", "equipped", "shells", "bullets", "owns_shotgun", "health", "ammo",
-             "armor", "destination", "dest_dist", "health_pickup", "ammo_pickup", "armor_pickup", "frontiers", "explored"]
+             "armor", "destination", "dest_dist", "health_pickup", "ammo_pickup", "armor_pickup", "frontiers", "explored",
+             "mode", "level", "keys"]
 
 THRESHOLD_RANGES = {"aligned_deg": (10, 80), "crosshair_deg": (3, 20), "fire_range": (100, 1200), "danger_dist": (60, 500),
                     "blocked_units": (20, 120), "tight_units": (40, 200), "health_critical": (10, 60), "health_low": (20, 80)}

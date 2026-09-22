@@ -13,7 +13,17 @@ GOAL_FROM_CHOICE = {"Kill enemies": "KILL_ENEMY", "Restore health": "RESTORE_HEA
                     "Add armor": "ADD_ARMOR", "Explore": "EXPLORE", "Scout": "SCOUT", "Upgrade weapon": "UPGRADE_WEAPON"}
 DESTINATION = {"FRONTIER": "the nearest unexplored edge of the map", "FAR_FRONTIER": "a far unexplored part of the map",
                "ENEMY": "the enemy", "HEALTH": "a health pickup seen earlier", "AMMO": "an ammo pickup seen earlier",
-               "ARMOR": "an armor pickup seen earlier", "WEAPON": "a weapon seen earlier", "NONE": "nowhere yet"}
+               "ARMOR": "an armor pickup seen earlier", "WEAPON": "a weapon seen earlier", "NONE": "nowhere yet",
+               "KEY": "a key card seen earlier", "SWITCH": "a wall or switch to try", "EXIT": "the exit line seen on the map"}
+MODE = {"EXPLORE": "exploring toward the nearest unexplored frontier", "DOOR": "at a door on the route, it needs Use",
+        "KEY": "going to pick up a key seen earlier", "HUNT": "nothing left to explore, trying walls and switches to find the exit",
+        "IDLE": "nothing known to head for", "ITEM": "going to a pickup", "ENEMY": "closing on an enemy",
+        "EXIT": "heading for the exit line seen on the map"}
+
+
+def keys_words(bits):
+    held = [name for bit, name in ((1, "red"), (2, "blue"), (4, "yellow")) if int(bits or 0) & bit]
+    return " and ".join(held) if held else "none"
 
 
 def choice(question, criteria):
@@ -75,6 +85,9 @@ def facts(t, goal, cfg):
         "dest_dist": dist_words(t.get("TARGET_DIST", 0)) if t.get("TARGET_DIST", 0) else "here",
         "health_pickup": pick("HEALTH_ITEM_DIST"), "ammo_pickup": pick("AMMO_ITEM_DIST"), "armor_pickup": pick("ARMOR_ITEM_DIST"),
         "frontiers": "none" if t.get("FRONTIERS", 0) == 0 else "few" if t.get("FRONTIERS", 0) < 10 else "many",
+        "mode": MODE.get(str(t.get("NAV_MODE", "EXPLORE")), "exploring"),
+        "level": str(t.get("LEVEL", 1)),
+        "keys": keys_words(t.get("KEYS", 0)),
         "explored": "few" if t.get("EXPLORED_CELLS", 0) < 40 else "some" if t.get("EXPLORED_CELLS", 0) < 150 else "many",
     }
     for k in ("in_crosshair", "aligned", "stuck", "blocked_route"):
@@ -94,7 +107,8 @@ def build_state(t, goal, cfg):
         "navigation": {"destination": f["destination"], "destination_distance": f["dest_dist"], "route_aligned_ahead": f["aligned"],
                        "aim_target": f["aim_target"], "aim_offset": f["aim"], "space_ahead": f["ahead"], "space_left": f["left"],
                        "space_right": f["right"], "space_behind": f["behind"], "stuck": f["stuck"],
-                       "blocked_where_the_route_goes": f["blocked_route"], "map_explored_cells": f["explored"], "unexplored_frontiers": f["frontiers"]},
+                       "blocked_where_the_route_goes": f["blocked_route"], "map_explored_cells": f["explored"], "unexplored_frontiers": f["frontiers"],
+                       "navigator": f["mode"], "level": f["level"], "keys_held": f["keys"]},
         "supplies_seen": {"health_pickup": f["health_pickup"], "ammo_pickup": f["ammo_pickup"], "armor_pickup": f["armor_pickup"]},
     }
 

@@ -33,9 +33,11 @@ STATUS_CHANNELS = ["HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGU
                    "ENEMY_COUNT", "ENEMY_BEARING", "ENEMY_DIST", "CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK",
                    "ROUTE_BEARING", "ROUTE_DIST", "TARGET_DIST", "TARGET_KIND", "STUCK", "DOOR_AHEAD", "GOAL",
                    "HEALTH_ITEM_DIST", "AMMO_ITEM_DIST", "ARMOR_ITEM_DIST", "TIC", "EPISODE", "DEAD", "LEVEL_DONE",
-                   "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED", "EXPLORED_CELLS", "FRONTIERS"]
+                   "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED", "EXPLORED_CELLS", "FRONTIERS",
+                   "LEVEL", "KEYS", "NAV_MODE", "DOORS_KNOWN", "HUNT_LEFT"]
 CHUNK_HEADER = struct.Struct("!IHHH")  # seq, index, count, length (then 960 data bytes)
-RAW_KEYS = ("ROUTE_BEARING", "CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "EXPLORED_CELLS")
+RAW_KEYS = ("ROUTE_BEARING", "CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "EXPLORED_CELLS",
+            "LEVEL", "NAV_MODE", "KEYS", "DOORS_KNOWN", "HUNT_LEFT")
 
 
 class FrameAssembler:
@@ -106,6 +108,7 @@ class Pilot:
         self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
         self.rows = []                 # this run's decision rows (for after-action)
         self.episode = None
+        self.level = None
         self.episode_start_row = 0
         self.episode_outcome = None    # "died" / "level finished" seen in telemetry
         self.review_busy = False
@@ -114,11 +117,20 @@ class Pilot:
     # ------------------------------------------------------------ Yamcs plumbing
     def _ensure_bucket(self):
         storage = self.pub_client.get_storage_client()
+        bucket = None
         for b in storage.list_buckets():
             if b.name == "doomframes":
-                return b
-        storage.create_bucket("doomframes")
-        return storage.get_bucket("doomframes")
+                bucket = b
+        if bucket is None:
+            storage.create_bucket("doomframes")
+            bucket = storage.get_bucket("doomframes")
+        # Yamcs caps a bucket at 1000 objects: start clean so uploads never fail on leftovers from earlier runs
+        try:
+            for o in list(bucket.list_objects().objects):
+                bucket.delete_object(o.name)
+        except Exception as e:
+            print(f"[pilot] bucket cleanup failed: {e}", file=sys.stderr)
+        return bucket
 
     def subscribe(self):
         names = [f"{SPACE_SYSTEM}/{c}" for c in STATUS_CHANNELS + ["FRAME_CHUNK"]]
@@ -163,19 +175,15 @@ class Pilot:
         if time.time() - self.last_publish < 0.5:
             return
         self.last_publish = time.time()
-        name = f"frame-{seq:06d}.jpg"
+        name = f"frame-{seq % 20:02d}.jpg"   # a ring of 20 objects: the bucket never fills, nothing to delete
         try:
             with open(path, "rb") as f:
                 self.bucket.upload_object(name, f)
-            url = f"{self.args.yamcs_public}/api/buckets/{self.instance}/doomframes/objects/{name}"
+            url = f"{self.args.yamcs_public}/api/buckets/{self.instance}/doomframes/objects/{name}?s={seq}"
             self.set_ground({"DoomFrame": url, "FrameSeq": seq, "FramesComplete": self.frames.complete,
                              "FramesIncomplete": self.frames.incomplete})
             if seq > 40:
-                try:
-                    self.bucket.delete_object(f"frame-{seq - 40:06d}.jpg")
-                    (self.frames.out_dir / f"frame-{seq - 40:06d}.jpg").unlink(missing_ok=True)
-                except Exception:
-                    pass
+                (self.frames.out_dir / f"frame-{seq - 40:06d}.jpg").unlink(missing_ok=True)
         except Exception as e:
             print(f"[pilot] frame publish failed: {e}", file=sys.stderr)
 
@@ -295,6 +303,12 @@ class Pilot:
                     self.episode_boundary()
                 self.episode = ep
                 self.goal = "EXPLORE"
+            lv = self.telemetry.get("LEVEL")
+            if lv is not None and lv != self.level:
+                if self.level is not None:
+                    print(f"[pilot] *** LEVEL {self.level} FINISHED -> level {lv} ***", flush=True)
+                    self.log.write(json.dumps({"t": time.time(), "kind": "level", "finished": self.level, "started": lv, "controls": self.control_count}) + "\n")
+                self.level = lv
             try:
                 row = self.control_step(n)
             except Exception as e:
