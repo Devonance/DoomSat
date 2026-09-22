@@ -12,15 +12,23 @@ what to try.
 > settle. The sections below are the state before that pass, kept because the reasons in them are still the
 > reasons; where a lead has been taken, it is marked.
 >
-> **The one thing to pick up first.** The new graph was flown for 150 s and walked *worse* than the old one
-> (0.32 spin windows per decision against 0.07, 25 cells against 29). The cause is measured and it is not the
-> model: where the state was byte-identical, jev's scores moved 0.01 rubric levels. Between consecutive
-> half-second decisions **3.4 of 8 sectors change their `space` word and 3.0 change their `ground` word**, and
-> the median sector keeps its `ground` word for a single tick. The pilot commits to a direction on evidence
-> that is re-rolled every tick. Fix the jitter where it is — hold a sector's word until the underlying reading
-> has moved by more than its band's width, in `payload/doom_payload.py` or in `NavMemory` — then re-run
-> `python tools/replay.py --pilots code,jev --passes 3` and the 150 s comparison. That is item 1 of the honest
-> list below, with a number on it at last.
+> **Two things to pick up first.**
+>
+> 1. **Restart the payload between comparison runs.** It keeps the level map *and its barrier marks* across
+>    `RESET_GAME`; only `scripts/flight.sh payload` clears them. Every run that skipped this started on a
+>    map the payload already believed was walled in (`EXPLORED_CELLS` 662 at the start, against 1 for a
+>    fresh one) and looked far worse than it was. This confounded a whole afternoon of measurement.
+> 2. **The remaining state churn is in the payload.** Two fifths of what looked like churn was the
+>    egocentric labels sliding under the readings (fixed on the ground: sector words are held against the
+>    ray's world bearing and a better reading has to be confirmed over `confirm_ticks`). Bin edges were
+>    ~3%. What is left is the payload genuinely re-sensing the same world direction differently — **the map
+>    ray and the range camera disagree by 150 units or more on 32% of ticks**, and `ahead` takes the worse
+>    of the two. Sensing the eight sectors on fixed compass bearings in `payload/doom_payload.py`, rather
+>    than at 45 degree offsets from the heading, would remove the rest at the source.
+>
+> Measure churn with `python tools/churn_check.py <log>` before and after; compare runs with
+> `python tools/compare_runs.py`, which slices both into matched windows and reports a rank comparison
+> rather than a single number.
 
 ## The goal
 

@@ -261,13 +261,16 @@ class Pilot:
 
         mem = self.nav_memory
         mem.step()
+        mem.note_position((t.get("POS_X"), t.get("POS_Y")) if t.get("POS_X") is not None else None,
+                          window=cfg["select"]["idle_ticks"])
         state = dg.build_state(t, self.goal, cfg, mem)
         mode = dg.next_mode(state, t, mem, cfg)
         state["here"]["mode"] = mode.lower()
         self.mode = mode
         offered = dg.offered_sectors(state)
         ask_goal = cfg["goal_every"] and n % cfg["goal_every"] == 0
-        questions = dg.questions_for(state, cfg, mode, ask_goal=ask_goal, offered=offered)
+        questions = dg.questions_for(state, cfg, mode, ask_goal=ask_goal, offered=offered,
+                                     threat=dg.threatened(state, t, cfg))
         answers, reply = {}, {"latency_ms": 0}
         sent = dg.state_for(state, questions)  # only the blocks this tick's heads inspect
         if questions:
@@ -436,14 +439,23 @@ class Pilot:
             print(f"[pilot] after-action review ({report['outcome']}, {report['decisions']} decisions, graph v{self.cfg.get('version')})...", flush=True)
             new_cfg, rationale, issues, meta = after_action.review(self.system_two, report, self.cfg)
             changes = gc.diff(self.cfg, new_cfg)
-            new_cfg = gc.save(new_cfg, rationale, issues, meta.get("model"))
-            self.cfg = new_cfg
-            row = {"t": time.time(), "kind": "after_action", "outcome": report["outcome"], "graph_version": new_cfg["version"],
+            if self.args.auto_apply_graph:
+                new_cfg = gc.save(new_cfg, rationale, issues, meta.get("model"))
+                self.cfg = new_cfg
+                where = "graph v%d (applied)" % new_cfg["version"]
+            else:
+                # One episode is one sample. The revision waits for tools/promote_graph.py, which replays
+                # it against the states this run logged before it is allowed to fly.
+                path = gc.save_candidate(new_cfg, rationale, issues, meta.get("model"), report)
+                where = "candidate %s (not applied; promote with tools/promote_graph.py)" % path.name
+                meta["candidate"] = str(path)
+            row = {"t": time.time(), "kind": "after_action", "outcome": report["outcome"],
+                   "graph_version": self.cfg["version"], "applied": bool(self.args.auto_apply_graph),
                    "rationale": rationale, "issues": issues, "changes": changes, "report": report, **meta}
             self.log.write(json.dumps(row) + "\n")
             self.rows.append(row)
-            self.set_ground({"Plan": f"graph v{new_cfg['version']}: {rationale}"[:900], "SystemTwoLatencyMs": float(meta["latency_ms"])})
-            print(f"[pilot] graph v{new_cfg['version']} ({meta.get('model')}, {meta['latency_ms']} ms): {rationale}", flush=True)
+            self.set_ground({"Plan": f"{where}: {rationale}"[:900], "SystemTwoLatencyMs": float(meta["latency_ms"])})
+            print(f"[pilot] {where} ({meta.get('model')}, {meta['latency_ms']} ms): {rationale}", flush=True)
             for c in changes:
                 print(f"         - {c}", flush=True)
         except Exception as e:
@@ -521,6 +533,9 @@ def main():
     p.add_argument("--period", type=float, default=0.25, help="seconds between control decisions (lower bound)")
     p.add_argument("--bump-every", type=float, default=60.0, help="seconds between System Two progress checks (0 = never)")
     p.add_argument("--level-budget", type=float, default=180.0, help="seconds per level attempt before a reset and a review (0 = none)")
+    p.add_argument("--auto-apply-graph", action="store_true",
+                   help="make System Two's revision current immediately instead of saving it as a candidate "
+                        "for tools/promote_graph.py (one episode is one sample; off by default)")
     p.add_argument("--log-questions", action="store_true", help="log the full question set on every row (large)")
     p.add_argument("--fps", type=int, default=10)
     p.add_argument("--quality", type=int, default=45)

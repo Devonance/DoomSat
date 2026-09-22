@@ -1,31 +1,33 @@
 {
- "version": 2,
+ "version": 1,
  "model": "jev-1.13.0",
  "standing_order": "Find the level exit alive: walk into ground not yet walked, open every door, press the exit switch.",
  "goal_every": 10,
  "thresholds": {
-  "crosshair_deg": 8.0,
-  "fire_range": 450.0,
-  "blocked_units": 48.0,
-  "tight_units": 90.0,
-  "health_critical": 35.0,
-  "health_low": 50.0,
-  "max_aim_deg": 60.0,
-  "max_turn_deg": 135.0,
-  "turn_settle_deg": 8.0
+  "crosshair_deg": 8,
+  "fire_range": 450,
+  "blocked_units": 48,
+  "tight_units": 90,
+  "health_critical": 35,
+  "health_low": 50,
+  "max_aim_deg": 60,
+  "max_turn_deg": 180,
+  "turn_settle_deg": 8
  },
  "select": {
-  "sector_margin": 0.55,
-  "commit_bonus": 0.35,
+  "sector_margin": 0.6,
+  "commit_bonus": 0.3,
   "commit_ticks": 6,
   "unsure_gap": 0.2,
   "unsure_conf": 0.5,
   "goal_bonus": 1.0,
-  "tried_penalty": 1.8,
+  "tried_penalty": 1.0,
   "tried_cooldown": 40,
+  "confirm_ticks": 3,
   "danger_sidestep": 1.5,
   "danger_retreat": 2.5,
-  "operate_units": 80.0,
+  "operate_units": 80,
+  "approach_ticks": 16,
   "door_tries": 4,
   "recover_ticks": 12,
   "fight_linger_ticks": 6
@@ -38,10 +40,15 @@
     "inspect": "`sectors.{dir}`"
    },
    "criteria": [
-    "dead end: `sectors.{dir}.tried_recently` yes, or `sectors.{dir}.space` blocked or tight with `sectors.{dir}.ground` walked before",
-    "leads on but old: `sectors.{dir}.ground` walked or partly walked, `sectors.{dir}.space` open or long, not tried recently",
-    "worth a look: `sectors.{dir}.ground` new, or `sectors.{dir}.door` close, or `sectors.{dir}.hint_here` yes",
-    "the way on: `sectors.{dir}.ground` never explored, or `sectors.{dir}.exit_here` or `sectors.{dir}.key_here` yes"
+    "dead end: `sectors.{dir}.space` blocked or tight and `sectors.{dir}.ground` walked before",
+    "walked before, but `sectors.{dir}.space` is open or long, so it leads on",
+    "`sectors.{dir}.ground` partly walked with `sectors.{dir}.space` open or long",
+    "`sectors.{dir}.hint_here` is yes: the ground crew pushed exploration this way",
+    "`sectors.{dir}.ground` is new",
+    "`sectors.{dir}.ground` is never explored but `sectors.{dir}.space` is tight",
+    "`sectors.{dir}.door` is close or point blank: a door that leads somewhere unwalked",
+    "`sectors.{dir}.ground` is never explored and `sectors.{dir}.space` is open or long",
+    "`sectors.{dir}.exit_here` is yes, or `sectors.{dir}.key_here` is yes: the way out"
    ]
   },
   "danger": {

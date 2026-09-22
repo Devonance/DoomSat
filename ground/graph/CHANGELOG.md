@@ -19,3 +19,6 @@ Two AAR-driven changes:
 2. select.tried_penalty raised 1.0->1.8 to reinforce that on the selection side, targeting the same revisit/spin numbers.
 
 Goal and danger heads left unchanged: goal confidence 0.83 with sane answers, danger asked only once with a clean read (ticks_with_enemy_in_view=1) — no signal to revise yet.
+
+## v1 (defaults)
+Initial graph: one Score per open sector, one danger Score, one goal Choice; every exact rule in code.

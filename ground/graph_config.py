@@ -29,7 +29,11 @@ DEFAULT = {
     "goal_every": 10,
     "thresholds": {
         "crosshair_deg": 8, "fire_range": 450, "blocked_units": 48, "tight_units": 90,
-        "health_critical": 35, "health_low": 50, "max_aim_deg": 60, "max_turn_deg": 135, "turn_settle_deg": 8,
+        "threat_dist": 400,           # an enemy further off than this is scenery, not a fight
+        "health_critical": 35, "health_low": 50, "max_aim_deg": 60,
+        # 180, not 135: "behind" means 180, and clamping it left the player facing sideways and needing
+        # another correction, which reads as a spin.
+        "max_turn_deg": 180, "turn_settle_deg": 8,
     },
     # Everything here that weighs a Score is in rubric levels, the units the rubric is written in, so a
     # margin of 0.6 means six tenths of a level however many levels the rubric has.
@@ -47,10 +51,18 @@ DEFAULT = {
         "goal_bonus": 1.0,            # levels the goal head is worth on the sector it favours
         "tried_penalty": 1.0,         # levels a direction loses after being held without getting anywhere
         "tried_cooldown": 40,         # ticks a direction keeps that penalty
+        # Measured on the first live run (tools/churn_check.py), as sectors of 8 whose word changed
+        # between consecutive decisions: 1 (off) 3.41 space / 3.05 ground, 2 -> 2.67 / 2.60,
+        # 3 -> 2.25 / 2.28, 4 -> 2.00 / 2.07. The cost is lag, but only on good news -- a worse
+        # reading is always believed at once -- so 3 buys a third less churn without risking a wall.
+        "confirm_ticks": 3,           # senses a *better* sector word needs before it replaces the held one
         "danger_sidestep": 1.5,       # danger level at or above which code sidesteps
         "danger_retreat": 2.5,        # danger level at or above which code backs off
         "operate_units": 80,          # arm's length: a door this close puts the pilot in OPERATE
+        "approach_ticks": 16,         # ticks APPROACH may hold before falling back to EXPLORE
         "door_tries": 4,              # presses on one door before giving up on it
+        "door_retry_ticks": 80,       # ticks before a door that refused to open is worth trying again
+        "idle_ticks": 8,              # decisions without moving before the pilot declares itself stuck
         "recover_ticks": 12,          # ticks in RECOVER before returning to EXPLORE regardless
         "fight_linger_ticks": 6,      # ticks FIGHT is held after the last enemy left view
     },
@@ -60,11 +72,21 @@ DEFAULT = {
             "instructions": {
                 "question": "How promising is the {dir} sector for reaching the level exit?",
                 "inspect": "`sectors.{dir}`"},
+            # Nine levels, not four. With four, almost everything early in a level is "never explored" and
+            # lands in the top one: on the first live run the scores clustered at 2.7 to 2.9 and the unsure
+            # band fired on 43% of ticks. Worse, a visible exit tied with any fresh corridor. A Score takes
+            # up to ten levels, so the exit gets its own, then the key, and unexplored ground is split by
+            # how much room it has.
             "criteria": [
-                "dead end: `sectors.{dir}.space` blocked or tight, `sectors.{dir}.ground` walked before",
-                "leads on but old: `sectors.{dir}.ground` walked or partly walked, `sectors.{dir}.space` open or long",
-                "worth a look: `sectors.{dir}.ground` new, or `sectors.{dir}.door` close, or `sectors.{dir}.hint_here` yes",
-                "the way on: `sectors.{dir}.ground` never explored, or `sectors.{dir}.exit_here` or `sectors.{dir}.key_here` yes"]},
+                "dead end: `sectors.{dir}.space` blocked or tight and `sectors.{dir}.ground` walked before",
+                "walked before, but `sectors.{dir}.space` is open or long, so it leads on",
+                "`sectors.{dir}.ground` partly walked with `sectors.{dir}.space` open or long",
+                "`sectors.{dir}.hint_here` is yes: the ground crew pushed exploration this way",
+                "`sectors.{dir}.ground` is new",
+                "`sectors.{dir}.ground` is never explored but `sectors.{dir}.space` is tight",
+                "`sectors.{dir}.door` is close or point blank: a door that leads somewhere unwalked",
+                "`sectors.{dir}.ground` is never explored and `sectors.{dir}.space` is open or long",
+                "`sectors.{dir}.exit_here` is yes, or `sectors.{dir}.key_here` is yes: the way out"]},
         "danger": {
             "type": "score",
             "instructions": {
@@ -90,15 +112,17 @@ DEFAULT = {
     },
 }
 
-THRESHOLD_RANGES = {"crosshair_deg": (3, 20), "fire_range": (100, 1200), "blocked_units": (24, 120),
+THRESHOLD_RANGES = {"crosshair_deg": (3, 20), "fire_range": (100, 1200), "threat_dist": (100, 900), "blocked_units": (24, 120),
                     "tight_units": (40, 220), "health_critical": (10, 60), "health_low": (20, 80),
-                    "max_aim_deg": (10, 90), "max_turn_deg": (30, 180), "turn_settle_deg": (2, 30)}
+                    "max_aim_deg": (10, 90), "max_turn_deg": (135, 180), "turn_settle_deg": (2, 30)}
 SELECT_RANGES = {"sector_margin": (0.0, 3.0), "commit_bonus": (0.0, 2.0), "commit_ticks": (1, 30),
                  "unsure_gap": (0.0, 2.0), "unsure_conf": (0.0, 1.0), "goal_bonus": (0.0, 3.0),
-                 "tried_penalty": (0.0, 3.0), "tried_cooldown": (5, 200),
+                 "tried_penalty": (0.0, 3.0), "tried_cooldown": (5, 200), "confirm_ticks": (1, 6),
                  "danger_sidestep": (0.0, 9.0), "danger_retreat": (0.0, 9.0), "operate_units": (24, 120),
-                 "door_tries": (1, 12), "recover_ticks": (2, 60), "fight_linger_ticks": (0, 40)}
-INT_KEYS = ("commit_ticks", "tried_cooldown", "door_tries", "recover_ticks", "fight_linger_ticks")
+                 "approach_ticks": (2, 60),
+                 "door_tries": (1, 12), "door_retry_ticks": (10, 400), "idle_ticks": (3, 40), "recover_ticks": (2, 60), "fight_linger_ticks": (0, 40)}
+INT_KEYS = ("commit_ticks", "tried_cooldown", "door_tries", "recover_ticks", "fight_linger_ticks",
+            "confirm_ticks", "approach_ticks", "door_retry_ticks", "idle_ticks")
 
 
 class GraphError(ValueError):
@@ -242,6 +266,29 @@ def save(cfg, rationale, issues=None, model=None):
         for i in issues or []:
             f.write("- issue: %s\n" % i)
     return cfg
+
+
+def save_candidate(cfg, rationale, issues=None, model=None, report=None):
+    """Store a revision *without* making it current.
+
+    Promoting a review off a single three-minute episode is the mistake the audit criticised in the old
+    loop, so by default the pilot keeps flying the graph it has and the candidate waits for
+    `tools/promote_graph.py`, which replays both against logged states before swapping them.
+    """
+    GRAPH_DIR.mkdir(exist_ok=True)
+    out = GRAPH_DIR / "candidates"
+    out.mkdir(exist_ok=True)
+    n = 1 + max([int(p.stem.split("_c")[1]) for p in out.glob("graph_c*.json")] + [0])
+    path = out / ("graph_c%d.json" % n)
+    path.write_text(json.dumps({"config": cfg, "rationale": rationale, "issues": issues or [],
+                                "model": model, "from_version": cfg.get("version"),
+                                "report": report}, indent=1), encoding="utf-8")
+    return path
+
+
+def load_candidate(path):
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return validate(data["config"]), data
 
 
 def diff(old, new):

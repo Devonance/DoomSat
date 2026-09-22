@@ -202,14 +202,27 @@ what changed per issue, what the replay measured, and what it did not settle. Th
   the same states through jev and through a code-only function that encodes the rubric exactly. The rubric as
   written is close to a function of four enum fields, so jev reproduces it and adds little. That is the
   argument for the next pass — evidence no rule can read (the surface classifier), not a different question.
-- **The new graph was flown, and it walked worse than the old one.** 150 seconds each: 0.32 spin windows per
-  decision against 0.07, 25 cells against 29, on 2,063 median input tokens against 2,654. One run each, so
-  the difference is not established, but it is what was measured. The cause is measurable and it is not the
-  model: on decision pairs where the state was byte-identical, jev's scores moved by a median of 0.01 rubric
-  levels. Between consecutive half-second decisions, **3.4 of 8 sectors change their `space` word and 3.0
-  change their `ground` word**, and the median sector keeps the same `ground` word for one tick. The pilot is
-  committing to a direction on evidence that is re-rolled every tick. Stabilising the sector words is the
-  next job, and it belongs in the payload, not in the graph.
+- **Flying it found three freezes that no test caught**, because each is a property of a sequence of ticks
+  rather than of one decision: OPERATE could not give up, so the pilot stood at one door for 1,172
+  consecutive decisions commanding nothing; FIGHT triggered on bare visibility, so it spent 211 decisions
+  staring at an enemy 2,139 units away; and the reflex "never walk into a known wall" deadlocked the stuck
+  detector that depends on the player pushing, so it sat in one spot for 553 decisions with `STUCK` false.
+  All three are fixed and all three now have tests.
+- **The first comparison was wrong twice over.** It used the old run's *first* 150 seconds — the best of
+  its 27 windows — and every new-graph run had started on a map the payload had already filled with
+  barrier marks from the run before (`EXPLORED_CELLS` 662 at the start, against 1 for the baseline). From a
+  restarted payload and matched windows, the new graph's median beats **27 of 27** old windows on cells
+  explored and on distance walked, and its worst window clears the old median on all three measures. The
+  spin metric was also partly measuring the new design, which waits out its turns, so there is now a
+  fixed-time window alongside the per-tick one — and small corrections are taken while walking.
+- **The state churn was split into its causes** (`tools/churn_check.py`). Two fifths of the apparent churn
+  on turning ticks was the egocentric labels sliding under the readings; bin edges accounted for ~3%; the
+  rest is the payload re-sensing the same world direction differently. Sector words are now held against
+  the ray's world bearing, and a *better* reading has to be confirmed while a *worse* one is believed at
+  once — a third less churn for lag that can only ever delay good news.
+- **The four-level rubric was saturated**: scores clustered at 2.7–2.9, the median gap between the top two
+  was 0.08 levels, the fallback fired on 43% of ticks, and a visible exit tied with any fresh corridor.
+  Nine levels now, with the exit at the top. Flown, the median gap is ~1.0 levels and the fallback ~10%.
 
 Recordings of the last run of the day, 1080p, jev live through the stack:
 

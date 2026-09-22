@@ -125,6 +125,9 @@ def summarise(rows, episode_rows, outcome, cfg):
         "walk": {"distinct_128u_bins": len(bins),
                  "revisit_ratio": round(1 - len(bins) / max(1, len(pos)), 2),
                  metrics.SPIN_KEY: spins,
+                 # the tick version is kept for the old baselines; compare designs on the time one
+                 metrics.SPIN_TIME_KEY: metrics.spin_seconds(pos),
+                 "spin_windows_per_second": round(metrics.spin_rate(pos), 3),
                  "path_units": round(moved),
                  "most_visited": ["(%d,%d) x%d" % (x, y, n) for (x, y), n in bins.most_common(5)],
                  "hints_from_system_two": sum(1 for r in episode_rows if r.get("kind") == "system_two_hint")},

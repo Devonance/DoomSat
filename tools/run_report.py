@@ -71,8 +71,10 @@ if samples:
     cells = metrics.cells(samples)
     print(f"  player: x {min(xs):.0f}..{max(xs):.0f}  y {min(ys):.0f}..{max(ys):.0f}  "
           f"path ~{metrics.path_units(samples):.0f} units  {len(cells)} distinct {metrics.CELL_UNITS}-unit cells  "
-          f"{metrics.SPIN_KEY} {metrics.spin_windows(samples)}  "
           f"stuck {sum(1 for r in ctrl if (r.get('raw') or {}).get('STUCK'))}/{len(ctrl)}")
+    print(f"  spin: {metrics.spin_windows(samples)} tick windows, {metrics.spin_seconds(samples)} "
+          f"{metrics.SPIN_WINDOW_SECONDS:.0f}s windows, {metrics.spin_rate(samples):.3f} per second "
+          f"(compare designs on the per-second figure)")
 hp = [r["health"] for r in ctrl if r.get("health") is not None]
 if hp:
     print(f"  health: start {hp[0]} min {min(hp)} end {hp[-1]}")

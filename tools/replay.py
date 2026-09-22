@@ -34,21 +34,9 @@ import metrics                       # noqa: E402
 
 
 # ---------------------------------------------------------------- the code-only baseline
-def code_score(sector, levels=4):
-    """The sector rubric written as an exact rule, level for level.
-
-    Keep this in step with cfg["questions"]["sector"]["criteria"]: it is the null hypothesis the model has
-    to beat, and a baseline that drifts from the rubric is not a baseline.
-    """
-    if sector.get("data") == dg.UNKNOWN:
-        return 0.0
-    if sector.get("exit_here") == "yes" or sector.get("key_here") == "yes" or sector.get("ground") == "never explored":
-        return float(levels - 1)
-    if sector.get("ground") == "new" or sector.get("door") in ("point blank", "close") or sector.get("hint_here") == "yes":
-        return float(levels - 2)
-    if sector.get("ground") in ("walked before", "partly walked") and sector.get("space") in dg.ROOMY:
-        return 1.0
-    return 0.0
+# The rule lives in decision_graph.rule_score, next to the fallback that uses it, so the baseline and the
+# rubric cannot drift apart. A baseline that has drifted is not a baseline.
+code_score = dg.rule_score
 
 
 class CodePilot:
@@ -115,7 +103,8 @@ def judge_one(pilot, row, cfg, no_band=False):
     state = dg.build_state(t, row.get("goal", "EXPLORE"), cfg, mem)
     mode = dg.next_mode(state, t, mem, cfg)
     offered = dg.offered_sectors(state)
-    questions = dg.questions_for(state, cfg, mode, ask_goal=False, offered=offered)
+    questions = dg.questions_for(state, cfg, mode, ask_goal=False, offered=offered,
+                                 threat=dg.threatened(state, t, cfg))
     if not questions:
         return None
     reply = pilot.answer(dg.state_for(state, questions), questions)

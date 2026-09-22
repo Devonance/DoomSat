@@ -23,7 +23,7 @@ sys.path.insert(0, str(HERE.parent / "ground"))
 
 import decision_graph as dg          # noqa: E402
 import graph_config as gc            # noqa: E402
-from replay import code_score        # noqa: E402
+from replay import code_score        # noqa: E402  (decision_graph.rule_score)
 
 
 def classify(state, t, cfg):

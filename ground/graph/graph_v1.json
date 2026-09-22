@@ -11,7 +11,7 @@
   "health_critical": 35,
   "health_low": 50,
   "max_aim_deg": 60,
-  "max_turn_deg": 135,
+  "max_turn_deg": 180,
   "turn_settle_deg": 8
  },
  "select": {
@@ -23,9 +23,11 @@
   "goal_bonus": 1.0,
   "tried_penalty": 1.0,
   "tried_cooldown": 40,
+  "confirm_ticks": 3,
   "danger_sidestep": 1.5,
   "danger_retreat": 2.5,
   "operate_units": 80,
+  "approach_ticks": 16,
   "door_tries": 4,
   "recover_ticks": 12,
   "fight_linger_ticks": 6
@@ -38,10 +40,15 @@
     "inspect": "`sectors.{dir}`"
    },
    "criteria": [
-    "dead end: `sectors.{dir}.space` blocked or tight, `sectors.{dir}.ground` walked before",
-    "leads on but old: `sectors.{dir}.ground` walked or partly walked, `sectors.{dir}.space` open or long",
-    "worth a look: `sectors.{dir}.ground` new, or `sectors.{dir}.door` close, or `sectors.{dir}.hint_here` yes",
-    "the way on: `sectors.{dir}.ground` never explored, or `sectors.{dir}.exit_here` or `sectors.{dir}.key_here` yes"
+    "dead end: `sectors.{dir}.space` blocked or tight and `sectors.{dir}.ground` walked before",
+    "walked before, but `sectors.{dir}.space` is open or long, so it leads on",
+    "`sectors.{dir}.ground` partly walked with `sectors.{dir}.space` open or long",
+    "`sectors.{dir}.hint_here` is yes: the ground crew pushed exploration this way",
+    "`sectors.{dir}.ground` is new",
+    "`sectors.{dir}.ground` is never explored but `sectors.{dir}.space` is tight",
+    "`sectors.{dir}.door` is close or point blank: a door that leads somewhere unwalked",
+    "`sectors.{dir}.ground` is never explored and `sectors.{dir}.space` is open or long",
+    "`sectors.{dir}.exit_here` is yes, or `sectors.{dir}.key_here` is yes: the way out"
    ]
   },
   "danger": {
