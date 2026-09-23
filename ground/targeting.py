@@ -130,7 +130,7 @@ def target_words(cand, need, keys_held, rules=None, all_cands=()):
     if kind == "frontier":
         words["the_way_on_is"] = opening_word(cand.get("opening", 0))
         words["unknown_runs"] = depth_word(cand.get("depth", 0))
-        words["leads_away_from_walked_ground"] = "yes" if cand.get("away", True) else "no"
+        words["further_out_than_here"] = "yes" if cand.get("away", True) else "no"
     if kind == "door" and cand.get("colour") in ("red", "blue", "yellow"):
         words["locked"] = cand["colour"] + (" (held)" if cand["colour"] in keys_held else " (no key)")
     if kind == "item":

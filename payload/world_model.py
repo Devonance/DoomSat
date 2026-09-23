@@ -189,6 +189,7 @@ class WorldModel:
                                          # would be empty
         self._frontiers = []
         self.dead_frontiers = set()   # openings the player stood on that stayed openings
+        self.start = None             # where this attempt began; the fixed point "outward" is measured from
         self.planner_calls = 0
         self.planner_failures = 0
 
@@ -338,12 +339,15 @@ class WorldModel:
                 "open_depth_units": depth * GRID, "leads_away": away}
 
     def explored_centre(self):
-        """The middle of everywhere the player has actually walked."""
-        if not self.ex.visited:
-            return None
-        xs = [c[0] for c in self.ex.visited]
-        ys = [c[1] for c in self.ex.visited]
-        return (sum(xs) / len(xs) + 0.5) * GRID, (sum(ys) / len(ys) + 0.5) * GRID
+        """Where the level started, which is the one reference point that does not move.
+
+        This used to be the centroid of everywhere the player had walked -- and a centroid follows the
+        player, so "does this lead away from explored ground" barely separated anything: jev scored the
+        two cases 5.22 and 4.92, a third of a rubric level apart. Measured from the start it means
+        something an exploring player can act on, because wherever the way out is, it is not where you
+        came in. It uses nothing but the player's own spawn position.
+        """
+        return self.start
 
     def note_frontier_reached(self, x, y, now):
         """A frontier the player has stood at and which is still a frontier revealed nothing.
@@ -632,6 +636,8 @@ class WorldModel:
         the ground is not an optimisation -- the path distances need the map, and the map is onboard.
         """
         self._last_pos = (x, y)
+        if self.start is None:
+            self.start = (x, y)
         self.see_doors(now)
         goals, meta, door_cells = [], {}, set()
 

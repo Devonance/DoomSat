@@ -129,11 +129,11 @@ DEFAULT = {
             "criteria": [
                 "not reachable in any useful sense: `targets.{t}.locked` names a key the player does not hold, or `targets.{t}.tried_before` is several times and it has not opened",
                 "a bad trade: `targets.{t}.threat` is dangerous or deadly while `here.health` is critical or low, or `here.ammunition` is empty",
-                "back the way it came: `targets.{t}.leads_away_from_walked_ground` is no, or `targets.{t}.unknown_runs` is no depth",
+                "back toward where the level began: `targets.{t}.further_out_than_here` is no, or `targets.{t}.unknown_runs` is no depth",
                 "would be worth it nearer: it answers something in `needs`, but `targets.{t}.relative_distance` is the furthest and `targets.{t}.threat` is not none",
-                "a fair next step: it leads away from walked ground, a doorway or wider, the unknown running a little way past it, nothing dangerous near it",
+                "a fair next step: `targets.{t}.further_out_than_here` is yes, a doorway or wider, the unknown running a little way past it, nothing dangerous near it",
                 "worth a detour: it answers a need the player has, `targets.{t}.relative_distance` is not the furthest, and `targets.{t}.threat` is none or a straggler",
-                "the obvious move: a wide opening with the unknown running a fair way or more past it, leading away from walked ground, nothing near it worth avoiding",
+                "the obvious move: a wide opening, the unknown running a fair way or more past it, `targets.{t}.further_out_than_here` yes, nothing near it worth avoiding",
                 "the way on: an untried door or a key the player is missing, and what `targets.{t}.threat` says is standing there is worth facing with the health and ammunition in `here`",
                 "the way out: the level exit, and nothing between here and it that `here.health` and `here.ammunition` could not survive"]},
         # Charter 3.3 and 4. The charter's own example of a question worth asking: "three imps and a
