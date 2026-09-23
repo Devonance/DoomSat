@@ -1,0 +1,86 @@
+{
+ "map": "E1M4",
+ "seed": 2,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "devcheck-2",
+ "versions": {
+  "commit": "2ddb631",
+  "pinned": "2ddb631b5ce0c1595a2c3f7cc1ad0e70b34c07ec",
+  "dirty": false,
+  "branch": "HEAD",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "6ca52161f731",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "051c7540a48f"
+ },
+ "commit": "2ddb631b5ce0c1595a2c3f7cc1ad0e70b34c07ec",
+ "dirty": false,
+ "score": 0.0036,
+ "completed": false,
+ "level_time": 180.4,
+ "end_reason": "timeout",
+ "deaths": 5,
+ "deaths_per_minute": 1.663,
+ "watchdog_trips": {
+  "no displacement for 4 s": 1
+ },
+ "freezes": 1,
+ "executor_stats": {
+  "ticks": 410,
+  "safe_ticks": 0,
+  "recover_ticks": 53,
+  "intents": 21,
+  "stale_dropped": 0,
+  "look_ticks": 49
+ },
+ "cache_hit_rate": 0.0072,
+ "model_unavailable": 0,
+ "door_presses": 53,
+ "door_opens": 0,
+ "door_precision": 0.0,
+ "door_recall": {
+  "real_doors": 34,
+  "came_into_view": 9,
+  "offered": 9,
+  "door_recall": 1.0
+ },
+ "exit_ever_seen": false,
+ "progress": 0.004,
+ "progress_best": 0.1216,
+ "start_distance": 6999.6,
+ "remaining_distance": 6971.5,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": true,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 331,
+  "decisions_per_s": 1.862,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.4605,
+  "fallback_rate": 0.3474,
+  "speed_explore": 115.74,
+  "coverage_rate": 11.81,
+  "revisit_fraction": 0.2236,
+  "spin_rate": 0.12938,
+  "idle_fraction": 0.2206,
+  "watchdog_trips": {},
+  "mode_share": {
+   "APPROACH": 0.5106,
+   "EXPLORE": 0.3082,
+   "OPERATE": 0.1148,
+   "RETREAT": 0.0665
+  },
+  "deaths_by_mode": {
+   "RETREAT": 5
+  },
+  "tokens_per_decision": 0.0,
+  "cells": 35,
+  "path_units": 28548.8
+ },
+ "warning": "this map has teleports, which the grader does not model: progress may understate a route that goes through one"
+}

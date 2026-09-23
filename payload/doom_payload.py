@@ -519,9 +519,17 @@ class Payload:
         self.episode += 1
         if self.explorer_map != self.map:
             self.level += 1
+        # The world model goes; the tally does not. Freezes and looks are counted per ATTEMPT, and an
+        # attempt survives a death -- without this the numbers reported were whichever episode happened
+        # to be last, which quietly undercounted the one thing charter phase 2 is measured on.
+        carried_trips = dict(self.executor.watchdog.trips) if self.executor is not None else {}
+        carried_stats = dict(self.executor.stats) if self.executor is not None else {}
         self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
         self.world = wm_mod.WorldModel(self.explorer, enemies=ENEMIES, item_kind=ITEM_KIND)
         self.executor = ex_mod.Executor(self.world)
+        self.executor.watchdog.trips.update(carried_trips)
+        for k, v in carried_stats.items():
+            self.executor.stats[k] = self.executor.stats.get(k, 0) + v
         self.candidates = []
         self.explorer_map = self.map
         self.positions.clear()
