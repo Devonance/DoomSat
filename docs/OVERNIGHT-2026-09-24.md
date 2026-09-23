@@ -382,6 +382,37 @@ blocker 1, stated by the code that now notices it.
 
 ---
 
+## 7c. jev_share, and a tension in how it is defined
+
+The flight's breakdown, which is the thing the brief asks to be reported by reason:
+
+| | share of decisions |
+| --- | --- |
+| **asked and used** -- jev's answer chose the target | **43%** |
+| unsure band -- the top two scores within `unsure_gap`, so the exact rule settled it | 31% |
+| held -- commitment: already walking there, and the new pick did not beat the margin | 24% |
+| cached -- an identical state answered from the within-run cache | 2% |
+
+`jev_share` counts only the first row, so it is 0.44 against a floor of 0.70.
+
+Two of those three non-jev rows are things the brief itself asks for, and that is worth Kevin's attention
+rather than mine:
+
+- **Commitment is the brief's own frozen fallback.** §2 rule 3: "Code never picks between options, except
+  safety reflexes and the one frozen fallback: keep the current target, else the nearest frontier." Every
+  tic where commitment holds is a tic the metric scores against the model. The better the commitment
+  works -- and it needed fixing tonight, §6 -- the lower `jev_share` reads.
+- **The unsure band is settled by the wrong rule.** When the top two scores are within `unsure_gap`, the
+  code falls back to `rule_score`, which is a *different* rule from the one the brief permits. It should
+  be the frozen fallback: keep the current target, else the nearest frontier. That is a correctness fix
+  against the brief and not a way of moving the number; it is 31% of decisions being settled by something
+  the brief does not sanction.
+
+I have not changed `jev_share`'s definition. It is a frozen metric and changing it is a track change, and
+this one is a question about the target rather than about the measurement.
+
+---
+
 ## 8. Blockers
 
 1. **The executor cannot follow a path it has been given.** The rub loop: pressed against geometry, the
