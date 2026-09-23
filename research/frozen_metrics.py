@@ -266,9 +266,19 @@ def _mode_samples(rows, mode):
 
 
 def speed_explore(rows):
-    """Mean units per second while exploring. The charter's phase 2 exit test is a fraction of this."""
+    """Mean units per second while exploring. The charter's phase 2 exit test is a fraction of this.
+
+    `elapsed` skips gaps over five seconds, which is right -- an episode boundary is not travel -- but
+    when a mode's samples are mostly separated by such gaps the denominator collapses to the 1e-6 floor
+    while the numerator keeps the whole distance. That is how the oracle ladder came back with a speed of
+    401,352,305 units a second. A window shorter than one tic is not a window, and this says so instead
+    of dividing by it.
+    """
     s = _mode_samples(rows, "EXPLORE")
-    return straight_units(s) / max(1e-6, elapsed(s)) if len(s) >= 2 else 0.0
+    if len(s) < 2:
+        return 0.0
+    seconds = elapsed(s)
+    return straight_units(s) / seconds if seconds >= 1.0 / 35.0 else 0.0
 
 
 def coverage_rate(rows):

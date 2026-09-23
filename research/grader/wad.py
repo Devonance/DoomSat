@@ -296,6 +296,24 @@ class DistanceField:
     def cell_of(self, x, y):
         return int((x - self.origin[0]) // CELL), int((y - self.origin[1]) // CELL)
 
+    def reachable_cells(self, grid=128):
+        """Every `grid`-unit cell the exit can be reached from: the denominator of seen coverage.
+
+        A cell counts when any of the field's own 16-unit cells inside it has a finite distance to
+        the exit. That is the grader's own definition of reachable, coarsened, so the number means
+        "of the level a player could have walked, how much did the pilot see".
+        """
+        out = set()
+        span = grid // CELL
+        for i, d in enumerate(self.dist):
+            if d == float("inf"):
+                continue
+            cx, cy = i % self.w, i // self.w
+            wx = self.origin[0] + (cx + 0.5) * CELL
+            wy = self.origin[1] + (cy + 0.5) * CELL
+            out.add((int(math.floor(wx / grid)), int(math.floor(wy / grid))))
+        return out
+
     def at(self, x, y, search=8):
         """Distance to the exit from (x, y). Falls back to the nearest walkable cell within `search` cells,
         because a recorded position sits on a floor the grid may have marked blocked by a nearby wall."""

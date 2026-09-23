@@ -124,6 +124,9 @@ def summarise(graded, conf):
         "mean_progress": round(statistics.fmean([r["progress"] for r in usable]), 4) if usable else None,
         # what the score is built on since t3: the closest the attempt ever came, not where it stopped
         "mean_progress_best": round(statistics.fmean([r["progress_best"] for r in usable]), 4) if usable else None,
+        "seen_coverage": (round(statistics.fmean([r["seen_coverage"] for r in graded
+                                                 if r.get("seen_coverage") is not None]), 4)
+                          if any(r.get("seen_coverage") is not None for r in graded) else None),
         "decision_reasons": _mean_dicts(graded, "decision_reasons"),
         "tic_rate": (round(statistics.fmean([r["tic_rate"] for r in graded if r.get("tic_rate")]), 1)
                      if any(r.get("tic_rate") for r in graded) else None),

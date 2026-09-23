@@ -162,6 +162,17 @@ class Watchdog:
                           for a, b in zip(window, window[1:]))
             if covered < self.STILL_UNITS:
                 return self._trip(now, "went nowhere for %.0f s" % self.STILL_SECONDS)
+            # Moving, and not getting anywhere. Path length alone cannot see this and neither can
+            # displacement alone, which is why both tests are here: the rub correction leans forty
+            # degrees off the heading and alternates shoulders, so a wedged player covers hundreds of
+            # units inside a box a few feet across and every motion test reads "fine". Measured on the
+            # oracle rung with the exit finally in the candidate list: the player travelled from
+            # (-416,256) to (-380,431) in 180 seconds -- 175 units of displacement, APPROACH on 98% of
+            # its decisions, and not one watchdog trip in the whole attempt.
+            moved = math.hypot(window[-1][1] - window[0][1], window[-1][2] - window[0][2])
+            if moved < self.STILL_UNITS:
+                return self._trip(now, "covered %.0f units and got %.0f in %.0f s"
+                                  % (covered, moved, self.STILL_SECONDS))
         if all_blocked:
             self.blocked_since = self.blocked_since or now
             if now - self.blocked_since > self.BLOCKED_SECONDS:
@@ -274,6 +285,13 @@ class Executor:
                   (c["mode"], c["stance"], c["ahead"], c["ahead_dist"], c["clear_fwd"], c["clear_back"],
                    c["clear_fl"], c["clear_fr"], c["has_plan"], c["plan_left"], c["enemies"]), flush=True)
         if tripped or self.watchdog.recovering(now):
+            # Which way to turn while recovering. `recover_dir` was set to 1 in the constructor and never
+            # assigned again, so every recovery in this project's history has turned left at the full
+            # rate for a second and a half -- 787 degrees, two spins, with the heading afterwards decided
+            # by arithmetic rather than by anything the player could see. Toward the shoulder the camera
+            # says is open is at least a reason.
+            if tripped:
+                self.recover_dir = self._freer_side(obs)
             self.stats["recover_ticks"] += 1
             self._trail = []
             return self._recover(obs)
@@ -312,6 +330,14 @@ class Executor:
             plan = self.world.plan
             if plan is not None and not plan.blocked:
                 pt = plan.advance(x, y)
+                # Throwing the plan away when the next waypoint is behind something was tried here and
+                # measured worse, twice. The idea was right -- a player that has come off its path is
+                # steering at a point it cannot reach -- but the payload only replans when the next
+                # INTENT arrives, about every seventeen tics, so blanking the plan on a rub left the
+                # executor with a target and no path for most of the attempt. Freedoom E1M1 on the oracle
+                # rung: 62% then 65% of ticks with no plan, best progress 0.04 and 0.18, against 0.45
+                # without it. The replan has to be cheap and immediate before this can pay, and it is
+                # neither today.
                 if pt is not None:
                     want = math.degrees(math.atan2(pt[1] - y, pt[0] - x))
             if want is None and it.has_target:
@@ -360,14 +386,26 @@ class Executor:
                 # Once every two seconds, not every tic: enough to see where the player is losing its
                 # afternoon without drowning the log.
                 self._rub_said = now
-                print("[executor] rubbing at (%.0f,%.0f) rel=%.0f ahead=%s@%.0f fwd=%.0f fl=%.0f fr=%.0f "
-                      "plan_left=%d" % (x, y, rel, obs["ahead_kind"], obs["ahead_dist"], obs["clear_fwd"],
-                                        obs["clear_fl"], obs["clear_fr"],
-                                        (len(self.world.plan.cells) - self.world.plan.i)
-                                        if self.world.plan else -1), flush=True)
+                print("[executor] rubbing at (%.0f,%.0f) %s/%s rel=%.0f speed=%.0f ahead=%s@%.0f "
+                      "fwd=%.0f fl=%.0f fr=%.0f enemies=%d plan_left=%d"
+                      % (x, y, it.mode, it.stance, rel, speed, obs["ahead_kind"], obs["ahead_dist"],
+                         obs["clear_fwd"], obs["clear_fl"], obs["clear_fr"], len(obs["enemies"]),
+                         (len(self.world.plan.cells) - self.world.plan.i)
+                         if self.world.plan else -1), flush=True)
             if rub:
                 # Override the guard rather than obey it: the guard is what put us here.
-                side = 1.0 if int((now - self._rub_since) / RUB_FLIP_S) % 2 == 0 else -1.0
+                #
+                # Toward the side the camera says is open, and alternate only when it cannot tell. The
+                # side used to be chosen by a clock alone, which meant that half the time the player
+                # leaned into the wall it was already pressed against: the ladder log is full of
+                # `fl=7 fr=428` with the lean going left. `_freer_side` is a measurement and was sitting
+                # right there, used by the avoidance guard two lines up.
+                # Start with the side the camera says is open, and still alternate. Leaning only to the
+                # freer shoulder sounds better and is worse: when the way out is behind, the freer
+                # shoulder is wrong and the player leans that way for as long as it is stuck. Alternating
+                # blindly at least tries both. This does both -- the first try is the measured one.
+                side = self._freer_side(obs) * (
+                    1.0 if int((now - self._rub_since) / RUB_FLIP_S) % 2 == 0 else -1.0)
                 cmd["strafe"] = STRAFE_DELTA * side
                 cmd["turn"] = max(-TURN_PER_TIC, min(TURN_PER_TIC, rel + RUB_TURN_DEG * side))
                 speed = RUN_DELTA
@@ -375,10 +413,16 @@ class Executor:
             cmd["move"] = speed
             if it.stance == "advance_strafing" and obs["enemies"]:
                 cmd["strafe"] = STRAFE_DELTA * self._circle_side(now)
-                # Do not close on something that is already shooting at us. Charging at a run was worth
-                # four times the deaths on the first executor baseline.
+                # Do not close on something that is already shooting at us -- charging at a run was worth
+                # four times the deaths on the first executor baseline -- but do not stop either. Clamping
+                # the throttle to zero left the player circling one monster at a fixed radius for as long
+                # as the intent held: measured, `advance_strafing` with anything inside FIGHT_KEEP_UNITS
+                # commanded no forward movement on 60 tics out of 60, indefinitely. That is neither
+                # fighting nor going anywhere, and the brief's words for it are "never stand still under
+                # fire". Backing off is what a player does: it opens the range, it keeps the shotgun
+                # pointed, and it ends.
                 if obs["enemies"][0][2] < FIGHT_KEEP_UNITS:
-                    cmd["move"] = min(cmd["move"], 0.0)
+                    cmd["move"] = -RUN_DELTA if obs["clear_back"] > 64 else 0.0
 
         # Where the time actually goes, at control rate.
         self.stats["move_ticks"] = self.stats.get("move_ticks", 0) + (1 if cmd["move"] else 0)
@@ -416,9 +460,13 @@ class Executor:
         if rel < 1.0:
             return RUN_DELTA
         tics = rel / TURN_PER_TIC
-        # The narrowest of the three forward bands, because which way the body drifts depends on the
-        # strafe as well as the turn and the honest answer is "whichever is tightest".
-        room = min(obs["clear_fl"], obs["clear_fr"], obs["clear_fwd"])
+        # The narrower SHOULDER, and not the forward band. The question this answers is how far the
+        # body will drift sideways while the heading comes round, so the room that matters is sideways
+        # room. Including `clear_fwd` made it a handbrake: a wall seven units ahead is a wall the player
+        # slides along for free in this engine, and folding it in here took the throttle to zero for any
+        # heading error over a degree -- so the player stopped dead exactly where it most needed to be
+        # moving. What to do about something straight ahead is the avoidance guard's job, below.
+        room = min(obs["clear_fl"], obs["clear_fr"])
         room = max(0.0, room - PLAYER_RADIUS)
         drift_per_delta = (UNITS_PER_S_PER_DELTA / TICRATE) * tics * math.sin(math.radians(rel)) / 2.0
         if drift_per_delta <= 1e-6:

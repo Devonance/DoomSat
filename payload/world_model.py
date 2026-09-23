@@ -908,6 +908,13 @@ class WorldModel:
             return []
         import time as _t
         t0 = _t.perf_counter()
+        # An exit line is a one-sided wall, a door line is the door itself, and an item can sit against a
+        # pillar -- so the cell a goal names is regularly a cell no player can stand in, and the flood
+        # below would report "no route" to a place the player could walk right up to. `plan_to` already
+        # snapped its goal to the nearest cell that works; this is the same courtesy, done once for the
+        # whole list. Without it the exit was silently dropped from the candidate list of every attempt
+        # that had one.
+        goals = self._reachable_goals(goals, meta, door_cells, now)
         costs = self.path_costs(x, y, set(goals), now)
         _cost("path_costs", t0)
         out, no_route = [], 0
@@ -962,6 +969,38 @@ class WorldModel:
         near = sorted(rest, key=lambda c: c.path_units)[:max(1, room // 2)]
         promise = [c for c in sorted(rest, key=lambda c: -self._promise(c)) if c not in near]
         return (must + near + promise)[:limit]
+
+    def _reachable_goals(self, goals, meta, door_cells, now):
+        """Move each goal to the nearest cell a player could stand in, keeping what it stands for.
+
+        Measured on the oracle rung, which is handed the exit's exact position: the payload reported the
+        exit in telemetry on all 334 decisions of an attempt, and the exit appeared in the candidate list
+        on none of them. An exit line is a one-sided wall, so its cell is not walkable, so the flood never
+        reached it and it was dropped without a word. The same is true of a door line and of an item
+        against a pillar -- and it is true on an honest run too, which means the pilot could never target
+        an exit it saw.
+        """
+        walk = self.walkable(now)
+        out = []
+        for cell in goals:
+            if cell in walk:
+                out.append(cell)
+                continue
+            near = [c for c in walk if abs(c[0] - cell[0]) <= 2 and abs(c[1] - cell[1]) <= 2]
+            if not near:
+                out.append(cell)                 # genuinely unreachable; the flood will say so
+                continue
+            moved = min(near, key=lambda c: (c[0] - cell[0]) ** 2 + (c[1] - cell[1]) ** 2)
+            kind = meta[cell][0]
+            # A cell can be two things at once -- the floor beside an exit line is also a frontier. The
+            # exit and a key win, because one ends the level and the other opens what nothing else will.
+            if moved not in meta or kind in (KIND_EXIT, KIND_KEY):
+                meta[moved] = meta[cell]
+                self._features.setdefault(moved, self._features.get(cell, {}))
+            if cell in door_cells:
+                door_cells.add(moved)
+            out.append(moved)
+        return out
 
     def outwardness(self, c, x, y):
         """0 back toward where the level began, 1 about as far out, 2 further out than here.
@@ -1038,8 +1077,16 @@ class WorldModel:
         blk, ix0, iy0 = box
         span = math.hypot(x1 - x0, y1 - y0)
         n = max(1, int(span / step))
+        # Start a player's width along the line, not at the player. Standing somewhere is proof it can be
+        # stood in, and a player pressed against a wall has a blocked mask under its own feet -- so asking
+        # the mask about the starting point answers "you cannot be where you are". With the question asked
+        # from the player's own position, every plan was thrown away the moment it was needed: 62% of
+        # ticks with a target and no plan, and six cells covered in three minutes.
+        skip = PLAYER_CLEARANCE_PX * WPX
         for k in range(n + 1):
             t = k / n
+            if t * span < skip:
+                continue
             ix, iy = self.ex.wpx(x0 + t * (x1 - x0), y0 + t * (y1 - y0))
             jx, jy = ix - ix0, iy - iy0
             if not (0 <= jy < blk.shape[0] and 0 <= jx < blk.shape[1]):

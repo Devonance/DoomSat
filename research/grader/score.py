@@ -75,6 +75,23 @@ def _precision(rows, attempt):
     return round(opens / presses, 4) if presses else None
 
 
+def seen_coverage(field, seen_cells, grid=128):
+    """Share of the level's reachable floor the pilot believes it has seen.
+
+    Brief section 3, and it lives here because only the grader may know which cells are
+    reachable. The pilot counts on a 32-unit grid and the charter counts coverage on 128, so
+    its cells are folded up to the coarser one before the two sets are compared.
+    """
+    if not seen_cells:
+        return None
+    reachable = field.reachable_cells(grid)
+    if not reachable:
+        return None
+    seen = {(int(math.floor((cx + 0.5) * 32 / grid)), int(math.floor((cy + 0.5) * 32 / grid)))
+            for cx, cy in seen_cells}
+    return round(len(seen & reachable) / len(reachable), 4)
+
+
 def field_for(wad_path, map_name):
     """Distance fields are expensive and pure, so one per (wad, map) per process."""
     key = (os.path.abspath(wad_path), map_name)
@@ -164,6 +181,7 @@ def grade(attempt):
         "exit_ever_seen": any((r.get("raw") or {}).get("EXIT_DIST") for r in rows),
         "progress": round(prog, 4),
         "progress_best": round(prog_best, 4),
+        "seen_coverage": seen_coverage(field, attempt.get("seen_cells")),
         # how much of the closest approach was given back afterwards. A large number here is a pilot that
         # found the way and then lost it, which is a different failure from one that never found it.
         "progress_given_back": round(prog_best - prog, 4),

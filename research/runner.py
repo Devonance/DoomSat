@@ -318,6 +318,9 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
     except Exception:                                          # noqa: BLE001
         pass
     geom_stats = p.geom.stats() if getattr(p, "geom", None) is not None else None
+    # Brief section 3. The pilot says which 32-unit cells it believes it has seen; the
+    # grader owns the denominator, because reachability is a fact about the level file.
+    seen_cells = sorted(p.explorer.free) if p.explorer is not None else []
     # The tic loop's own cost. 1/35 s is 28.6 ms, so a p95 above that is a payload that cannot keep up
     # with the game even before F', JPEG and Yamcs are in the picture.
     tic_ms.sort()
@@ -335,7 +338,7 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
             "oracle": None if oracle == "off" else oracle, "geometry": geometry,
             "geometry_stats": geom_stats,
             "tic_rate": round(tic / max(1e-6, time.time() - t_wall), 1),
-            "tic_cost": tic_cost,
+            "tic_cost": tic_cost, "seen_cells": seen_cells,
             "watchdog_trips": wd, "watchdog_context": trip_log, "executor_stats": ex_stats,
             "model_unavailable": unavailable,
             "door_presses": int((rows[-1].get("raw") or {}).get("DOOR_PRESSES") or 0) if rows else 0,
