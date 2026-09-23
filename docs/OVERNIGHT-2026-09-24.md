@@ -254,6 +254,36 @@ brief asks for tonight.
 
 ---
 
+## 6d. Ledger rows added tonight
+
+| id | track | decision | what |
+| --- | --- | --- | --- |
+| `HIST-0001` .. `HIST-0012` | t2 | history | the twelve E1M1 runs of 22-23 September, recorded rather than claimed (§9) |
+| `EXP-0004` | t3 | **keep** (fast lane) | the night's six changes, watched on `mean_progress_best`: **0.2244 -> 0.2747**, guardrails pass |
+
+`EXP-0004` is a fast-lane row and says so. Six changes in one row rather than six rows, because they are
+one fault seen from six angles -- a player that cannot get past an obstacle -- and each is justified by a
+named measurement in its commit. A paired test each would have been six hours I did not have.
+
+It compares nine attempts against eighteen: the bench **segfaulted twice on Freedoom E1M4 with geometry
+on**, so E1M4 to E1M6 could not be collected and the comparison is on the three maps both runs share.
+E1M3 has no walkable route from its start to its exit in the grader's model, so it contributes to the
+suite score and not to progress. That crash is blocker 3.
+
+**The dev set with geometry on, nine attempts:**
+
+| | t3 baseline (geometry off) | with tonight's work |
+| --- | --- | --- |
+| mean closest approach | 0.224 | **0.275** |
+| ticks spent rubbing | 34% | **9%** |
+| door recall | 0.46 | **0.60** |
+| door precision | 0.072 | 0.061 |
+| seen coverage | not measured | 0.149 |
+| decisions by reason | used 50 / unsure 16 / cached 16 / held 9 / gave up 7 | used 71 / unsure 17 / held 7 / cached 4 / gave up 1 |
+| admitted lines the automap never drew | n/a | **0** |
+
+---
+
 ## 6. What the ladder made me fix
 
 | Fix | Evidence it was wrong | Where |
