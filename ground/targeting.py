@@ -358,6 +358,11 @@ class TargetMemory:
 
     def commit(self, x, y):
         k = self.key(x, y)
+        if self.committed is not None and self.is_committed(x, y):
+            # The same place as last time, a cell along. Follow it without forgetting how long it has
+            # been held: resetting `held` here is what stopped the commitment bonus ever being earned.
+            self.committed = k
+            return
         if self.committed != k:
             self.committed = k
             self.held = 0
@@ -382,7 +387,22 @@ class TargetMemory:
         return self._since_progress >= int(stall_after)
 
     def is_committed(self, x, y):
-        return self.committed == self.key(x, y)
+        """The same place, not the same coordinates.
+
+        A frontier recedes. Walk toward the edge of the known and the edge moves, so the cell offered on
+        the next decision is next door to the one offered on this one -- and with an exact key, that is a
+        different target, `held` resets, the commitment margin never applies, and the pilot is free to
+        change its mind. Measured on the dev bench: the target changed once every 6.7 decisions, which at
+        about two decisions a second is a new destination every three and a half seconds. A player cannot
+        walk anywhere in three and a half seconds.
+
+        `WorldModel.times_tried` already counts neighbours for exactly this reason. This is the same fact
+        on the other side of the link.
+        """
+        if self.committed is None:
+            return False
+        kx, ky = self.key(x, y)
+        return abs(kx - self.committed[0]) <= 1 and abs(ky - self.committed[1]) <= 1
 
 
 def pick(answers, state, candidates, cfg, mem):

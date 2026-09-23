@@ -471,11 +471,16 @@ class Executor:
         # heading error over a degree -- so the player stopped dead exactly where it most needed to be
         # moving. What to do about something straight ahead is the avoidance guard's job, below.
         room = min(obs["clear_fl"], obs["clear_fr"])
-        room = max(0.0, room - PLAYER_RADIUS)
+        room -= PLAYER_RADIUS
+        if room <= 0.0:
+            # Already touching. There is no drift left to prevent, and this engine charges nothing for a
+            # scrape and a whole tic for a stop. Measured: the throttle at zero was about 22% of all
+            # ticks outside recovery and looking.
+            return RUN_DELTA
         drift_per_delta = (UNITS_PER_S_PER_DELTA / TICRATE) * tics * math.sin(math.radians(rel)) / 2.0
         if drift_per_delta <= 1e-6:
             return RUN_DELTA
-        return max(0.0, min(RUN_DELTA, room / drift_per_delta))
+        return min(RUN_DELTA, room / drift_per_delta)
 
     def _should_look(self, obs, now):
         """A panorama on arriving somewhere new, the way a rover takes one at the end of a drive.
