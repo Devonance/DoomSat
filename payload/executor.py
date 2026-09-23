@@ -187,7 +187,12 @@ class Executor:
             return self._safe(obs)
 
         want = None
-        if it.mode == "FIGHT" and obs["enemies"]:
+        if it.mode in ("FIGHT", "RETREAT") and obs["enemies"]:
+            # Face the threat in both. A Doom player withdrawing walks backwards with the shotgun still
+            # pointed at what is chasing it; turning your back and running is how you arrive somewhere
+            # else with no health left. Measured: one withdrawal across a courtyard cost 51 health down
+            # to 13, every point of it taken from behind, and the retreat-returns-fire fix could not
+            # help because nothing was ever in the crosshair.
             want = angle + obs["enemies"][0][1]
         else:
             plan = self.world.plan
@@ -207,6 +212,8 @@ class Executor:
         if it.stance == "hold":
             pass
         elif it.stance == "retreat":
+            # Backwards, facing the threat, still shooting. `move` is negative and the heading is the
+            # enemy's, so this withdraws from it rather than toward it.
             cmd["move"] = -RUN_DELTA if obs["clear_back"] > 64 else 0.0
             cmd["strafe"] = STRAFE_DELTA * self._freer_side(obs)
         else:

@@ -282,3 +282,30 @@ class TestThePanorama(unittest.TestCase):
     def test_the_look_is_shorter_than_the_watchdog_s_patience(self):
         self.assertLess(ex.LOOK_SECONDS, ex.Watchdog.STILL_SECONDS,
                         "the panorama would trip the freeze watchdog")
+
+
+class TestWithdrawing(unittest.TestCase):
+    """One withdrawal across a courtyard cost 51 health down to 13, every point taken from behind. A Doom
+    player backing out of a fight walks backwards with the gun still pointed at what is chasing it."""
+
+    def setUp(self):
+        self.e = settled(ex.Executor(NoWorld()))
+        self.e.set_intent(ex.Intent(mode="RETREAT", stance="retreat", target_x=-1000.0,
+                                    has_target=True, ttl_ms=5000), now=0.0)
+
+    def test_it_faces_what_it_is_retreating_from(self):
+        cmd = self.e.step(obs(enemies=enemy(40.0, 200.0)), 0.1)
+        self.assertGreater(cmd["turn"], 0.0, "it should be turning toward the threat, not away")
+
+    def test_it_moves_backwards_not_forwards(self):
+        cmd = self.e.step(obs(enemies=enemy(2.0, 200.0)), 0.1)
+        self.assertLess(cmd["move"], 0.0)
+
+    def test_it_keeps_shooting_while_it_withdraws(self):
+        cmd = self.e.step(obs(enemies=enemy(2.0, 200.0)), 0.1)
+        self.assertEqual(cmd["fire"], 1)
+
+    def test_with_a_wall_behind_it_it_stops_rather_than_grinding(self):
+        cmd = self.e.step(obs(enemies=enemy(2.0, 200.0), clear_back=10), 0.1)
+        self.assertEqual(cmd["move"], 0.0)
+        self.assertEqual(cmd["fire"], 1, "cornered is exactly when it needs to be shooting")

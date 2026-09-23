@@ -45,7 +45,10 @@ STATUS_CHANNELS = ["HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGU
                    "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED",
                    # charter 3.3: the candidate targets the onboard world model offers for scoring
                    "CAND_COUNT", "CAND0", "CAND1", "CAND2", "CAND3", "CAND4", "CAND5", "CAND6", "CAND7",
-                   "INTENT_ID", "WATCHDOG_TRIPS", "DOOR_PRESSES", "DOOR_OPENS"]
+                   "INTENT_ID", "WATCHDOG_TRIPS", "DOOR_PRESSES", "DOOR_OPENS",
+                   # what is actually threatening the player; without these the engage head
+                   # is asked about "something" and can only guess
+                   "THREAT_CLASS", "THREAT_COUNT"]
 CHUNK_HEADER = struct.Struct("!IHHH")  # seq, index, count, length (then 960 data bytes)
 _FIRE_NAME = {0: "NONE", 1: "ANY_ATTACKER", 2: "NEAREST", 3: "TARGET"}
 
@@ -59,7 +62,7 @@ RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL", 
             "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "ENEMY_BEARING", "ENEMY_DIST",
             "HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGUN",
             "EXPLORED_CELLS", "LEVEL", "LEVEL_DONE", "KEYS", "HINT_ACTIVE", "HINT_REL",
-            "DOOR_PRESSES", "DOOR_OPENS", "EXIT_DIST")
+            "DOOR_PRESSES", "DOOR_OPENS", "EXIT_DIST", "THREAT_CLASS", "THREAT_COUNT")
 
 
 def _knowledge():
