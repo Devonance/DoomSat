@@ -180,6 +180,27 @@ carries the same features any way on does, with a `gate` word. "Further from the
 level and stayed as a feature: a Doom level loops back, so a pilot that will not walk back the way it came
 gets stuck at the far end of a dead end.
 
+**The fill was sampling coarser than the thing it sampled for.** The visibility fill stepped along its
+rays sixteen units at a time; a wall in the raster is a line one pixel thick, which is four units. Three
+rays in four stepped straight over every wall in the level and went on marking the room behind it as seen
+floor. One attempt believed it had seen **14,552 cells while knowing 80 of the level's 1,050 lines**.
+
+That single mistake was behind two problems I had been treating as three. The frontiers are computed from
+the seen set, so they were boundaries of a fiction; and `walkable` was enormous, so the tic loop blew its
+budget. Freedoom E1M1, 60 s, one seed:
+
+| | before | after |
+| --- | --- | --- |
+| cells believed seen | 14,552 | **2,905** |
+| tic loop p95 | 46.1 ms | **10.8 ms** |
+| tics over the 28.6 ms budget | 14.2% | **0%** |
+| tic rate | 79/s | **163/s** |
+| `candidates` | 5.77 ms/tic | **0.52 ms/tic** |
+
+A sightline also stops at a wall the player has **not** learned yet. The opaque mask is private to the
+sensor and never reaches the map, so the pilot gains nothing until the automap draws the line -- it merely
+stops claiming to have seen past one, which is what a player can actually do.
+
 **Markers in the void.** One of the morning brief's open questions: some overlay markers sat outside any
 room. Measured on the t3 baseline (geometry off, six dev maps, first six attempts), against the grader's
 own reachable floor and allowing its usual eight-cell search:
