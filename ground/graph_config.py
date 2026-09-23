@@ -56,7 +56,17 @@ DEFAULT = {
         # 84%. The answers it gives are not noise: it separates `unknown_runs` by 1.7 rubric levels
         # ("a fair way" 5.44 against "a little way" 3.70), which is the judgement the head exists for.
         "unsure_gap": 0.05,           # levels between the top two under which the answer is "cannot tell"
-        "unsure_conf": 0.5,           # confidence under which the answer counts as "cannot tell"
+        # A half is the right floor for a CHOICE head, where the options are two or four and a maximum
+        # probability under a half means the model is guessing. The target head is a SCORE over nine
+        # rubric levels, where chance is one in nine and a maximum probability of 0.44 is a firm opinion.
+        # Applying the choice-head threshold to it threw away the model's answer about half the time by
+        # construction: on a flight of 24 September the gap test fired on almost nothing -- the median gap
+        # was 0.51 levels against a 0.05 band -- while the confidence test fired on 191 of 358 decisions,
+        # with a measured confidence p25 of 0.44 and p10 of 0.27.
+        #
+        # 1/9. "Cannot tell" means no better than picking a rubric level out of a hat, which is what the
+        # words are supposed to mean, and it is derived from the rubric rather than chosen.
+        "unsure_conf": 0.111,         # confidence under which the answer counts as "cannot tell"
         "goal_bonus": 1.0,            # levels the goal head is worth on the sector it favours
         "tried_penalty": 1.0,         # levels a direction loses after being held without getting anywhere
         "tried_cooldown": 40,         # ticks a direction keeps that penalty
