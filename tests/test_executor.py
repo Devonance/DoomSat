@@ -63,8 +63,14 @@ class TestTheIntentAndItsTimeToLive(unittest.TestCase):
         self.assertAlmostEqual(abs(cmd["turn"]), ex.TURN_PER_TIC, places=6)
         self.assertEqual(cmd["move"], 0.0, "no running off at full speed while facing the wrong way")
 
-    def test_it_walks_while_only_a_little_off_line(self):
+    def test_it_runs_while_only_a_little_off_line(self):
+        """A Doom player runs and turns at the same time; holding the throttle down until the heading is
+        within 25 degrees cost part power for half a level."""
         self.intent(target_x=1000.0, target_y=700.0, has_target=True)   # about 35 degrees
+        self.assertEqual(self.e.step(obs(), 0.1)["move"], ex.RUN_DELTA)
+
+    def test_it_walks_rather_than_runs_when_well_off_line(self):
+        self.intent(target_x=0.0, target_y=1000.0, has_target=True)     # 90 degrees
         cmd = self.e.step(obs(), 0.1)
         self.assertGreater(cmd["move"], 0.0)
         self.assertLess(cmd["move"], ex.RUN_DELTA)
