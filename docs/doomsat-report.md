@@ -111,6 +111,15 @@ a barrier for the rest of the level. The map of a level is kept across attempts;
 
 ## 5. jev's decision graph
 
+> **The graph in this section is the 22 September one, and it has been replaced twice since.** What
+> replaced it: the eight egocentric sectors are gone as a navigator, and jev now scores **candidate places
+> to go** — a frontier, a door, the exit, a key, a pickup — on a nine-level rubric, up to eight of them per
+> call, alongside an `engage` choice, a `weapon` choice and a `need` score. Code sends one **INTENT** with
+> a time to live and an onboard executor carries it out at 35 Hz, so the player never stands still waiting
+> for an answer. `docs/diagrams/decision_graph.png` and `decision_flow.png` are generated from
+> `tools/decision_figures.py` and show the current shape, worked through the real decision that found the
+> exit on the 24th. The paragraph below still describes what a System One call *is*, which has not changed.
+
 jev classifies a structured state document in one forward pass and returns, per question, an option with
 probabilities (Choice) or a yes-probability (Noul). It does not reason, plan or remember. The graph is therefore
 one narrow question per head, options with contrastive criteria (what / not_for / examples) that reference state
@@ -151,7 +160,13 @@ jev's probabilities and the command that went up:
 
 ![Answers](images/chart_answers.png)
 
-## 6. Results: the stack held, the player did not finish
+## 6. Results
+
+> **Written 22 September; the level was finished on the 24th.** What this section measures — the runs of
+> the 22nd and why they fell short — stayed true of that build. Section 6b brings it to the present, and
+> [the overnight report](results/2026-09-24-overnight-report.md) has the whole of it.
+
+### 6a. 22 September: the stack held, the player did not finish
 
 Runs of 22 September 2026 on shareware E1M1, jev live through the whole stack, Sonnet 5 as System Two. Each
 cycle is run / review / edit / run. Cells are 32-unit map cells the character has stood in.
@@ -177,7 +192,35 @@ loosened to 50"; "the goal flipped every 4 ticks between explore and add armor, 
 was truncated mid-word" (it was: a validator limit, since fixed); "way flipped nearly every tick, raised the
 hysteresis margin". None of them could fix what the words did not carry.
 
-## 7. Why the player did not finish, and what to do
+### 6b. 24 September: it finished
+
+On the full stack with jev deciding, **E1M1 completed in 104.97 seconds of game time** against a 180 s
+budget, with **no deaths** and **four monsters killed** (25.0 s, 34.9 s, 55.9 s, 79.9 s), health falling
+from 100 to 40 with a low of 15. The payload held 35.0 tics a second and the decision age p95 was 845 ms
+inside a 900 ms budget. It was the 103rd attempt this project had made at the level; none of the previous
+102 finished and the best reached 0.85 of the way ([every attempt on one chart](results/e1m1-progress.html)).
+
+![The last 28 seconds: the fourth kill at 33% health, then the run to the exit](video/e1m1-finish.gif)
+
+**What decided it.** At 92.7 s the exit entered the candidate list for the first time — the automap had
+just drawn that line, 166 units away — and jev scored it **7.02** against a door at 5.49 and frontiers
+from 1.03 to 5.60, a gap of 1.42 rubric levels. It took the exit while the engage head was saying
+*Retreat*, because a Zombieman was shooting at it. 12.3 seconds later the level ended. The
+[decision log](results/e1m1-finished-decision-log.md) has every such moment.
+
+**Why it could not before.** Not the model, and not the sensing this report spent its day on.
+`candidates()` asks `path_costs` for the distance to every goal and silently discards whatever the flood
+cannot reach — and **an exit line is a one-sided wall**, so its cell is not walkable and it was never
+reached. Measured on a diagnostic rung that is handed the exit's exact position: the payload reported it
+in telemetry on all 334 decisions of an attempt and it appeared in the candidate list on none of them.
+Every exploring number in section 6a was taken by a pilot with no way out in its list.
+
+**What is still open.** One completion in six flights is an existence proof, not repeatability. The
+walking has no net direction — 49% of it toward the exit and 51% away, even on a rung handed the whole
+map. And `jev_share` sits at 0.29 to 0.45 against a 0.70 floor, for reasons argued in §9 of the overnight
+report that are as much about the metric's definition as about the pilot.
+
+## 7. Why the player did not finish on 22 September, and what came of it
 
 1. **Sensing errors, not decisions.** Most of the day went into finding that jev's inputs were wrong: depth
    scale and geometry, the sky as distance zero, the crosshair and player arrow drawn into sensor buffers, barred

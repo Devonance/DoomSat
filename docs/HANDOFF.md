@@ -3,6 +3,29 @@
 For whoever picks this up next (a research pass is welcome): what was built, what works, what does not, why, and
 what to try.
 
+> ## Read this first: it is 24 September and the level has been finished
+>
+> **E1M1 was completed on 24 September 2026** on the full stack with jev deciding — 104.97 s of game time
+> against a 180 s budget, no deaths, four monsters killed. The "What does not work yet" section below is
+> therefore two days stale, and so is most of the stuck list. The current standing is:
+>
+> - [`docs/results/2026-09-24-overnight-report.md`](results/2026-09-24-overnight-report.md) — what changed
+>   and what it moved, with every number.
+> - [`docs/CHARTER-STATUS.md`](CHARTER-STATUS.md) — what of the charter is built and what is open.
+> - [`docs/results/e1m1-finished-decision-log.md`](results/e1m1-finished-decision-log.md) — what jev was
+>   offered and what it said, at the moments that decided the run.
+> - [`docs/video/e1m1-finished.mp4`](video/e1m1-finished.mp4) — the run itself, as the ground saw it.
+>
+> **The one thing to carry forward from the two days in between:** the pilot could never target an exit it
+> saw. `candidates()` asks `path_costs` for the distance to each goal and silently drops whatever the flood
+> cannot reach, and an exit line is a one-sided wall. Every exploring number this project took before the
+> 24th was taken by a pilot with no way out in its candidate list. If a lead below rests on "it cannot find
+> the exit", that is why, and it is fixed.
+>
+> **What is still true and still open:** the walking has no net direction — 49% of it toward the exit and
+> 51% away even on a rung handed the whole map — one completion in six flights is not repeatability, and
+> nothing can yet recognise an exit switch on screen.
+
 > **Superseded for "what to do next" by `docs/CHARTER.md`.** The charter sets the mission (all of shareware
 > Episode 1, under 3 minutes a level, on the full stack), draws the knowledge boundary as testable rules, and
 > puts every change from here on through an experiment ledger. `docs/CHARTER-STATUS.md` says what is built.
@@ -75,6 +98,8 @@ Play Doom through a real mission stack as a stress test and a demonstration of t
   Yamcs telemetry, Yamcs command history, Open MCT side by side).
 
 ## What does not work yet
+
+*(As of 22 September. It finishes E1M1 now — see the box at the top.)*
 
 The character does not finish E1M1. Best attempt today: it opened the first door (the "silver" one at the north end
 of the north room), entered the big room, and died to the first monsters without a kill. Typical attempt: 200 to 300

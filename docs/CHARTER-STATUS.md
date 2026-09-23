@@ -1,17 +1,67 @@
 # Charter status
 
 What of `docs/CHARTER.md` is built, what each phase's exit test actually says, and what is open.
-Written 22 September 2026, at the end of the phase 0 and phase 1 work.
+
+**Updated 24 September 2026.** The phase-by-phase detail below was written on the 22nd, at the end of the
+phase 0 and 1 work, and is still accurate for those phases. What has happened since is summarised here and
+in full in [the overnight report](results/2026-09-24-overnight-report.md).
+
+## Where it stands
+
+**E1M1 has been finished.** 24 September, on the full stack with jev deciding: 104.97 s of game time
+against a 180 s budget, no deaths, four monsters killed, 35.0 tics a second, decision age p95 845 ms. It
+was the 103rd attempt this project has made at that level; none of the previous 102 finished and the best
+of them reached 0.85 of the way.
 
 | Phase | State |
 | --- | --- |
-| 0 — charter and honesty | **built**, exit test passes |
-| 1 — measurement harness | **built**, exit test passes |
-| 2 — onboard executor and INTENT uplink | not started |
-| 3 — world model and target decisions | not started |
-| 4 — combat, resources, keys, bosses, transitions | not started |
-| 5 — autoresearch loop | the machinery exists; no experiment has been run through it yet |
+| 0 — charter and honesty | **built**, exit test passes; the suite is now 17 checks and 9 canaries |
+| 1 — measurement harness | **built**, exit test passes; the bench was corrected on the 24th (see below) |
+| 2 — onboard executor and INTENT uplink | **built**; the speed half of its exit test is met on flight (35.0 tics/s), the freeze half is not |
+| 3 — world model and target decisions | **built**, and largely rewritten on the 24th: exact geometry gated on the automap, frontiers from sightlines, a nine-level target rubric |
+| 4 — combat, resources, keys, transitions | **built** except the exit/switch vision head, which is half done: the IWAD templates are read and tested, the detector is not written |
+| 5 — autoresearch loop | **built and used**: the ledger now carries twelve `HIST-` rows and one fast-lane keep |
 | 6 — test campaign | not started, and only a person runs it |
+
+## The track changed to t3 on 24 September
+
+Nothing measured on t1 or t2 is comparable with anything measured now. Three harness changes did it, each
+announced where it was made:
+
+1. **The score is the closest approach, not the final position.** A pilot that got two thirds of the way
+   and then wandered used to score the same as one that never left the first room.
+2. **`sectors_info` is an allowed source, gated in `payload/seen_geometry.py`.** Honesty test 2 asks where
+   the filter is rather than whether the switch is off; 2b reads the gate; a live guardrail fails any run
+   holding a line the automap cannot account for; the canary the brief asked for fails the suite.
+3. **The noise floor was re-measured.** The number `ledger.py` divides by had been measured on **t1**, so
+   every keep and discard through the whole of t2 was judged against the spread of a robot with a
+   different gait, a different decider and a forward delta of 14.
+
+## The three things that were wrong, and are not now
+
+- **The exit was dropped from the candidate list on every run this project has ever taken.**
+  `candidates()` asks `path_costs` for the distance to each goal and discards whatever the flood cannot
+  reach; an exit line is a one-sided wall, so its cell is not walkable, so it was never reached. On the
+  oracle rung, which is handed the exit's exact position, the payload reported it in telemetry on all 334
+  decisions of an attempt and it appeared in the candidate list on none of them.
+- **The freeze tests could not see flailing.** A wedged player covers hundreds of units inside a box a few
+  feet across, and every motion test read that as healthy. One attempt moved 175 units in 180 seconds with
+  zero watchdog trips.
+- **The bench was not the robot that flies.** It sensed once per decision and then ran nineteen tics on a
+  stale position, while flight senses every tic. Every constant tuned on it before the 24th was tuned on
+  something that does not fly.
+
+## What is open
+
+- **Repeatability.** One completion in six flights. That is an existence proof, not a result.
+- **The walking still has no net direction**: 49% of it toward the exit and 51% away on the oracle rung,
+  52% on the dev bench after every fix. The pilot goes half again as fast as it did and arrives in the
+  same place.
+- **`jev_share` fails its guardrail** at 0.29 to 0.45 against a floor of 0.70, and §9 of the overnight
+  report argues the definition is in tension with the charter's own commitment rule. That is a question
+  for Kevin, not a number to move.
+- **Nothing can recognise an exit switch.** The templates are read; the detector is not written.
+- **The bench segfaults on Freedoom E1M4 with geometry on**, reproducibly, and is not diagnosed.
 
 ---
 

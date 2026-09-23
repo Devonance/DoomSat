@@ -40,98 +40,125 @@ def tex(s):
 
 
 ROWS = [
-    ("1. sector (the navigator)",
-     "that one sector's words: space (blocked / tight / open / long), ground (never explored / new / partly "
-     "walked / walked before / unknown), door (none or a distance band), and whether the exit, a key, the "
-     "ground hint or a pickup lies there. Every bearing in the state is binned into the same eight labels",
-     "Score on a shared four-level rubric: dead end / leads on but old / worth a look / the way on",
-     "once per open direction, every tick (~0.5 s), in EXPLORE and APPROACH; a blocked direction and one "
-     "with missing telemetry are not offered",
-     "code ranks the scores, adds the goal's weight and subtracts a level from a direction just held "
-     "without getting anywhere, then keeps the committed WORLD BEARING unless another sector beats it by "
-     "sector_margin (capped below one rubric level, so a whole level always wins); a top-two gap under "
-     "unsure_gap (0.10, calibrated from replay) goes to the named frontier fallback"),
-    ("2. danger",
-     "the nearest enemy in the sector vocabulary with a distance band, how many are in view, health and "
-     "ammunition bands, and which sides are open",
-     "Score on four levels: no danger / a fight to win / under fire / get out",
-     "whenever an enemy is in view, in any mode",
-     "at or above danger_sidestep (1.5) code strafes into the open side, preferring a long passage; at or "
-     "above danger_retreat (2.5) it backs off. Firing, the weapon and the aim are not asked: they are exact "
-     "rules over numbers code already has"),
-    ("3. goal",
-     "health, armor, ammunition, the enemy, and where the exit, a key and each pickup were seen -- all in "
-     "the same eight direction labels; the standing order rides on this question, not in the state",
-     "Choice: Explore / Scout / Kill enemies / Restore health / Stock ammo / Add armor",
-     "every goal_every ticks (10)",
-     "SET_GOAL, and a real effect on the next decisions: goal_bonus levels are added to the sector holding "
-     "that goal's pickup, and SCOUT weights never-explored ground"),
-    ("Code: the mode machine",
-     "stuck, what is at arm's length, whether an enemy is in view, whether the level is finished",
-     "not jev: an explicit state machine, every transition an exact rule",
-     "every tick, before jev is asked",
-     "EXPLORE / APPROACH ask jev; OPERATE (press Use, give up after door_tries), RECOVER (back out until "
-     "64 units moved) and DONE are pure code, so those ticks make no model call at all"),
-    ("Code: the reflex layer",
-     "the same state, plus the turn still in flight",
-     "not jev: invariants that hold under every mode",
-     "on every command, last",
-     "never fire at zero ammo; never walk into a known wall (unless it is a door to walk up to); never "
-     "re-command a turn still swinging; clamp the turn to max_turn_deg"),
-    ("System Two: bump (Claude Sonnet 5)",
-     "seconds into the attempt, cells gained, position, most visited spots, the map product as text",
-     "not jev: a JSON-schema reply with bearing, hold time and an optional goal",
-     "every 60 s",
-     "EXPLORE_HINT(bearing, ttl): the payload steers 'ahead' toward the bearing while it lasts, and the "
-     "sector it falls in reads hint_here yes; jev still scores every open direction"),
-    ("System Two: after-action (Claude Sonnet 5)",
-     "the episode report, built from the heads the episode actually asked: outcome, health, damage, cells, "
-     "distance, spin windows, the score distribution per head, what the selection did (held, fallbacks, "
-     "gaps), the modes, the last eight decisions, plus the current graph and the bounds code enforces",
-     "not jev: a revised graph (question wording, rubric levels, thresholds, selection numbers) with a "
-     "rationale",
-     "after every episode: death, level done, or the 180 s budget",
-     "code validates and REJECTS anything out of bounds -- overlong text, a number out of range, an "
-     "unknown head or option, a criterion naming a state field that does not exist -- and hands the reason "
-     "back for one more try, then stores graph_v<N>.json"),
+    ("1. target (the navigator)",
+     "one candidate place to go, in words: what it is (unexplored edge / a door / the level exit / a key / "
+     "a pickup), how far along the floor, how far COMPARED WITH the other candidates, its direction, how "
+     "much unseen ground lies behind it, how far that runs, how wide the way on is, what is standing near "
+     "it, whether it has been tried, whether it leads away from where the level began, and what gate is in "
+     "the way (none / a door / a locked door and whether its key is held). No coordinates and no numbers "
+     "reach jev: the world position rides in the INTENT, where code uses it to aim",
+     "Score on a nine-level rubric, worst first: not reachable / a bad trade / nothing behind it / worth "
+     "it nearer / a fair next step / worth a detour / the obvious move / the way on / the way out",
+     "once per candidate, up to eight, on every decision (about twice a second) whenever more than one "
+     "place is on offer. One candidate is not a choice and is not asked",
+     "code ranks the scores, then holds what it is already walking to unless another beats it by a margin "
+     "-- a frontier RECEDES as you explore, so commitment matches a neighbourhood and not an exact cell. "
+     "Below unsure_gap (0.05 rubric levels) or below unsure_conf the answer is not used, and the ONE "
+     "fallback the brief allows applies: keep the current target, else take the nearest way on"),
+    ("2. need",
+     "health, armor and ammunition against the thresholds in knowledge/doom_rules.yaml, as urgency words",
+     "Score each of health / armor / ammo: urgent / wanted / nice to have / none",
+     "every goal_every decisions",
+     "code re-weights which pickups are offered as candidates at all: a detour is only worth making for "
+     "something the player actually needs now"),
+    ("3. engage",
+     "what is in view and how dangerous the knowledge file says that class is, how many, how far, against "
+     "health, armor and what is loaded -- and what else there is to be doing",
+     "Choice: Fight where I stand / Fight while moving / Break off and go round / Retreat",
+     "whenever something is in view, in any mode",
+     "code sets the INTENT's mode and stance from it. The backstop when it is not asked is deliberately "
+     "NEUTRAL (break off and keep moving): a baseline that picks fights is the most dangerous player in "
+     "its own comparison, and a row built on one measures the code's recklessness, not the model's "
+     "judgement"),
+    ("4. weapon",
+     "the enemy class, distance and count against the weapons owned that have ammunition",
+     "Choice among the owned weapons: Fist / Pistol / Shotgun / Chaingun / RocketLauncher",
+     "with the engage head",
+     "the slot rides in the INTENT and the executor selects it. A rule backstop overrides one case the "
+     "model should not be trusted with: never a rocket at point blank"),
+    ("Code: the payload's world model (onboard, 35 Hz)",
+     "exact level geometry from the engine, GATED: a line reaches the pilot only once the automap has "
+     "drawn half the points sampled along it. Sightlines against those lines say which floor has been "
+     "seen; floor heights say which rises can be climbed, which are ledges, and which sectors are shut "
+     "doors rather than solid pillars",
+     "not jev: measurement and bookkeeping",
+     "every tic; the candidate list is rebuilt a few times a second",
+     "frontiers (the edge of the seen), doors, the exit if one has been looked at, and pickups, each with "
+     "its path distance -- pruned to the eight the ground scores. A live guardrail fails any run holding a "
+     "line the automap cannot account for"),
+    ("Code: the onboard executor (charter 3.1)",
+     "the payload's own fast sensing every tic: position, heading, what the range camera reports ahead and "
+     "on each shoulder, what is at arm's length, what is in view",
+     "not jev: it carries out the INTENT it was last given, and drops to safe behaviour when the time to "
+     "live runs out",
+     "every tic, 35 Hz, between decisions",
+     "follows the planned path, re-acquiring it when the player has come off; throttles by how much room "
+     "there is to turn in rather than by a fixed angle; sidesteps what the camera sees; aims and fires; "
+     "pulses Use at a door; takes a panorama on new ground. The ground never sends buttons"),
+    ("Code: the watchdog",
+     "where the player has been over the last four seconds",
+     "not jev: invariants checked at control rate",
+     "every tic",
+     "trips when the player covers no ground, and ALSO when it covers plenty and gets nowhere -- a wedged "
+     "player flails, and flailing is motion, so a test that only measures distance reads it as healthy. "
+     "The recovery retreats to a cell the player has already stood in, which is walkable by demonstration "
+     "rather than by inference"),
+    ("System Two (Claude Sonnet 5)",
+     "the episode report and the current graph",
+     "not jev: a revised graph with a rationale, which code validates and may reject",
+     "after an episode, when it is enabled",
+     "it was OFF for the run that finished E1M1 and for every measurement beside it, so nothing here is "
+     "owed to it"),
 ]
 
-FOOTER = ("Three heads, all judgments with no exact rule behind them; everything else is code. Replaying 120 logged "
-          "states on 22 Sep 2026: 2,263 median input tokens per call, 461 ms median, and jev's own ranking "
-          "reproducible between identical passes on every state where the top two sat 0.10 rubric levels apart "
-          "or more (0 of 51), against 30% flipping below that.")
+FOOTER = ("Four heads, all judgements with no exact rule behind them; everything else is code. One call carries "
+          "them all: on the decision that found the exit on 24 Sep 2026 -- jev-1.13.0, 354 ms, 5,232 input "
+          "tokens -- eight target scores, the engage choice and the weapon choice came back together, and the "
+          "decision age from observation to command was 481 ms against a 900 ms budget.")
 
-# one real decision, replayed live against graph v1: request req_01a0ca7e70fd7c8289c901853c0bd2d7,
-# jev-1.13.0, 330 ms, 2452 input tokens (runs/2026-09-22/worked_decision.json)
+# One real decision, from the flight that finished E1M1 on 24 September 2026: the tic the exit first
+# entered the candidate list. jev-1.13.0, request req_01a0cdc29a2674a9abccb11b0b42b85d, 354 ms, 5,232
+# input tokens and 227 out (research/out/flight-e1m1-5/attempt-E1M1-1.json, tic 3244).
 FLOW = [
-    ("Yamcs parameters (12 Hz), this tick", GREY, [
-        "CLEAR ahead 143, ahead-left 192, left 348, behind-left 400, behind 400, behind-right 400, right 284, ahead-right 328 (units)",
-        "NEW ahead 100, ahead-left 255, left 100, behind-left 100, behind 100, behind-right 88, right 100, ahead-right 238",
-        "DOOR all 0 except ahead-right (a door on that ray); AHEAD_KIND NOTHING, EXIT_DIST 0, STUCK false, ENEMY_COUNT 0",
-        "POS 1056,-3034, ANGLE 90, EXPLORED_CELLS 19, LEVEL 1, KEYS 0"]),
-    ("telemetry -> words: bands, novelty, one door field, one direction vocabulary; no number reaches jev", None, None),
-    ("State document (code, no model). Only `sectors` is sent: nothing else is inspected this tick", GREY, [
-        "ahead: space open, ground new",
-        "ahead-left: space open, ground never explored",
-        "left / behind-left / behind / behind-right / right: space long, ground new",
-        "ahead-right: space long, ground unknown, door mid-range",
-        "every sector also carries exit_here, key_here, item_here, hint_here, tried_recently (all no here)"]),
-    ("HTTPS POST /v1/systemone: the state plus one Score question per open direction, same rubric", None, None),
-    ("jev, one request, 330 ms, 2452 input tokens (req_01a0ca7e70fd7c8289c901853c0bd2d7)", ORANGE, [
-        "s_ahead-left  2.98 (confidence 0.98)   <- the only never-explored direction",
-        "s_behind 2.06, s_left 2.04, s_behind-right 2.04, s_behind-left 2.03",
-        "s_right 2.02, s_ahead 2.01, s_ahead-right 1.97",
-        "the goal head was not asked this tick (every 10th); the danger head only when an enemy is in view"]),
-    ("eight scores on a four-level rubric, and a confidence each", None, None),
+    ("Payload telemetry through F Prime, CCSDS and Yamcs -- tic 3244, 92.7 s into the level", GREY, [
+        "health 33, armor 0, shotgun loaded; one Zombieman in view at mid-range",
+        "eight candidate places, each with a world position, a path distance, how much unseen ground lies "
+        "behind it, how wide the way on is and what is standing near it",
+        "one of them is the level exit: the automap drew that line 166 units away, the first time this "
+        "attempt has seen it",
+        "the position and the distances are for CODE to aim and plan with; none of them reach the model"]),
+    ("telemetry -> words: bands, comparisons and categories, one vocabulary. No coordinate, no number", None, None),
+    ("State document (code, no model)", GREY, [
+        "here: mode explore, health critical, armor none, ammunition ready, keys none, stuck no",
+        "needs: health urgent, ammo none, armor wanted",
+        "combat: a straggler, Zombieman, one, mid-range",
+        "t0 -- what the level exit, how_far close, relative_distance nearer than most, direction "
+        "behind-left, unseen_ground_behind_it none, tried_before no, threat none",
+        "t3 -- what unexplored edge, the_way_on_is a doorway, unknown_runs a fair way, gate none, "
+        "further_from_the_start about as far out, threat none"]),
+    ("HTTPS POST /v1/systemone: one call, eight target questions plus engage plus weapon", None, None),
+    ("jev-1.13.0, one request, 354 ms, 5,232 input tokens (req_01a0cdc29a2674a9abccb11b0b42b85d)", ORANGE, [
+        "target  t0 7.02 (the exit, confidence 0.56)  t3 5.60  t1 5.49  t2 5.34  t7 4.89  t5 4.64  "
+        "t6 3.74  t4 1.03",
+        "engage  Retreat (confidence 0.82)",
+        "weapon  Shotgun (confidence 0.81)",
+        "the need head is asked every goal_every decisions, and was not asked on this one"]),
+    ("eight scores on a nine-level rubric, two choices, a confidence each", None, None),
     ("Code rules", GREEN, [
-        "top two 2.98 vs 2.06: a gap of 0.92 levels, well clear of unsure_gap (0.20), so jev's ranking stands",
-        "no commitment yet this episode, so no hysteresis to apply; commit the WORLD bearing 90+45 = 135 degrees",
-        "ahead-left is not straight on: turn 45 degrees and do not walk this tick",
-        "reflex: ammunition is zero so fire stays off; the turn is inside max_turn_deg; no turn is in flight"]),
-    ("one command per decision", None, None),
-    ("CONTROL(move=0, strafe=0, turn=+45, fire=0, use=0, weapon=FIST meaning keep)", BLUE, [
-        "Yamcs HTTP -> CCSDS TC -> UDP -> F Prime CmdDispatcher -> Doom component -> payload turn setpoint (6 deg per tic)",
-        "the next tick will not be judged until that turn has landed, so the sectors are never read mid-swing"]),
+        "top two 7.02 against 5.60: a gap of 1.42 rubric levels, well clear of unsure_gap, so jev's "
+        "ranking stands and the exit is the target",
+        "commitment: the margin to beat is 1.2 levels and nothing beats the exit, so it is committed to",
+        "engage Retreat -> mode RETREAT, stance retreat: back away from the Zombieman while going for it",
+        "use_at_target is set, because the thing being walked to is something you open"]),
+    ("one INTENT per decision, with a time to live", None, None),
+    ("INTENT(mode=RETREAT, target=2928,-4720, stance=retreat, fire=any attacker, use_at_target, ttl=1500ms)",
+     BLUE, [
+        "Yamcs HTTP -> CCSDS TC -> UDP -> F Prime CmdDispatcher -> Doom component -> the onboard executor",
+        "telemetry was 83 ms old, jev took 354 ms, the command took 44 ms: 481 ms from observation to "
+        "effect, against a 900 ms budget",
+        "the executor carries this out at 35 Hz for up to 1.5 s without asking anything -- the player "
+        "does not stand still waiting for the next answer",
+        "12.3 seconds later the level ended"]),
 ]
 
 def decision_graph_dot():
