@@ -362,10 +362,22 @@ _RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL",
 
 # ---------------------------------------------------------------- flight log -> attempts
 def flight_attempts(log_path, wad_path, budget_s, skill, seed):
-    """Split a pilot's decision log into one record per level attempt.
+    """Split a pilot's decision log into one record per level ATTEMPT, and time each one by the game.
 
-    The pilot logs a `level` row when a level is finished and an `episode` row when one ends, which is
-    enough to cut the log without the runner having to have been watching.
+    Two things were wrong here and both under-reported a flight, so this is a harness change and starts
+    no new track only because t3 had already started.
+
+    **It cut the log on `level` rows alone.** The pilot writes one of those when a level is finished, and
+    it does not write anything when the level is reset for running over its budget -- so two attempts at
+    the same level came out as one record. The pilot has always stamped every row with its `episode`, and
+    that is the boundary.
+
+    **It timed an attempt by wall clock**, the span between the first and last row. Charter 7 defines
+    `level_time` as "game seconds from level start to exit", and the payload's own tic counter restarts at
+    every level start and is exactly that. Across an episode boundary the wall-clock span is the sum of
+    two attempts: a flight that reset a level at 84 s and then finished it in 105 s was recorded as a
+    single 184-second attempt that missed the 180-second budget, when what had happened was a level
+    beaten with 75 seconds to spare.
     """
     rows = []
     for line in open(log_path, encoding="utf-8"):
@@ -375,30 +387,37 @@ def flight_attempts(log_path, wad_path, budget_s, skill, seed):
             except ValueError:
                 pass
     out, cur, deaths = [], [], 0
-    level_no = None
+    episode = None
 
     def close(reason):
         if not cur:
             return
         pos = [(r["raw"]["POS_X"], r["raw"]["POS_Y"]) for r in cur
                if r.get("kind") == "control" and (r.get("raw") or {}).get("POS_X") is not None]
-        span = (cur[-1].get("t") or 0) - (cur[0].get("t") or 0)
+        # The game's clock, not the wall's: the payload restarts its tic counter at every level start.
+        tics = [int(r["tic"]) for r in cur if r.get("kind") == "control" and r.get("tic") is not None]
+        seconds = (max(tics) / float(TICRATE)) if tics else ((cur[-1].get("t") or 0) - (cur[0].get("t") or 0))
         out.append({"tier": "flight", "wad_path": wad_path, "map": None, "seed": seed, "skill": skill,
                     "budget_s": budget_s, "start_xy": list(pos[0]) if pos else None,
                     "end_xy": list(pos[-1]) if pos else None, "end_reason": reason,
-                    "game_seconds": round(span, 2), "deaths": deaths, "decider": "jev",
+                    "game_seconds": round(seconds, 2), "deaths": deaths, "decider": "jev",
                     "decisions": list(cur)})
 
     for r in rows:
         kind = r.get("kind")
         if kind == "control":
-            lv = (r.get("raw") or {}).get("LEVEL")
-            if level_no is None:
-                level_no = lv
+            ep = r.get("episode")
+            if episode is not None and ep != episode:
+                # The level was restarted -- reset for running over its budget, or after a death. Either
+                # way the next rows are a fresh attempt with an empty world model, and folding them into
+                # the last one loses both.
+                close("timeout")
+                cur, deaths = [], 0
+            episode = ep
             cur.append(r)
         elif kind == "level":
             close("exit")
-            cur, deaths, level_no = [], 0, r.get("started")
+            cur, deaths, episode = [], 0, None
         elif kind == "episode" and r.get("reason") == "died":
             deaths += 1
             cur.append(r)

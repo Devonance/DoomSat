@@ -1,0 +1,21 @@
+{
+ "run_id": "20260923T031903-flight-974c",
+ "tier": "flight",
+ "versions": {
+  "commit": "ceee7fa5",
+  "pinned": null,
+  "dirty": false,
+  "branch": "overnight-0924",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t3",
+  "levels_sha": "c596038d5921",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "4e56aaa473a8"
+ },
+ "attempts": [
+  "research/out/flight-e1m1-5/attempt-E1M1-0.json",
+  "research/out/flight-e1m1-5/attempt-E1M1-1.json",
+  "research/out/flight-e1m1-5/attempt-E1M2-2.json"
+ ]
+}

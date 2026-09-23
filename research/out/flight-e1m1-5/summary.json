@@ -1,0 +1,73 @@
+{
+ "attempts": 3,
+ "suite_score": 0.7359,
+ "score_sd": 0.6362,
+ "completed": 1,
+ "deaths": 0,
+ "episodes": 3,
+ "freezes": null,
+ "freeze_reasons": {},
+ "model_unavailable": 0,
+ "door_presses": 57,
+ "door_opens": 2,
+ "door_precision": 0.0351,
+ "exit_ever_seen": 1,
+ "door_recall": {
+  "came_into_view": 18,
+  "offered": 14,
+  "recall": 0.7778
+ },
+ "deaths_by_mode": {},
+ "mode_share": {
+  "EXPLORE": 0.5635,
+  "FIGHT": 0.1903,
+  "OPERATE": 0.0894,
+  "APPROACH": 0.0858,
+  "RETREAT": 0.0711
+ },
+ "mean_progress": 0.6093,
+ "mean_progress_best": 0.6263,
+ "seen_coverage": null,
+ "decision_reasons": {
+  "asked and used": 0.4429,
+  "unsure band": 0.3961,
+  "held": 0.1454,
+  "cached": 0.0113,
+  "unavailable": 0.0024,
+  "gave up": 0.0018
+ },
+ "tic_rate": null,
+ "maps_without_a_usable_progress_score": [],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "deaths_per_minute": {
+   "pass": true,
+   "value": "0.00 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": false,
+   "value": "0.37 (floor 0.70)"
+  },
+  "decision_age_p95": {
+   "pass": true,
+   "value": "845 ms (budget 900)"
+  }
+ },
+ "guardrails_pass": false,
+ "per_level": {
+  "E1M1": {
+   "n": 2,
+   "mean": 1.0256,
+   "sd": 0.5532
+  },
+  "E1M2": {
+   "n": 1,
+   "mean": 0.1566,
+   "sd": null
+  }
+ },
+ "run_dir": "research/out/flight-e1m1-5"
+}
