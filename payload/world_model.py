@@ -27,6 +27,12 @@ from collections import deque
 from mapclasses import BLOCKING, DOOR, EXIT, GRID, LOCK_KEY, LOCKED, WPX, ENEMY_INDEX, NO_ENEMY  # noqa: F401
 
 THREAT_NEAR = 384.0        # an enemy this close to a candidate is a reason to think twice about going there
+# What a ceiling change has to look like before it is allowed to be called a door. Doom doorways are a
+# little over a cell wide; a ceiling change that runs for hundreds of units is a ledge or a light recess.
+DOOR_MIN_WIDTH, DOOR_MAX_WIDTH = 40.0, 200.0
+DOOR_CONFIRM_UNITS = 400.0   # close enough for the range camera to have an opinion
+SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means it is not solid
+MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
 
 FRONTIER_MIN_CELLS = 2     # a frontier smaller than this is sensor noise, not a way on
 FRONTIER_MAX = 24          # clusters to consider before pruning to the candidates the ground scores
@@ -229,7 +235,19 @@ class WorldModel:
                 rec["state"] = "taken"
 
     def see_doors(self, now, radius_px=220):
-        """Doors and locked doors on the automap, as places rather than pixels."""
+        """Places on the automap that MIGHT be a door. Nothing here is a door yet.
+
+        ZDoom's `am_cdwallcolor` is the "ceiling height changes" category, and the payload reads that
+        colour as DOOR. It is not: every step up, window frame, light recess and ledge in the level is a
+        ceiling change. Across one flight that made 1,336 of 2,899 candidates "a door", and since the
+        rubric reasonably prefers a close untried door to a far frontier, the player spent its time
+        pressing Use on walls near where it started.
+
+        So a line found here is a *suspect*. It becomes a candidate only once it has passed the tests in
+        `confirm_doors` and `note_door_try`: roughly door-width, solid to the range camera, and not yet
+        proved inert by pressing it. This is the same lesson as the first audit -- the model answered bad
+        inputs correctly, and the fix belongs in the senses.
+        """
         import numpy as np
         ex = self.ex
         cx_, cy_ = ex.wpx(*self._last_pos) if getattr(self, "_last_pos", None) else (ex.n // 2, ex.n // 2)
@@ -238,25 +256,89 @@ class WorldModel:
         win = ex.raster[c:d, a:b]
         for cls in (DOOR, LOCKED) + tuple(LOCK_KEY):
             ys, xs = np.nonzero(win == cls)
-            for k in range(0, len(xs), 7):      # a door is many pixels; one sample every few is plenty
+            if not len(xs):
+                continue
+            # Group the pixels by cell first, so a cluster's extent can be measured. A door is roughly
+            # one doorway wide; a ceiling change that runs the length of a wall is a ledge.
+            by_cell = {}
+            for k in range(0, len(xs), 3):
                 wx = ex.ox + (a + int(xs[k])) * WPX
                 wy = ex.oy - (c + int(ys[k])) * WPX
-                cell = (int(math.floor(wx / GRID)), int(math.floor(wy / GRID)))
-                rec = self.doors.setdefault(cell, {"x": wx, "y": wy, "colour": "", "tries": 0,
-                                                   "opened": False, "last_try": 0.0})
-                rec["colour"] = LOCK_KEY.get(cls, "locked" if cls == LOCKED else "")
+                by_cell.setdefault((int(math.floor(wx / GRID)), int(math.floor(wy / GRID))),
+                                   []).append((wx, wy))
+            for cell, pts in by_cell.items():
+                rec = self.doors.get(cell)
+                if rec and rec.get("not_a_door"):
+                    continue                      # settled, and it stays settled for the attempt
+                width = self._extent(pts, by_cell, cell)
+                rec = self.doors.setdefault(cell, {"x": pts[0][0], "y": pts[0][1], "colour": "",
+                                                   "tries": 0, "opened": False, "last_try": 0.0,
+                                                   "not_a_door": False, "see_through": False,
+                                                   "width": width, "why": ""})
+                rec["width"], rec["colour"] = width, LOCK_KEY.get(cls, "locked" if cls == LOCKED else "")
+                if not (DOOR_MIN_WIDTH <= width <= DOOR_MAX_WIDTH):
+                    rec["not_a_door"], rec["why"] = True, "%.0f units wide" % width
+
+    @staticmethod
+    def _extent(pts, by_cell, cell):
+        """How far the ceiling change runs through this cell and its neighbours, in map units."""
+        near = list(pts)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                near += by_cell.get((cell[0] + dx, cell[1] + dy), [])
+        xs = [p[0] for p in near]
+        ys = [p[1] for p in near]
+        return max(max(xs) - min(xs), max(ys) - min(ys))
+
+    def confirm_doors(self, x, y, angle, depth_units, now):
+        """Ask the range camera whether the suspect is solid.
+
+        A closed door blocks the view. A window, a ledge or a step in the ceiling does not: the camera
+        sees past it, to the far wall of whatever is behind. So if the depth at the suspect's bearing
+        reads meaningfully further than the suspect itself, it is not a closed door and never was.
+
+        `depth_units` is a function from a relative bearing to how far the camera can see that way.
+        """
+        for cell, rec in self.doors.items():
+            if rec.get("not_a_door") or rec.get("opened") or rec.get("see_through"):
+                continue
+            dist = math.hypot(rec["x"] - x, rec["y"] - y)
+            if dist > DOOR_CONFIRM_UNITS or dist < 24:
+                continue
+            rel = (math.degrees(math.atan2(rec["y"] - y, rec["x"] - x)) - angle + 180) % 360 - 180
+            if abs(rel) > 40:
+                continue                          # outside the camera's useful field
+            seen = depth_units(rel)
+            if seen is not None and seen > dist + SEE_PAST_UNITS:
+                rec["see_through"] = True
+                rec["why"] = "the camera sees %.0f units past it" % (seen - dist)
 
     def note_door_try(self, x, y, now, opened=False):
-        cell = (int(math.floor(x / GRID)), int(math.floor(y / GRID)))
+        """A press, and what it proved. One press that opens nothing settles it for the attempt.
+
+        Pressing Use on a wall is the cheapest possible experiment and its result is unambiguous, so it
+        is worth more than any amount of inference from the automap.
+        """
         best, bd = None, 1e9
-        for c, rec in self.doors.items():
+        for _c, rec in self.doors.items():
             d = math.hypot(rec["x"] - x, rec["y"] - y)
             if d < bd:
                 best, bd = rec, d
-        if best is not None and bd < 96:
-            best["tries"] += 0 if opened else 1
-            best["opened"] = best["opened"] or opened
-            best["last_try"] = now
+        if best is None or bd >= 96:
+            return None
+        best["last_try"] = now
+        if opened:
+            best["opened"] = True
+            return True
+        best["tries"] += 1
+        if best["tries"] >= 1:
+            best["not_a_door"] = True
+            best["why"] = "pressed, nothing opened"
+        return False
+
+    def door_suspects(self):
+        """Every ceiling-change line seen, and what became of it. Diagnostics only."""
+        return dict(self.doors)
 
     def threat_near(self, x, y, radius=THREAT_NEAR):
         """Which monster class is standing near this place, and how many things are.
@@ -383,11 +465,16 @@ class WorldModel:
             goals.append(cell)
             meta[cell] = (KIND_FRONTIER, size, "", 0)
 
+        # Doors, and only the ones that have earned the name. Capped, so that a level full of ceiling
+        # changes cannot crowd the frontiers out of a list of eight.
+        usable = []
         for cell, rec in self.doors.items():
-            if rec["opened"] or (rec["tries"] >= 4 and now - rec["last_try"] < 120):
+            if rec.get("not_a_door") or rec.get("see_through") or rec["opened"]:
                 continue
             if rec["colour"] and rec["colour"] != "locked" and rec["colour"] not in keys_held:
                 continue                       # a locked door without its key is not a place to go
+            usable.append((math.hypot(rec["x"] - x, rec["y"] - y), cell, rec))
+        for _d, cell, rec in sorted(usable)[:MAX_DOOR_CANDIDATES]:
             goals.append(cell)
             meta[cell] = (KIND_DOOR, 0, rec["colour"], rec["tries"])
 

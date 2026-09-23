@@ -45,7 +45,7 @@ STATUS_CHANNELS = ["HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGU
                    "FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMDS_RECEIVED",
                    # charter 3.3: the candidate targets the onboard world model offers for scoring
                    "CAND_COUNT", "CAND0", "CAND1", "CAND2", "CAND3", "CAND4", "CAND5", "CAND6", "CAND7",
-                   "INTENT_ID", "WATCHDOG_TRIPS"]
+                   "INTENT_ID", "WATCHDOG_TRIPS", "DOOR_PRESSES", "DOOR_OPENS"]
 CHUNK_HEADER = struct.Struct("!IHHH")  # seq, index, count, length (then 960 data bytes)
 _FIRE_NAME = {0: "NONE", 1: "ANY_ATTACKER", 2: "NEAREST", 3: "TARGET"}
 
@@ -58,7 +58,8 @@ RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL", 
             "HEALTH_ITEM_DIST", "HEALTH_BEARING", "AMMO_ITEM_DIST", "AMMO_BEARING", "ARMOR_ITEM_DIST", "ARMOR_BEARING",
             "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "ENEMY_BEARING", "ENEMY_DIST",
             "HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGUN",
-            "EXPLORED_CELLS", "LEVEL", "LEVEL_DONE", "KEYS", "HINT_ACTIVE", "HINT_REL")
+            "EXPLORED_CELLS", "LEVEL", "LEVEL_DONE", "KEYS", "HINT_ACTIVE", "HINT_REL",
+            "DOOR_PRESSES", "DOOR_OPENS", "EXIT_DIST")
 
 
 def _knowledge():
@@ -351,6 +352,9 @@ class Pilot:
                "answers": {k: dg.answer_label(v) for k, v in d["answers"].items()},
                "confidence": {k: round(dg.answer_confidence(v), 2) for k, v in d["answers"].items()},
                "control": it, "candidates": len(cands), "cached": d["cached"],
+               # where the candidates were, for the post-flight overlay. Ground-side diagnostics only;
+               # nothing reads it back into a decision.
+               "cand_xy": [{"kind": c["kind"], "x": round(c["x"], 1), "y": round(c["y"], 1)} for c in cands],
                "health": t.get("HEALTH"), "kills": t.get("KILLS"), "tic": t.get("TIC"),
                "state": d["sent"], "here": d["state"]["here"], "needs": d["needs"],
                "questions_sha": hashlib.sha1(json.dumps(d["questions"], sort_keys=True).encode()).hexdigest()[:12],

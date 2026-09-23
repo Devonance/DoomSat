@@ -203,7 +203,8 @@ class TestTheCandidateList(unittest.TestCase):
 
     def test_a_locked_door_without_its_key_is_not_somewhere_to_go(self):
         self.w.doors[(5, 2)] = {"x": 5.5 * GRID, "y": 2.5 * GRID, "colour": "red", "tries": 0,
-                                "opened": False, "last_try": 0.0}
+                                "opened": False, "last_try": 0.0, "not_a_door": False,
+                                "see_through": False, "width": 64.0, "why": ""}
         self.w.see_doors = lambda *a, **k: None          # the raster scan needs numpy and a real raster
         kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)]
         self.assertNotIn(wm.KIND_DOOR, kinds)
@@ -211,10 +212,16 @@ class TestTheCandidateList(unittest.TestCase):
         self.assertIn(wm.KIND_DOOR, kinds, "with the key in hand it is a place to go")
 
     def test_a_door_that_refused_to_open_stops_being_offered(self):
+        """One press that opens nothing settles it: pressing Use on a wall is the cheapest possible
+        experiment and its result is unambiguous."""
         self.w.see_doors = lambda *a, **k: None
-        self.w.doors[(5, 2)] = {"x": 5.5 * GRID, "y": 2.5 * GRID, "colour": "", "tries": 9,
-                                "opened": False, "last_try": 1000.0}
-        kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 1000.0)]
+        self.w.doors[(5, 2)] = {"x": 5.5 * GRID, "y": 2.5 * GRID, "colour": "", "tries": 0,
+                                "opened": False, "last_try": 0.0, "not_a_door": False,
+                                "see_through": False, "width": 64.0, "why": ""}
+        kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)]
+        self.assertIn(wm.KIND_DOOR, kinds, "an untried suspect should still be offered")
+        self.w.note_door_try(5.5 * GRID, 2.5 * GRID, 1.0, opened=False)
+        kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 1.0)]
         self.assertNotIn(wm.KIND_DOOR, kinds)
 
     def test_somewhere_with_no_route_to_it_is_not_offered(self):
@@ -257,3 +264,74 @@ class TestItMatchesThePayload(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestADoorHasToEarnTheName(unittest.TestCase):
+    """ZDoom's am_cdwallcolor is the "ceiling height changes" category, and the payload reads that colour
+    as DOOR. It is not: every step up, window frame, light recess and ledge is a ceiling change. Across
+    one flight that made 1,336 of 2,899 candidates "a door", and the pilot spent its time pressing Use on
+    walls near where it started. The same lesson as the first audit -- the model answered bad inputs
+    correctly, and the fix belongs in the senses."""
+
+    def setUp(self):
+        self.ex = FakeExplorer(free=room(0, 0, 12, 6))
+        self.w = wm.WorldModel(self.ex)
+        self.w.see_doors = lambda *a, **k: None
+
+    def suspect(self, cell=(5, 2), width=64.0, **kw):
+        rec = {"x": (cell[0] + 0.5) * GRID, "y": (cell[1] + 0.5) * GRID, "colour": "", "tries": 0,
+               "opened": False, "last_try": 0.0, "not_a_door": False, "see_through": False,
+               "width": width, "why": ""}
+        rec.update(kw)
+        self.w.doors[cell] = rec
+        return rec
+
+    def kinds(self, **kw):
+        return [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0, **kw)]
+
+    def test_a_suspect_of_door_width_is_offered(self):
+        self.suspect()
+        self.assertIn(wm.KIND_DOOR, self.kinds())
+
+    def test_a_ledge_running_the_length_of_a_wall_is_not_a_door(self):
+        self.suspect(width=600.0, not_a_door=True, why="600 units wide")
+        self.assertNotIn(wm.KIND_DOOR, self.kinds())
+
+    def test_something_the_camera_sees_straight_past_is_not_a_door(self):
+        """A closed door blocks the view. A window, a ledge or a step in the ceiling does not."""
+        rec = self.suspect()
+        self.w.confirm_doors(0.0, 0.0, 0.0, lambda rel: 4000.0, 0.0)
+        self.assertTrue(rec["see_through"], rec)
+        self.assertNotIn(wm.KIND_DOOR, self.kinds())
+
+    def test_something_solid_at_that_bearing_survives(self):
+        rec = self.suspect(cell=(4, 0))
+        here = math.hypot(rec["x"], rec["y"])
+        self.w.confirm_doors(0.0, 0.0, 0.0, lambda rel: here + 10.0, 0.0)
+        self.assertFalse(rec["see_through"])
+        self.assertIn(wm.KIND_DOOR, self.kinds())
+
+    def test_a_press_that_opens_nothing_settles_it_for_the_attempt(self):
+        rec = self.suspect()
+        self.assertIs(self.w.note_door_try(rec["x"], rec["y"], 1.0, opened=False), False)
+        self.assertTrue(rec["not_a_door"])
+        self.assertNotIn(wm.KIND_DOOR, self.kinds())
+
+    def test_a_press_that_opens_something_is_remembered_as_open(self):
+        rec = self.suspect()
+        self.assertIs(self.w.note_door_try(rec["x"], rec["y"], 1.0, opened=True), True)
+        self.assertTrue(rec["opened"])
+        self.assertFalse(rec["not_a_door"])
+
+    def test_doors_are_capped_so_frontiers_always_get_offered(self):
+        for i in range(8):
+            self.suspect(cell=(3 + i, 1))
+        kinds = self.kinds()
+        self.assertLessEqual(kinds.count(wm.KIND_DOOR), wm.MAX_DOOR_CANDIDATES)
+        self.assertIn(wm.KIND_FRONTIER, kinds, "a level full of ceiling changes crowded out the frontiers")
+
+    def test_the_nearest_suspects_are_the_ones_offered(self):
+        far = self.suspect(cell=(11, 5))
+        near = self.suspect(cell=(1, 0))
+        cands = [c for c in self.w.candidates(16.0, 16.0, 0.0, 0.0) if c.kind == wm.KIND_DOOR]
+        self.assertTrue(any(abs(c.x - near["x"]) < GRID for c in cands))

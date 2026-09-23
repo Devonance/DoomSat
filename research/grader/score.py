@@ -21,6 +21,22 @@ _spec.loader.exec_module(fm)
 _FIELDS = {}
 
 
+def _last(rows, key, default=0):
+    for r in reversed(rows):
+        v = (r.get("raw") or {}).get(key)
+        if v is not None:
+            return int(v)
+    return int(default or 0)
+
+
+def _precision(rows, attempt):
+    """Use presses that opened something, over presses. The number that says whether the senses are
+    telling the truth about what is a door."""
+    presses = _last(rows, "DOOR_PRESSES", attempt.get("door_presses", 0))
+    opens = _last(rows, "DOOR_OPENS", attempt.get("door_opens", 0))
+    return round(opens / presses, 4) if presses else None
+
+
 def field_for(wad_path, map_name):
     """Distance fields are expensive and pure, so one per (wad, map) per process."""
     key = (os.path.abspath(wad_path), map_name)
@@ -95,6 +111,10 @@ def grade(attempt):
         "executor_stats": attempt.get("executor_stats") or {},
         "cache_hit_rate": attempt.get("cache_hit_rate"),
         "model_unavailable": attempt.get("model_unavailable", 0),
+        "door_presses": _last(rows, "DOOR_PRESSES", attempt.get("door_presses", 0)),
+        "door_opens": _last(rows, "DOOR_OPENS", attempt.get("door_opens", 0)),
+        "door_precision": _precision(rows, attempt),
+        "exit_ever_seen": any((r.get("raw") or {}).get("EXIT_DIST") for r in rows),
         "progress": round(prog, 4),
         "progress_best": round(fm.progress(start_d, best), 4),
         "start_distance": None if start_d is None else round(start_d, 1),

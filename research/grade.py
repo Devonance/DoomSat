@@ -97,6 +97,12 @@ def summarise(graded, conf):
         "freezes": sum(r.get("freezes", 0) for r in graded),
         "freeze_reasons": _freeze_reasons(graded),
         "model_unavailable": sum(r.get("model_unavailable", 0) or 0 for r in graded),
+        "door_presses": sum(r.get("door_presses", 0) or 0 for r in graded),
+        "door_opens": sum(r.get("door_opens", 0) or 0 for r in graded),
+        "door_precision": (round(sum(r.get("door_opens", 0) or 0 for r in graded)
+                                 / sum(r.get("door_presses", 0) or 0 for r in graded), 4)
+                           if sum(r.get("door_presses", 0) or 0 for r in graded) else None),
+        "exit_ever_seen": sum(1 for r in graded if r.get("exit_ever_seen")),
         "deaths_by_mode": _sum_dicts(graded, "deaths_by_mode"),
         "mode_share": _mean_dicts(graded, "mode_share"),
         "mean_progress": round(statistics.fmean([r["progress"] for r in usable]), 4) if usable else None,
@@ -157,6 +163,10 @@ def main(argv=None):
     if summary.get("model_unavailable"):
         print("  decisions the model could not answer (fell back to the rule): %d"
               % summary["model_unavailable"])
+    if summary.get("door_presses"):
+        print("  door_precision: %s  (%d of %d Use presses opened something); exit seen in %d of %d"
+              % (summary["door_precision"], summary["door_opens"], summary["door_presses"],
+                 summary["exit_ever_seen"], summary["attempts"]))
     if summary.get("deaths_by_mode"):
         print("  died in: %s" % ", ".join("%s x%d" % kv for kv in summary["deaths_by_mode"].items()))
     for name, v in summary["guardrails"].items():

@@ -255,6 +255,11 @@ module DoomMission {
         telemetry THREAT_CLASS: U8 id 81 @< worst visible monster class by index; 255 = nothing in view
         telemetry THREAT_COUNT: U8 id 82 @< how many are in view
 
+        @ Use presses, and the ones that opened something. The ratio is door_precision: whether
+        @ the automap's ceiling-change category is telling the truth about what is a door.
+        telemetry DOOR_PRESSES: U16 id 83
+        telemetry DOOR_OPENS: U16 id 84
+
         # ----------------------------------------------------------------------
         # Events
         # ----------------------------------------------------------------------

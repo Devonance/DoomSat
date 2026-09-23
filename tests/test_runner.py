@@ -33,7 +33,7 @@ FLIGHT_ONLY = {"FRAMES_SENT", "CHUNKS_SENT", "FRAME_BYTES", "PAYLOAD_LINK", "CMD
                "INTENT_ID", "WATCHDOG_TRIPS"}
 # Packed after the candidate block rather than as named fields in pack_status, so they are checked by
 # shape with it rather than by name.
-TAIL_CHANNELS = {"THREAT_CLASS", "THREAT_COUNT"}
+TAIL_CHANNELS = {"THREAT_CLASS", "THREAT_COUNT", "DOOR_PRESSES", "DOOR_OPENS"}
 # The candidate targets ride in their own block rather than as named fields, so they are checked by shape
 # (below) rather than by name.
 CAND_CHANNELS = {"CAND%d" % i for i in range(8)}

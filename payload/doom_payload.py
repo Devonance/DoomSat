@@ -61,7 +61,10 @@ CAND_FMT = "BffHBBBB"
 # class and how many are in view. Facts; how dangerous that is comes from the knowledge file on the
 # ground (charter 4, the `engage` head).
 THREAT_FMT = "BB"
-STATUS_FULL_FMT = STATUS_FMT + "B" + CAND_FMT * MAX_CANDIDATES + THREAT_FMT
+# Presses, and presses that opened something. door_precision is the ratio, and it is the number
+# that says whether the senses are telling the truth about what is a door.
+DOOR_FMT = "HH"
+STATUS_FULL_FMT = STATUS_FMT + "B" + CAND_FMT * MAX_CANDIDATES + THREAT_FMT + DOOR_FMT
 STATUS_LEN = struct.calcsize(STATUS_FULL_FMT)
 # INTENT, charter 3.1: intent_id, based_on_tic, mode, target x/y, has_target, stance, fire policy,
 # fire target, weapon slot, use at target, time to live.
@@ -116,6 +119,8 @@ DOOR_RETRY_S = 120.0   # a door that did not open is treated as a wall for this 
 # frame walled off a corridor for the rest of the attempt and the planner believed it. EXP-0001.
 STUCK_BARRIER_S = 25.0
 RAY_MAX = 400          # how far the map rays look (units)
+DOOR_OPEN_WAIT_S = 0.6  # game seconds to wait after a Use press before judging whether anything opened
+DOOR_OPEN_UNITS = 100   # the clearance ahead has to grow by this much for the press to count as an open
 # Charter 2.3, the one borderline call that adds information rather than hiding it. ZDoom colours an exit
 # line on the automap from its special type, so the colour is readable from across a level the moment the
 # line is drawn -- which a player looking at a wall cannot do. An exit line is therefore only RECOGNISED
@@ -436,6 +441,11 @@ class Payload:
         self.sense = None            # the slower sensing (rays, novelty, exit) refreshed every SENSE_EVERY tics
         self.door_presses, self.door_at = 0, None
         self.use_ok = False
+        # door_precision: presses that opened something, over presses. A ceiling-change line that is not
+        # a door absorbs presses and opens nothing, so this is the number that says whether the senses
+        # are telling the truth about doors.
+        self.press_total, self.press_opened = 0, 0
+        self.press_watch = None      # (cell key, clearance when first pressed, game time)
         self.world = None            # charter 3.2, rebuilt every episode
         self.executor = None         # charter 3.1, rebuilt every episode
         # The executor runs on GAME time, not wall time. In flight the two agree, because the loop is
@@ -520,6 +530,7 @@ class Payload:
         self.control = dict(move=0, strafe=0, turn=0.0, fire=0, use=0, weapon=0)
         self.sense, self.door_presses, self.door_at = None, 0, None
         self.use_ok = False
+        self.press_total, self.press_opened, self.press_watch = 0, 0, None
         print(f"[payload] episode {self.episode} started on {self.map} (level {self.level})", flush=True)
 
     def level_finished(self):
@@ -543,6 +554,26 @@ class Payload:
                 dist = min(int(depth_row[col]), DEPTH_FAR) * DEPTH_UNITS / math.cos(math.radians(rel))
                 best = dist if best is None else min(best, dist)
         return 2000 if best is None else int(best)
+
+    @staticmethod
+    def depth_at(near_row, rel_deg, half_width=4.0):
+        """How far the range camera can see at a relative bearing, in map units, or None if outside it."""
+        if abs(rel_deg) > FOV / 2 - 2:
+            return None
+        w = len(near_row)
+        lo = Payload._col_for(-rel_deg - half_width, w)
+        hi = Payload._col_for(-rel_deg + half_width, w)
+        lo, hi = max(0, min(lo, hi)), min(w - 1, max(lo, hi))
+        band = near_row[lo:hi + 1]
+        if not len(band):
+            return None
+        return float(band.max()) * DEPTH_UNITS / math.cos(math.radians(rel_deg))
+
+    @staticmethod
+    def _col_for(rel_deg, w):
+        """Screen column for a bearing, inverting the perspective the sweep uses."""
+        t = math.tan(math.radians(rel_deg)) / (2 * math.tan(math.radians(FOV / 2)))
+        return int(round((0.5 + t) * (w - 1)))
 
     def slow_sense(self, x, y, angle, now, clear_fwd, enemies):
         """Map rays, novelty, what is ahead, exit position: refreshed every few tics."""
@@ -630,6 +661,15 @@ class Payload:
                 ex.mark_barrier(x, y, angle + push, STUCK_BARRIER_S)
                 print(f"[payload] stuck pushing at ({x:.0f},{y:.0f}) toward {(angle + push) % 360:.0f} deg: barrier remembered", flush=True)
                 self.sense = None
+        # Settle the last press: did the way ahead open up?
+        if self.press_watch is not None and self.game_time - self.press_watch[3] > DOOR_OPEN_WAIT_S:
+            px, py, before, _t = self.press_watch
+            opened = clear_fwd > before + DOOR_OPEN_UNITS
+            if self.world.note_door_try(px, py, now, opened=opened) and opened:
+                self.press_opened += 1
+            elif opened:
+                self.press_opened += 1
+            self.press_watch = None
         # doors: presses are counted while something usable is at arm's length; a door that never opens becomes a wall for a while
         usable = s["ahead_kind"] in ("door", "exit") and s["ahead_dist"] <= 80
         self.use_ok = usable
@@ -658,6 +698,10 @@ class Payload:
                         pass
         # ---- the world model for this attempt (charter 3.2): what is here, where it can go, and the way there
         self.world.see_objects(x, y, state.labels, int(state.tic))
+        # Ask the camera about every door suspect in view. A closed door is solid; a window, a ledge or a
+        # step in the ceiling is not, and the camera sees straight past it.
+        if state.tic % SENSE_EVERY == 0:
+            self.world.confirm_doors(x, y, angle, lambda rel: self.depth_at(near_row, rel), now)
         if state.tic % SENSE_EVERY == 0:
             self.candidates = self.world.candidates(x, y, angle, now, keys_held=ex.keys,
                                                     need=self.need_now(), boss_names=BOSS_CLASSES)
@@ -711,6 +755,7 @@ class Payload:
             door_back=doors["back"], door_br=doors["br"], door_right=doors["right"], door_ar=doors["ar"],
             cand_count=len(self.candidates),
             threat_class=worst_enemy, threat_count=min(255, len(enemies)),
+            door_presses_total=self.press_total, door_opens_total=self.press_opened,
             candidates=[self.pack_candidate(c, x, y, angle) for c in self.candidates])
 
     def need_now(self):
@@ -747,7 +792,10 @@ class Payload:
             tail.extend(c)
         tail.extend([0, 0.0, 0.0, 0, 0, 0, 255, 0] * (MAX_CANDIDATES - len(cands)))
         tail.extend([int(o.get("threat_class", 255)), int(o.get("threat_count", 0))])
-        return Payload._pack_core(o) + struct.pack("!" + "B" + CAND_FMT * MAX_CANDIDATES + THREAT_FMT, *tail)
+        tail.extend([min(65535, int(o.get("door_presses_total", 0))),
+                     min(65535, int(o.get("door_opens_total", 0)))])
+        return Payload._pack_core(o) + struct.pack(
+            "!" + "B" + CAND_FMT * MAX_CANDIDATES + THREAT_FMT + DOOR_FMT, *tail)
 
     @staticmethod
     def _pack_core(o):
@@ -840,7 +888,12 @@ class Payload:
             cmd = self.executor.step(self.exec_obs, self.game_time)
             if cmd["use"] and self.use_ok:
                 self.door_presses += 1
-                self.world.note_door_try(self.exec_obs["x"], self.exec_obs["y"], time.time())
+                self.press_total += 1
+                # Watch the way ahead. A door that opens reveals the room behind it, so the clearance
+                # jumps; a wall absorbs the press and nothing changes. Judged a moment later, in
+                # observe(), because the engine takes a few tics to move the ceiling.
+                self.press_watch = (self.exec_obs["x"], self.exec_obs["y"],
+                                    self.exec_obs["clear_fwd"], self.game_time)
             return self.buttons(cmd)
         c = self.control
         if time.time() - self.last_control_time > UPLINK_TIMEOUT_S:

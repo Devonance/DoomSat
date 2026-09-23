@@ -124,7 +124,8 @@ def jev_decider(cfg, env_files):
 # that a harness bug, and tests/test_runner.py pins it against Doom.fpp.
 RENAME = {"x": "POS_X", "y": "POS_Y", "health_item": "HEALTH_ITEM_DIST", "ammo_item": "AMMO_ITEM_DIST",
           "armor_item": "ARMOR_ITEM_DIST", "explored": "EXPLORED_CELLS", "cand_count": "CAND_COUNT",
-          "threat_class": "THREAT_CLASS", "threat_count": "THREAT_COUNT"}
+          "threat_class": "THREAT_CLASS", "threat_count": "THREAT_COUNT",
+          "door_presses_total": "DOOR_PRESSES", "door_opens_total": "DOOR_OPENS"}
 BOOLS = {"own_shotgun", "stuck", "door_ahead", "dead", "level_done", "hint_active"}
 AHEAD_KIND = ["NOTHING", "WALL", "DOOR", "EXIT", "LOCKED", "BARRIER", "THING"]
 WEAPON = ["FIST", "PISTOL", "SHOTGUN", "OTHER"]
@@ -270,7 +271,9 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
                      "model": reply.get("model"), "usage": reply.get("usage"),
                      "answers": {k: dg.answer_label(v) for k, v in d["answers"].items()},
                      "control": cmd, "health": o["health"], "kills": o["kills"],
-                     "candidates": len(t.get("CAND_COUNT", 0) and [1] * int(t["CAND_COUNT"]) or []),
+                     "candidates": int(t.get("CAND_COUNT", 0) or 0),
+                     "cand_xy": [{"kind": c["kind"], "x": round(c["x"], 1), "y": round(c["y"], 1)}
+                                 for c in (cands if control == "intent" else [])],
                      "raw": {k: t.get(k) for k in _RAW_KEYS}})
         n += 1
         # the game waits exactly as long for this answer as flight would
@@ -294,6 +297,8 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
     return {"tier": "bench", "wad_path": wad_path, "map": map_name, "seed": seed, "skill": skill,
             "watchdog_trips": wd, "executor_stats": ex_stats,
             "model_unavailable": unavailable,
+            "door_presses": int((rows[-1].get("raw") or {}).get("DOOR_PRESSES") or 0) if rows else 0,
+            "door_opens": int((rows[-1].get("raw") or {}).get("DOOR_OPENS") or 0) if rows else 0,
             "budget_s": budget_s, "start_xy": start_xy, "end_xy": end_xy, "end_reason": end_reason,
             "game_seconds": round(tic / TICRATE, 2), "deaths": deaths, "wall_seconds": round(time.time() - t_wall, 1),
             "decider": getattr(decider, "name", "?"), "decisions": rows,
@@ -304,6 +309,7 @@ _RAW_KEYS = ("CLEAR_FWD", "CLEAR_LEFT", "CLEAR_RIGHT", "CLEAR_BACK", "CLEAR_AL",
              "CLEAR_MAP_FWD", "NEW_FWD", "NEW_LEFT", "NEW_RIGHT", "NEW_BACK", "NEW_AL", "NEW_AR", "NEW_BL", "NEW_BR",
              "DOOR_FWD", "DOOR_AL", "DOOR_LEFT", "DOOR_BL", "DOOR_BACK", "DOOR_BR", "DOOR_RIGHT", "DOOR_AR",
              "AHEAD_KIND", "AHEAD_DIST", "EXIT_DIST", "EXIT_BEARING", "KEY_DIST", "KEY_BEARING",
+             "DOOR_PRESSES", "DOOR_OPENS",
              "HEALTH_ITEM_DIST", "HEALTH_BEARING", "AMMO_ITEM_DIST", "AMMO_BEARING", "ARMOR_ITEM_DIST", "ARMOR_BEARING",
              "STUCK", "POS_X", "POS_Y", "ANGLE", "ENEMY_COUNT", "ENEMY_BEARING", "ENEMY_DIST",
              "HEALTH", "ARMOR", "SHELLS", "BULLETS", "WEAPON", "OWN_SHOTGUN",
