@@ -55,6 +55,7 @@
  "exit_ever_seen": false,
  "progress": 0.0393,
  "progress_best": 0.2485,
+ "seen_coverage": null,
  "progress_given_back": 0.2091,
  "oracle": null,
  "geometry": "off",

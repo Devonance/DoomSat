@@ -1,40 +1,40 @@
 {
- "measured": "research/out/t3-base-code",
- "when": "2026-09-23T02:06:14",
+ "measured": "research/out/noise-floor-code",
+ "when": "2026-09-22T16:08:33",
  "decider": "code",
  "tier": "bench",
- "track": "t3",
- "commit": "3b173236",
+ "track": "t1",
+ "commit": "5313412",
  "per_level": {
   "E1M1": {
-   "n": 3,
-   "mean": 0.1789,
-   "sd": 0.0932
+   "n": 5,
+   "mean": 0.0698,
+   "sd": 0.1421
   },
   "E1M2": {
-   "n": 3,
-   "mean": 0.1883,
-   "sd": 0.041
+   "n": 5,
+   "mean": 0.0,
+   "sd": 0.0
   },
   "E1M3": {
-   "n": 3,
+   "n": 5,
    "mean": 0.0,
    "sd": 0.0
   },
   "E1M4": {
-   "n": 3,
-   "mean": 0.0082,
-   "sd": 0.0064
+   "n": 5,
+   "mean": 0.0132,
+   "sd": 0.0155
   },
   "E1M5": {
-   "n": 3,
-   "mean": 0.3131,
-   "sd": 0.0438
+   "n": 5,
+   "mean": 0.0283,
+   "sd": 0.0421
   },
   "E1M6": {
-   "n": 3,
-   "mean": 0.3213,
-   "sd": 0.122
+   "n": 5,
+   "mean": 0.1235,
+   "sd": 0.0425
   }
  },
  "note": "the spread of repeats of the same level with nothing changed. ledger.py divides by this, so a change has to beat the harness before it counts as a change."

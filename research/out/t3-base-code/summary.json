@@ -33,6 +33,7 @@
  },
  "mean_progress": 0.05,
  "mean_progress_best": 0.2244,
+ "seen_coverage": null,
  "decision_reasons": {
   "asked and used": 0.5017,
   "unsure band": 0.1634,
