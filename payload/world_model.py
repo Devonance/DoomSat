@@ -825,6 +825,10 @@ class WorldModel:
         must = [c for c in out if c.kind in (KIND_EXIT, KIND_KEY, KIND_DOOR)]
         rest = [c for c in out if c.kind not in (KIND_EXIT, KIND_KEY, KIND_DOOR)]
         room = max(0, limit - len(must))
+        # Half, measured. Giving the nearest a third of the room instead and the rest to promise sounds
+        # like the same trade only bolder, and it is not: mean closest approach across five seeds fell
+        # from 0.448 of the way to the exit to 0.304 and coverage from 58 cells to 38. The corner two
+        # steps away is often the way on, and a list that is mostly far promises walks past it.
         near = sorted(rest, key=lambda c: c.path_units)[:max(1, room // 2)]
         promise = [c for c in sorted(rest, key=lambda c: -self._promise(c)) if c not in near]
         return (must + near + promise)[:limit]
