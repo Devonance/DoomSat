@@ -1,0 +1,22 @@
+{
+ "run_id": "devcheck-3",
+ "tier": "bench",
+ "set": "dev",
+ "decider": "code",
+ "versions": {
+  "commit": "f77c2ce",
+  "pinned": "f77c2ceca4e4d3135e7c5a205ad9d4fc1188cd46",
+  "dirty": false,
+  "branch": "HEAD",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "6ca52161f731",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "051c7540a48f"
+ },
+ "attempts": [
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/devcheck-3/attempt-E1M1-1.json",
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/devcheck-3/attempt-E1M4-1.json"
+ ]
+}

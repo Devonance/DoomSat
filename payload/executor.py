@@ -51,6 +51,7 @@ SAFE_FIRE_UNITS = 220.0 # in safe mode, only point-blank attackers
 # LOOK_SPACING is roughly a large room, so a level costs a handful of them rather than one a corridor.
 LOOK_SECONDS = 1.4
 LOOK_SPACING = 320.0
+NO_PLAN_PATIENCE = 70   # tics of walking a bare bearing before it stops and looks for a real way
 
 MODES = ("EXPLORE", "APPROACH", "OPERATE", "FIGHT", "RETREAT", "RECOVER")
 STANCES = ("advance", "advance_strafing", "hold", "retreat")
@@ -115,6 +116,7 @@ class Watchdog:
         self.recover_until = 0.0
         self.trips = {}
         self.reason = ""
+        self.trip_log = []        # what the executor could see each time it had to pull the player out
 
     def step(self, now, x, y, all_blocked, expire_barriers):
         self.track.append((now, x, y))
@@ -194,6 +196,18 @@ class Executor:
             self.watchdog.pause(now)
             return self._look(obs)
         tripped = self.watchdog.step(now, x, y, obs.get("all_blocked", False), obs["expire_barriers"])
+        if tripped:
+            # No more guessing at why it froze: write down what it could see at the moment it did.
+            plan = getattr(self.world, "plan", None)
+            self.watchdog.trip_log.append({
+                "mode": it.mode if (it := self.intent) else None,
+                "stance": it.stance if (it := self.intent) else None,
+                "clear_fwd": obs["clear_fwd"], "clear_back": obs["clear_back"],
+                "clear_fl": obs["clear_fl"], "clear_fr": obs["clear_fr"],
+                "ahead": obs["ahead_kind"], "ahead_dist": obs["ahead_dist"],
+                "enemies": len(obs["enemies"]), "all_blocked": bool(obs.get("all_blocked")),
+                "has_plan": bool(plan and plan.cells), "plan_left": (len(plan.cells) - plan.i) if plan else 0,
+                "has_target": bool(self.intent and self.intent.has_target)})
         if tripped or self.watchdog.recovering(now):
             self.stats["recover_ticks"] += 1
             return self._recover(obs)
@@ -217,6 +231,13 @@ class Executor:
                 if pt is not None:
                     want = math.degrees(math.atan2(pt[1] - y, pt[0] - x))
             if want is None and it.has_target:
+                # A target with no plan is a target with no known route. Walking its bearing is how the
+                # player ends up pressed against geometry with clear space to either side, so it only
+                # gets a few seconds of benefit of the doubt before this becomes a look-around instead.
+                if plan is None or plan.blocked:
+                    self.stats["no_plan_ticks"] = self.stats.get("no_plan_ticks", 0) + 1
+                    if self.stats["no_plan_ticks"] % NO_PLAN_PATIENCE == 0:
+                        self.looked.clear()          # force a fresh panorama: look for a way out
                 want = math.degrees(math.atan2(it.target_y - y, it.target_x - x))
         if want is None:
             want = angle

@@ -446,6 +446,7 @@ class Payload:
         # are telling the truth about doors.
         self.press_total, self.press_opened, self.doors_settled = 0, 0, 0
         self.frontiers_dropped = 0
+        self.replanned_elsewhere, self.unroutable = 0, 0
         self.press_watch = None      # (cell key, clearance when first pressed, game time)
         self.world = None            # charter 3.2, rebuilt every episode
         self.executor = None         # charter 3.1, rebuilt every episode
@@ -523,11 +524,13 @@ class Payload:
         # attempt survives a death -- without this the numbers reported were whichever episode happened
         # to be last, which quietly undercounted the one thing charter phase 2 is measured on.
         carried_trips = dict(self.executor.watchdog.trips) if self.executor is not None else {}
+        carried_log = list(self.executor.watchdog.trip_log) if self.executor is not None else []
         carried_stats = dict(self.executor.stats) if self.executor is not None else {}
         self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
         self.world = wm_mod.WorldModel(self.explorer, enemies=ENEMIES, item_kind=ITEM_KIND)
         self.executor = ex_mod.Executor(self.world)
         self.executor.watchdog.trips.update(carried_trips)
+        self.executor.watchdog.trip_log[:0] = carried_log
         for k, v in carried_stats.items():
             self.executor.stats[k] = self.executor.stats.get(k, 0) + v
         self.candidates = []
@@ -541,6 +544,7 @@ class Payload:
         self.use_ok = False
         self.press_total, self.press_opened, self.press_watch = 0, 0, None
         self.doors_settled, self.frontiers_dropped = 0, 0
+        self.replanned_elsewhere, self.unroutable = 0, 0
         print(f"[payload] episode {self.episode} started on {self.map} (level {self.level})", flush=True)
 
     def level_finished(self):
@@ -849,7 +853,23 @@ class Payload:
             self.last_control_time = time.time()
             if has_t and self.exec_obs is not None:
                 cand = self._candidate_at(tx, ty)
-                self.world.route_to(self.exec_obs["x"], self.exec_obs["y"], cand, time.time())
+                px, py = self.exec_obs["x"], self.exec_obs["y"]
+                plan = self.world.route_to(px, py, cand, time.time()) if cand else None
+                if plan is None or not plan.cells:
+                    # No route to what the ground asked for. Walking the straight line at it is what
+                    # froze the player; take the nearest thing there IS a route to instead, and if
+                    # there is nothing, say so rather than aiming at a wall.
+                    for alt in sorted(self.candidates, key=lambda c: c.path_units):
+                        if alt is cand:
+                            continue
+                        plan = self.world.route_to(px, py, alt, time.time(), force=True)
+                        if plan and plan.cells:
+                            self.executor.intent.target_x, self.executor.intent.target_y = alt.x, alt.y
+                            self.replanned_elsewhere += 1
+                            break
+                    else:
+                        self.executor.intent.has_target = False
+                        self.unroutable += 1
         elif kind == 0x12:
             self.new_episode()
         elif kind == 0x13 and len(body) >= 2:
@@ -862,16 +882,21 @@ class Payload:
         else:
             print(f"[payload] unknown uplink kind {kind:#x}", flush=True)
 
-    def _candidate_at(self, tx, ty, within=64.0):
-        best, bd = None, within
-        for c in self.candidates:
-            d = math.hypot(c.x - tx, c.y - ty)
-            if d <= bd:
-                best, bd = c, d
-        if best is None:       # a target the ground names that is not on the list: go to it as a bare point
-            cell = (int(math.floor(tx / wm_mod.GRID)), int(math.floor(ty / wm_mod.GRID)))
-            best = wm_mod.Candidate(wm_mod.KIND_FRONTIER, tx, ty, 0.0, cell=cell)
-        return best
+    def _candidate_at(self, tx, ty):
+        """The offered candidate the ground meant. Never an invented one.
+
+        This used to fall back to "go to that point as a bare frontier" when nothing on the list matched
+        within 64 units -- and the list is rebuilt while an intent is in flight, so a near-miss was
+        common. A bare point has no route: the planner finds nothing, the executor is left with a target
+        and no plan, and it walks the straight line into whatever is between. Every freeze in a dev
+        attempt looked exactly like that: APPROACH, advance, a target, no plan, 150 units of clear space
+        ahead and nothing attacking.
+
+        The ground can only ever mean something it was offered, so match to the nearest one.
+        """
+        if not self.candidates:
+            return None
+        return min(self.candidates, key=lambda c: math.hypot(c.x - tx, c.y - ty))
 
     def buttons(self, cmd):
         """A command from the executor as the button vector ViZDoom wants.

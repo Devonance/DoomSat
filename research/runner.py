@@ -290,13 +290,14 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
     # Charter phase 2's exit test is about freezes, and a freeze is only visible as the watchdog having
     # had to step in. Counting the trips per attempt is the measurement; zero across 50 episodes is the bar.
     wd = dict(p.executor.watchdog.trips) if p.executor is not None else {}
+    trip_log = list(p.executor.watchdog.trip_log)[:40] if p.executor is not None else []
     ex_stats = dict(p.executor.stats) if p.executor is not None else {}
     try:
         p.game.close()
     except Exception:                                          # noqa: BLE001
         pass
     return {"tier": "bench", "wad_path": wad_path, "map": map_name, "seed": seed, "skill": skill,
-            "watchdog_trips": wd, "executor_stats": ex_stats,
+            "watchdog_trips": wd, "watchdog_context": trip_log, "executor_stats": ex_stats,
             "model_unavailable": unavailable,
             "door_presses": int((rows[-1].get("raw") or {}).get("DOOR_PRESSES") or 0) if rows else 0,
             "door_opens": int((rows[-1].get("raw") or {}).get("DOOR_OPENS") or 0) if rows else 0,
