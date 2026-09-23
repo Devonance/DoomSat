@@ -154,8 +154,21 @@ def telemetry_from(o):
 
 
 # ---------------------------------------------------------------- bench
+FROZEN_LATENCY = HERE / "latency.json"
+
+
 def latencies(path):
-    """Decision latencies from a real flight log, to play back onto the bench."""
+    """The decision latencies the bench plays back onto the game.
+
+    Prefers `research/latency.json`, which is frozen and part of the ruler: a run that sampled a different
+    pool waited a different length of time for its answers and is not comparable. Pinning found this --
+    a run inside a git worktree has no out/decisions.jsonl, so it silently fell back to a single default
+    sample and the player waited 450 ms instead of the measured 529.
+    """
+    if FROZEN_LATENCY.is_file():
+        pool = json.load(open(FROZEN_LATENCY, encoding="utf-8")).get("samples") or []
+        if pool:
+            return pool
     out = []
     if path and os.path.isfile(path):
         for line in open(path, encoding="utf-8"):
@@ -362,8 +375,8 @@ def run_bench(a):
     vers = versions(graph)
     print("run %s: %s %s, maps %s, seeds %s, budget %ds, skill %d, decider %s"
           % (run_id, a.set, which["wad"], ",".join(maps), seeds, budget, skill, a.decider), flush=True)
-    print("latency pool: %d samples from %s, median %.0f ms"
-          % (len(lat_pool), a.latency_log or "the built-in default", sorted(lat_pool)[len(lat_pool) // 2]), flush=True)
+    print("latency pool: %d samples, median %.0f ms  (frozen in research/latency.json)"
+          % (len(lat_pool), sorted(lat_pool)[len(lat_pool) // 2]), flush=True)
     made = []
     for map_name in maps:
         for seed in seeds:
