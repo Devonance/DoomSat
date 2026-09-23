@@ -7,8 +7,36 @@ number, and §8 says why. Everything below is measured; anything that is not say
 
 ## 1. Headline
 
-**Shareware E1M1, flown through the full stack with Jev deciding: 0.67 of the way to the exit. Not
-finished.**
+**E1M1 is finished.** Shareware `doom1.wad` E1M1, through payload, F´, CCSDS, Yamcs, the pilot and Jev
+and back up, at the engine's own 35 tics a second:
+
+    [payload] episode 2 over on E1M1: LEVEL FINISHED at tic 3673
+    E1M1  score 1.417  exit  best 1.00 (ended 1.00)  cells 56  167 u/s
+
+| the winning attempt | |
+| --- | --- |
+| **finished** | **yes** |
+| **game time** | **104.97 s** (budget 180) |
+| score | **1.417** = 1 + (180 - 105) / 180 |
+| deaths | **0** |
+| decision age p95 | 845 ms (budget 900) |
+| flight tic rate | 35.0/s (floor 33) |
+| jev_share | 0.29 on that attempt -- §9, and it is a question for you |
+| doors recalled | 14 of 18 across the flight |
+
+**Said exactly, because it matters:** this was the **second attempt of that flight**. The first ran over
+the pilot's level budget at 84 s and the level was reset -- which wipes the world model, by honesty test
+3 -- so the winning attempt began knowing nothing about the map. It then went on to E1M2 and got 0.17 of
+the way before the pilot stopped.
+
+One completion in one flight is not repeatability. More flights were run and §1b has them.
+
+**And the harness had been hiding it.** The first grading of that very flight said `completed false,
+score 0.900`. `flight_attempts` cut the log on "level finished" rows alone -- the pilot writes nothing
+when a level is *reset* for running over budget -- so two attempts came out as one record, timed by wall
+clock across both. Charter 7 defines `level_time` as "game seconds from level start to exit", and the
+payload's tic counter restarts at every level start and is exactly that. A level beaten with 75 seconds
+to spare was recorded as a 184-second attempt that missed the budget.
 
 | best flight, `doom1.wad` E1M1, geometry on | |
 | --- | --- |
