@@ -50,7 +50,12 @@ DOOR_FLAT = 8.0          # a ceiling within this of its own floor is a closed do
 AUTOMAP_REACH_UNITS = 800.0
 FILL_RAYS = 240
 FILL_RANGE = 2048.0
-FILL_STEP = GRID / 2.0
+# One raster pixel, and it has to be. A wall in the raster is a line one pixel thick -- four units -- and
+# the fill used to step along its rays sixteen units at a time, so three rays in four stepped straight
+# over every wall in the level and went on marking floor behind it. That is how one attempt came back
+# believing it had seen 14,552 cells on seven per cent of the level's walls. A sampler coarser than the
+# thing it is sampling for does not sample it.
+FILL_STEP = float(WPX)
 
 
 def floor_of(sector):
