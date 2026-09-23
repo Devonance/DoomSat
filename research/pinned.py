@@ -81,7 +81,10 @@ def relaunch(commit, argv, root, python=None):
             continue
         out.append(a)
     cmd = [python or sys.executable, str(dest / "research" / "runner.py")] + out + ["--pinned-at", commit]
-    env = dict(os.environ, DOOMSAT_PINNED=commit)
+    # The PILOT code is pinned; the RULER is not. Grading, the metric definitions and the grader itself
+    # have to be one version across every experiment, or two rows were scored by two different rulers and
+    # the ledger is comparing nothing. DOOMSAT_HARNESS points the child back at the main checkout.
+    env = dict(os.environ, DOOMSAT_PINNED=commit, DOOMSAT_HARNESS=str(root))
     print("[pinned] %s\n[pinned] worktree %s" % (commit, dest), flush=True)
     return subprocess.call(cmd, cwd=str(dest), env=env)
 

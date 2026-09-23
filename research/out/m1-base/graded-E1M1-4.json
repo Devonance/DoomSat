@@ -1,0 +1,71 @@
+{
+ "map": "E1M1",
+ "seed": 4,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "m1-base",
+ "versions": {
+  "commit": "78edf8c",
+  "pinned": "78edf8ca5c83c57960fc6db9422d216c0b72fd43",
+  "dirty": false,
+  "branch": "HEAD",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "dee1db53edf1",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "e7d6203ae6a8"
+ },
+ "commit": "78edf8ca5c83c57960fc6db9422d216c0b72fd43",
+ "dirty": false,
+ "score": 0.1434,
+ "completed": false,
+ "level_time": 180.29,
+ "end_reason": "timeout",
+ "deaths": 1,
+ "deaths_per_minute": 0.333,
+ "watchdog_trips": {},
+ "freezes": 0,
+ "executor_stats": {
+  "ticks": 720,
+  "safe_ticks": 0,
+  "recover_ticks": 0,
+  "intents": 38,
+  "stale_dropped": 0
+ },
+ "cache_hit_rate": 0.1463,
+ "progress": 0.1593,
+ "progress_best": 0.375,
+ "start_distance": 3231.3,
+ "remaining_distance": 2716.5,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": false,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 330,
+  "decisions_per_s": 1.839,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.0,
+  "fallback_rate": 0.9939,
+  "speed_explore": 0.0,
+  "coverage_rate": 6.69,
+  "revisit_fraction": 0.5364,
+  "spin_rate": 0.81382,
+  "idle_fraction": 0.4493,
+  "watchdog_trips": {},
+  "mode_share": {
+   "OPERATE": 0.5,
+   "APPROACH": 0.4364,
+   "RETREAT": 0.0576,
+   "EXPLORE": 0.0061
+  },
+  "deaths_by_mode": {
+   "APPROACH": 1
+  },
+  "tokens_per_decision": 0.0,
+  "cells": 20,
+  "path_units": 16938.5
+ }
+}

@@ -1,0 +1,80 @@
+{
+ "attempts": 30,
+ "suite_score": 0.0372,
+ "score_sd": 0.075,
+ "completed": 0,
+ "deaths": 203,
+ "episodes": 30,
+ "freezes": 6,
+ "freeze_reasons": {
+  "no displacement for 4 s": 6
+ },
+ "deaths_by_mode": {
+  "RETREAT": 99,
+  "APPROACH": 62,
+  "OPERATE": 37,
+  "EXPLORE": 5
+ },
+ "mode_share": {
+  "APPROACH": 0.4146,
+  "OPERATE": 0.3207,
+  "EXPLORE": 0.1462,
+  "RETREAT": 0.1185
+ },
+ "mean_progress": 0.0496,
+ "maps_without_a_usable_progress_score": [
+  "E1M3",
+  "E1M3",
+  "E1M3",
+  "E1M3",
+  "E1M3"
+ ],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "deaths_per_minute": {
+   "pass": false,
+   "value": "2.25 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": true,
+   "value": "n/a: code baseline, no model in the loop"
+  }
+ },
+ "guardrails_pass": false,
+ "per_level": {
+  "E1M1": {
+   "n": 5,
+   "mean": 0.1413,
+   "sd": 0.1432
+  },
+  "E1M2": {
+   "n": 5,
+   "mean": 0.0085,
+   "sd": 0.019
+  },
+  "E1M3": {
+   "n": 5,
+   "mean": 0.0,
+   "sd": 0.0
+  },
+  "E1M4": {
+   "n": 5,
+   "mean": 0.0116,
+   "sd": 0.0066
+  },
+  "E1M5": {
+   "n": 5,
+   "mean": 0.0186,
+   "sd": 0.0149
+  },
+  "E1M6": {
+   "n": 5,
+   "mean": 0.0435,
+   "sd": 0.0454
+  }
+ },
+ "run_dir": "research/out/m1-base"
+}

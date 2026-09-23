@@ -406,15 +406,20 @@ def print_next(out_dir):
 
 
 def grade(out_dir):
-    """Grade in a separate process, with the pilot role dropped.
+    """Grade in a separate process, with the pilot role dropped, using the CURRENT harness.
 
-    The grader reads the level file, so it cannot run in here: this process declared itself a pilot before
-    it imported anything (honesty test 6). Handing the directory to a child with a clean environment keeps
-    "one command" and the isolation at the same time.
+    Two separations, both load-bearing. The grader reads the level file, so it cannot run in here: this
+    process declared itself a pilot before it imported anything (honesty test 6). And when the run is
+    pinned, the pilot code comes from the worktree but the grader must not -- the ruler is one version
+    across every experiment, or two rows were scored by two different rulers. `DOOMSAT_HARNESS` is the
+    main checkout; without it a pinned run would grade itself with whatever grader that commit happened
+    to carry, which is how m1-base came back with no deaths_by_mode.
     """
     env = {k: v for k, v in os.environ.items() if k != "DOOMSAT_ROLE"}
+    harness = Path(os.environ.get("DOOMSAT_HARNESS") or ROOT)
     print(flush=True)
-    return subprocess.call([sys.executable, str(HERE / "grade.py"), str(out_dir)], env=env, cwd=str(ROOT))
+    return subprocess.call([sys.executable, str(harness / "research" / "grade.py"), str(out_dir)],
+                           env=env, cwd=str(harness))
 
 
 def run_flight(a):
