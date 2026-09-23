@@ -25,8 +25,11 @@ TICRATE = 35
 RUN_DELTA = 50.0        # Doom's running forwardmove; measured at 507 units/s, and the engine caps there
 STRAFE_DELTA = 40.0     # Doom's running sidemove
 TURN_PER_TIC = 8.0      # degrees; fast enough to face a threat, slow enough not to overshoot
-ALIGN_WALK = 60.0       # walk while the heading is within this of where we want to go
-ALIGN_FULL = 25.0       # full speed within this
+# How far off line the player may be and still move. 25 degrees was too strict: a path through a room
+# bends more than that between waypoints, so the throttle sat at part power for half the level. A Doom
+# player runs and turns at the same time.
+ALIGN_WALK = 100.0      # walk while the heading is within this of where we want to go
+ALIGN_FULL = 45.0       # full speed within this
 # How far ahead to look, as a time rather than a distance. At the old delta of 14 the player covered 4
 # units a tic and a fixed 72-unit guard was five tics of warning; at a run it covers 14.5 and the same 72
 # units is two. A guard that does not scale with speed is a guard that stops working the moment the speed

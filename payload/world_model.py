@@ -711,8 +711,11 @@ class WorldModel:
         # the eight nearest were mostly the way you came, and the model could only pick among those. Half
         # the list is now the nearest and half the most promising -- how much unknown lies past it -- so
         # "the corner two steps away" and "the corridor across the room" both reach the judgement.
-        must = [c for c in out if c.kind in (KIND_EXIT, KIND_KEY)]
-        rest = [c for c in out if c.kind not in (KIND_EXIT, KIND_KEY)]
+        # Doors are gates, not options: they are already capped at two, and letting them compete with
+        # frontiers on promise dropped door_recall to a third -- the outward lean scores a door at the
+        # start of a corridor below a frontier at the far end of one, and then the corridor stays shut.
+        must = [c for c in out if c.kind in (KIND_EXIT, KIND_KEY, KIND_DOOR)]
+        rest = [c for c in out if c.kind not in (KIND_EXIT, KIND_KEY, KIND_DOOR)]
         room = max(0, limit - len(must))
         near = sorted(rest, key=lambda c: c.path_units)[:max(1, room // 2)]
         promise = [c for c in sorted(rest, key=lambda c: -self._promise(c)) if c not in near]
