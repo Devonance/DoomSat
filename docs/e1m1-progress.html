@@ -1,0 +1,203 @@
+<!doctype html>
+<!-- render dark with: data-theme="dark" on <html> -->
+<meta charset="utf-8">
+<title>DoomSat: every attempt at E1M1</title>
+<style>
+  /* legend swatches follow the mode, like every other mark */
+  :root { color-scheme: light dark; }
+  body { margin:0; background:#f9f9f7; font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:#0b0b0b; }
+  .viz-root {
+    --surface-1:#fcfcfb; --plane:#f9f9f7;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --accent:#2a78d6;
+    max-width:1100px; margin:0 auto; padding:28px 24px 48px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) body { background:#0d0d0d; color:#fff; }
+    :root:where(:not([data-theme="light"])) .viz-root {
+      --surface-1:#1a1a19; --plane:#0d0d0d;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+      --accent:#3987e5;
+    }
+  }
+  /* the viewer's own toggle wins over the OS setting, both ways */
+  :root[data-theme="dark"] body { background:#0d0d0d; color:#fff; }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:#1a1a19; --plane:#0d0d0d;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+    --accent:#3987e5;
+  }
+  h1 { font-size:22px; margin:0 0 4px; letter-spacing:-0.01em; }
+  .sub { color:var(--text-secondary); margin:0 0 24px; max-width:78ch; }
+  .kpis { display:flex; flex-wrap:wrap; gap:12px; margin:0 0 26px; }
+  .kpi { background:var(--surface-1); border:1px solid var(--border); border-radius:10px;
+         padding:12px 16px; min-width:150px; }
+  .kpi .lab { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .kpi .val { font-size:26px; font-weight:600; letter-spacing:-0.02em; margin-top:2px; }
+  .kpi .val.hero { font-size:40px; color:var(--accent); }
+  .kpi .note { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+  figure { margin:0; background:var(--surface-1); border:1px solid var(--border);
+           border-radius:12px; padding:18px 18px 10px; }
+  figcaption { color:var(--text-secondary); font-size:13px; margin-top:10px; max-width:88ch; }
+  .legend { display:flex; gap:20px; align-items:center; font-size:13px;
+            color:var(--text-secondary); margin:2px 0 10px; flex-wrap:wrap; }
+  .legend span { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; }
+  .legend circle[fill="#898781"] { fill: var(--muted); }
+  .legend circle[stroke="#898781"] { stroke: var(--muted); }
+  .legend circle[fill="#2a78d6"] { fill: var(--accent); }
+  svg { display:block; width:100%; height:auto; overflow:visible; }
+  .tip { position:fixed; pointer-events:none; background:var(--surface-1);
+         border:1px solid var(--border); border-radius:8px; padding:8px 10px;
+         font-size:13px; color:var(--text-primary); box-shadow:0 6px 20px rgba(0,0,0,.14);
+         opacity:0; transition:opacity .08s; max-width:280px; }
+  .tip b { color:var(--accent); }
+  details { margin-top:22px; }
+  summary { cursor:pointer; color:var(--text-secondary); font-size:14px; }
+  table { border-collapse:collapse; font-size:13px; margin-top:12px; width:100%; }
+  th,td { text-align:left; padding:5px 10px; border-bottom:1px solid var(--grid); }
+  th { color:var(--muted); font-weight:500; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.done td { color:var(--accent); font-weight:600; }
+</style>
+<div class="viz-root">
+<h1>Every attempt DoomSat has made at Doom E1M1</h1>
+<p class="sub">One dot per attempt, in the order they were run, measured the same way throughout: how
+close the pilot got to the exit, as a fraction of the walk from the start. 102 attempts over three days,
+none of which finished. The 103rd did.</p>
+
+<div class="kpis">
+  <div class="kpi"><div class="lab">24 Sep, flight 5</div><div class="val hero">FINISHED</div>
+    <div class="note">104.97 s of game time, budget 180</div></div>
+  <div class="kpi"><div class="lab">best before</div><div class="val">0.85</div>
+    <div class="note">over 102 earlier attempts</div></div>
+  <div class="kpi"><div class="lab">deaths</div><div class="val">0</div>
+    <div class="note">4 monsters killed, health 100 to 40</div></div>
+  <div class="kpi"><div class="lab">ticks spent stuck</div><div class="val">34% &rarr; 9%</div>
+    <div class="note">dev bench, before and after tonight</div></div>
+  <div class="kpi"><div class="lab">exit offered to Jev</div><div class="val">0 &rarr; 354</div>
+    <div class="note">of 3,007 decisions; it was never a candidate before</div></div>
+</div>
+
+<figure>
+  <div class="legend">
+    <span><svg width="14" height="14"><circle cx="7" cy="7" r="4.5" fill="#898781"></circle></svg>flight, full stack</span>
+    <span><svg width="14" height="14"><circle cx="7" cy="7" r="4" fill="none" stroke="#898781" stroke-width="2"></circle></svg>bench, replayed latency</span>
+    <span><svg width="16" height="16"><circle cx="8" cy="8" r="6.5" fill="#2a78d6"></circle></svg>reached the exit</span>
+  </div>
+  <svg id="chart" viewBox="0 0 1040 470" role="img"
+       aria-label="Dot plot of 102 attempts at Doom E1M1 over three days. The closest approach to the exit stays between 0.06 and 0.85 throughout, then one attempt on 24 September reaches 1.00."></svg>
+  <figcaption id="cap"></figcaption>
+</figure>
+
+<details>
+  <summary>The same data as a table</summary>
+  <table id="tbl"><thead><tr><th>#</th><th>run</th><th>tier</th><th>phase</th>
+    <th class="num">closest approach</th><th class="num">level time (s)</th></tr></thead><tbody></tbody></table>
+</details>
+</div>
+<div class="tip" id="tip"></div>
+<script>
+const DATA = {"rows":[[0,0.197,1,0,"baseline-flight-20260922-e1m1-900s",0,899.6],[1,0.17,1,0,"flight-status-1",0,223.2],[2,0.278,1,0,"flight-status-2",0,199.7],[3,0.116,1,0,"flight-status-3",0,199.3],[4,0.1,1,0,"flight-status-4",0,199.7],[5,0.509,1,0,"flight-status-5",0,199.5],[6,0.757,1,0,"flight-6",1,199.5],[7,0.479,1,0,"flight-7",1,199.5],[8,0.382,1,0,"flight-8",1,199.4],[9,0.348,1,0,"flight-9",1,199.9],[10,0.754,1,0,"flight-10",1,199.7],[11,0.758,1,0,"flight-11",1,199.5],[12,0.271,1,0,"flight-12",1,199.4],[13,0.784,1,0,"flight-13",1,199.9],[14,0.414,1,0,"flight-14",1,190.0],[15,0.522,1,0,"flight-15",1,189.4],[16,0.271,1,0,"flight-17",1,189.4],[17,0.841,1,0,"flight-18",1,189.4],[18,0.205,1,0,"flight-19",1,189.6],[19,0.278,1,0,"flight-20",1,189.4],[20,0.751,1,0,"flight-21",1,189.8],[21,0.059,1,0,"flight-22",1,189.5],[22,0.223,1,0,"flight-23",1,189.5],[23,0.17,1,0,"flight-24",1,189.5],[24,0.238,1,0,"flight-25",1,189.6],[25,0.587,1,0,"flight-26",1,190.0],[26,0.197,1,0,"flight-27",1,189.5],[27,0.843,1,0,"flight-28",1,189.5],[28,0.269,1,0,"flight-29",1,189.4],[29,0.771,1,0,"flight-30",1,189.6],[30,0.738,1,0,"flight-31",1,189.5],[31,0.848,1,0,"flight-32",1,189.5],[32,0.275,1,0,"flight-33",1,189.9],[33,0.278,1,0,"flight-34",1,189.6],[34,0.092,0,0,"e1m1-a",2,180.2],[34,0.386,0,0,"e1m1-a",2,180.5],[34,0.242,0,0,"e1m1-a",2,180.4],[34,0.226,0,0,"e1m1-a",2,180.1],[34,0.378,0,0,"e1m1-a",2,180.2],[35,0.421,0,0,"e1m1-look",2,180.2],[35,0.396,0,0,"e1m1-look",2,180.4],[35,0.509,0,0,"e1m1-look",2,180.4],[35,0.278,0,0,"e1m1-look",2,180.1],[35,0.278,0,0,"e1m1-look",2,180.5],[36,0.359,0,0,"e1m1-look2",2,180.2],[36,0.147,0,0,"e1m1-look2",2,180.5],[36,0.38,0,0,"e1m1-look2",2,180.4],[36,0.25,0,0,"e1m1-look2",2,180.1],[36,0.147,0,0,"e1m1-look2",2,180.0],[37,0.65,0,0,"e1m1-commit",2,180.2],[37,0.485,0,0,"e1m1-commit",2,180.4],[37,0.397,0,0,"e1m1-commit",2,180.1],[37,0.25,0,0,"e1m1-commit",2,180.1],[37,0.183,0,0,"e1m1-commit",2,180.0],[38,0.529,0,0,"e1m1-use",2,180.2],[38,0.516,0,0,"e1m1-use",2,180.5],[38,0.386,0,0,"e1m1-use",2,180.4],[38,0.212,0,0,"e1m1-use",2,180.1],[38,0.379,0,0,"e1m1-use",2,180.2],[39,0.389,0,0,"e1m1-nostep",2,180.2],[39,0.491,0,0,"e1m1-nostep",2,180.5],[39,0.454,0,0,"e1m1-nostep",2,180.4],[39,0.403,0,0,"e1m1-nostep",2,180.1],[39,0.382,0,0,"e1m1-nostep",2,180.0],[40,0.383,0,0,"e1m1-ledge",2,180.2],[40,0.42,0,0,"e1m1-ledge",2,180.5],[40,0.202,0,0,"e1m1-ledge",2,180.4],[40,0.278,0,0,"e1m1-ledge",2,180.1],[40,0.555,0,0,"e1m1-ledge",2,180.2],[41,0.413,0,0,"e1m1-sweep",2,180.2],[41,0.453,0,0,"e1m1-sweep",2,180.5],[41,0.403,0,0,"e1m1-sweep",2,180.4],[41,0.361,0,0,"e1m1-sweep",2,180.1],[41,0.397,0,0,"e1m1-sweep",2,180.5],[42,0.477,1,0,"flight-35",1,189.6],[43,0.388,0,0,"e1m1-walked",2,180.4],[43,0.12,0,0,"e1m1-walked",2,180.5],[43,0.38,0,0,"e1m1-walked",2,180.4],[43,0.174,0,0,"e1m1-walked",2,180.1],[43,0.387,0,0,"e1m1-walked",2,180.5],[44,0.541,0,0,"e1m1-onedoor",2,180.5],[44,0.487,0,0,"e1m1-onedoor",2,180.5],[44,0.584,0,0,"e1m1-onedoor",2,180.4],[44,0.16,0,0,"e1m1-onedoor",2,180.1],[44,0.47,0,0,"e1m1-onedoor",2,180.5],[45,0.273,0,0,"e1m1-third",2,180.2],[45,0.274,0,0,"e1m1-third",2,180.5],[45,0.274,0,0,"e1m1-third",2,180.4],[45,0.221,0,0,"e1m1-third",2,180.1],[45,0.487,0,0,"e1m1-third",2,180.1],[46,0.695,1,0,"flight-36",1,189.8],[47,0.192,0,0,"e1m1-align",2,180.2],[47,0.174,0,0,"e1m1-align",2,180.5],[47,0.389,0,0,"e1m1-align",2,180.2],[47,0.548,0,0,"e1m1-align",2,180.4],[47,0.093,0,0,"e1m1-align",2,180.5],[48,0.673,1,0,"flight-e1m1-1",3,199.7],[49,0.344,1,0,"flight-e1m1-3",3,199.7],[50,0.561,1,0,"flight-e1m1-4",3,199.9],[51,0.705,1,0,"flight-e1m1-5",3,84.1],[51,1.0,1,1,"flight-e1m1-5",3,105.0],[52,0.645,1,0,"flight-e1m1-6",3,249.0]],"runs":["baseline-flight-20260922-e1m1-900s","flight-status-1","flight-status-2","flight-status-3","flight-status-4","flight-status-5","flight-6","flight-7","flight-8","flight-9","flight-10","flight-11","flight-12","flight-13","flight-14","flight-15","flight-17","flight-18","flight-19","flight-20","flight-21","flight-22","flight-23","flight-24","flight-25","flight-26","flight-27","flight-28","flight-29","flight-30","flight-31","flight-32","flight-33","flight-34","e1m1-a","e1m1-look","e1m1-look2","e1m1-commit","e1m1-use","e1m1-nostep","e1m1-ledge","e1m1-sweep","flight-35","e1m1-walked","e1m1-onedoor","e1m1-third","flight-36","e1m1-align","flight-e1m1-1","flight-e1m1-3","flight-e1m1-4","flight-e1m1-5","flight-e1m1-6"],"phases":["22 Sep: before tonight's executor work","22-23 Sep: executor and sensing experiments","23 Sep: the twelve 5-seed experiments","24 Sep: tonight"]};
+const W=1040,H=470,L=58,R=22,T=18,B=92;
+const iw=W-L-R, ih=H-T-B;
+const rows=DATA.rows, runs=DATA.runs, phases=DATA.phases;
+const nRuns=runs.length;
+const x = i => L + (nRuns<2 ? iw/2 : (i/(nRuns-1))*iw);
+const y = v => T + ih - v*ih;
+const svg=document.getElementById('chart');
+const NS='http://www.w3.org/2000/svg';
+const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+const bounds=[];
+phases.forEach((p,pi)=>{const xs=rows.filter(r=>r[5]===pi).map(r=>r[0]);
+  if(xs.length) bounds.push([pi,Math.min.apply(null,xs),Math.max.apply(null,xs)]);});
+bounds.forEach(function(b,k){
+  const pi=b[0], a=b[1], c=b[2];
+  const x0 = k===0 ? L-8 : (x(a)+x(bounds[k-1][2]))/2;
+  const x1 = k===bounds.length-1 ? L+iw+8 : (x(c)+x(bounds[k+1][1]))/2;
+  if(k%2===0) svg.appendChild(el('rect',{x:x0,y:T,width:x1-x0,height:ih,
+      fill:'var(--grid)','fill-opacity':0.4}));
+  const t=el('text',{x:(x0+x1)/2,y:T+ih+34,'text-anchor':'middle','font-size':11.5,
+      fill:'var(--muted)'});
+  phases[pi].split(': ').forEach(function(s,j){
+    const ts=el('tspan',{x:(x0+x1)/2,dy:j?13:0}); ts.textContent=s; t.appendChild(ts);});
+  svg.appendChild(t);
+});
+
+[0,0.25,0.5,0.75,1].forEach(function(v){
+  svg.appendChild(el('line',{x1:L-8,x2:L+iw+8,y1:y(v),y2:y(v),
+    stroke: v===1?'var(--axis)':'var(--grid)','stroke-width':v===1?2:1}));
+  const t=el('text',{x:L-14,y:y(v)+4,'text-anchor':'end','font-size':12,fill:'var(--muted)'});
+  t.textContent = v===1 ? 'the exit' : v.toFixed(2); svg.appendChild(t);
+});
+const yl=el('text',{x:14,y:T+ih/2,'font-size':12,fill:'var(--text-secondary)',
+  transform:'rotate(-90 14 '+(T+ih/2)+')','text-anchor':'middle'});
+yl.textContent='closest approach to the exit'; svg.appendChild(yl);
+
+const bestBefore=Math.max.apply(null, rows.filter(r=>!r[3]).map(r=>r[1]));
+svg.appendChild(el('line',{x1:L-8,x2:L+iw+8,y1:y(bestBefore),y2:y(bestBefore),
+  stroke:'var(--muted)','stroke-width':2,'stroke-dasharray':'2 5'}));
+const bt=el('text',{x:L+2,y:y(bestBefore)-8,'font-size':11.5,fill:'var(--muted)'});
+bt.textContent='0.85 — the best of the 102 attempts before it'; svg.appendChild(bt);
+
+const jitter=(i,k)=>((k*37+i*17)%7-3)*1.7;
+const done=[];
+rows.forEach(function(r,k){
+  const i=r[0], best=r[1], isFlight=r[2], isDone=r[3];
+  const cx=x(i)+jitter(i,k), cy=y(best);
+  const g=el('g',{});
+  if(isDone){
+    g.appendChild(el('circle',{cx:cx,cy:cy,r:12,fill:'var(--accent)','fill-opacity':0.16}));
+    g.appendChild(el('circle',{cx:cx,cy:cy,r:6.5,fill:'var(--accent)',
+      stroke:'var(--surface-1)','stroke-width':2}));
+    done.push([cx,cy]);
+  } else if(isFlight){
+    g.appendChild(el('circle',{cx:cx,cy:cy,r:4.5,fill:'var(--muted)','fill-opacity':0.9,
+      stroke:'var(--surface-1)','stroke-width':2}));
+  } else {
+    g.appendChild(el('circle',{cx:cx,cy:cy,r:4,fill:'none',stroke:'var(--muted)',
+      'stroke-width':2,'stroke-opacity':0.9}));
+  }
+  const hit=el('circle',{cx:cx,cy:cy,r:11,fill:'transparent'});
+  hit.addEventListener('pointerenter',function(e){showTip(e,r);});
+  hit.addEventListener('pointerleave',hideTip);
+  g.appendChild(hit); svg.appendChild(g);
+});
+
+if(done.length){
+  const cx=done[0][0], cy=done[0][1];
+  svg.appendChild(el('line',{x1:cx,y1:cy-15,x2:cx,y2:cy-42,stroke:'var(--accent)','stroke-width':2}));
+  const t=el('text',{x:cx-6,y:cy-50,'text-anchor':'end','font-size':13,'font-weight':'600',
+    fill:'var(--accent)'});
+  t.textContent='finished, 105 s'; svg.appendChild(t);
+}
+
+const tip=document.getElementById('tip');
+function showTip(e,r){
+  const best=r[1], isFlight=r[2], isDone=r[3], run=r[4], pi=r[5], time=r[6];
+  tip.innerHTML='<b>'+run+'</b><br>'+(isFlight?'flight':'bench')+' &middot; '+phases[pi]+
+    '<br>closest approach <b>'+best.toFixed(2)+'</b>'+
+    (time?'<br>level time '+time.toFixed(0)+' s':'')+
+    (isDone?'<br><b>reached the exit</b>':'');
+  tip.style.opacity=1; tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY-10)+'px';
+}
+function hideTip(){tip.style.opacity=0;}
+
+document.getElementById('cap').textContent =
+  rows.length+' attempts across '+nRuns+' runs, all on shareware doom1.wad E1M1, all scored by the same '+
+  'grader on closest approach. Bench attempts play back a real flight’s decision latency; flights are '+
+  'the full F´/Yamcs stack with Jev deciding. Hover any dot.';
+
+const tb=document.querySelector('#tbl tbody');
+rows.forEach(function(r,k){
+  const tr=document.createElement('tr'); if(r[3]) tr.className='done';
+  [k+1,r[4],r[2]?'flight':'bench',phases[r[5]],r[1].toFixed(2),r[6]?r[6].toFixed(0):'—']
+    .forEach(function(v,j){const td=document.createElement('td');
+      if(j>=4) td.className='num'; td.textContent=v; tr.appendChild(td);});
+  tb.appendChild(tr);
+});
+</script>
