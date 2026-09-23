@@ -1,0 +1,71 @@
+{
+ "attempts": 15,
+ "suite_score": 0.0459,
+ "score_sd": 0.0868,
+ "completed": 0,
+ "deaths": 53,
+ "episodes": 15,
+ "freezes": 37,
+ "freeze_reasons": {
+  "no displacement for 4 s": 37
+ },
+ "deaths_by_mode": {
+  "APPROACH": 18,
+  "RETREAT": 17,
+  "OPERATE": 10,
+  "EXPLORE": 7,
+  "FIGHT": 1
+ },
+ "mode_share": {
+  "EXPLORE": 0.3036,
+  "APPROACH": 0.2539,
+  "OPERATE": 0.2341,
+  "FIGHT": 0.1172,
+  "RETREAT": 0.0912
+ },
+ "mean_progress": 0.0765,
+ "maps_without_a_usable_progress_score": [
+  "E1M3",
+  "E1M3",
+  "E1M3",
+  "E1M3",
+  "E1M3"
+ ],
+ "guardrails": {
+  "crashes": {
+   "pass": false,
+   "value": "6"
+  },
+  "deaths_per_minute": {
+   "pass": true,
+   "value": "1.36 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": false,
+   "value": "0.29 (floor 0.70)"
+  },
+  "decision_age_p95": {
+   "pass": true,
+   "value": "1133 ms (bench: latency is injected, not measured)"
+  }
+ },
+ "guardrails_pass": false,
+ "per_level": {
+  "E1M1": {
+   "n": 5,
+   "mean": 0.1196,
+   "sd": 0.1198
+  },
+  "E1M2": {
+   "n": 5,
+   "mean": 0.0181,
+   "sd": 0.0404
+  },
+  "E1M3": {
+   "n": 5,
+   "mean": 0.0,
+   "sd": 0.0
+  }
+ },
+ "run_dir": "research/out/t2-jev"
+}

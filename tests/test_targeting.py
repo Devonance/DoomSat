@@ -432,3 +432,46 @@ class TestTheCombatHeads(unittest.TestCase):
         d = tg.decide(t, [cand()], self.cfg, tg.TargetMemory(self.cfg), Nonsense(), RULES, 0)
         self.assertTrue(d["detail"].get("engage_fallback"))
         self.assertEqual(d["intent"]["mode"], "RETREAT")
+
+
+class TestWhenTheModelCannotAnswer(unittest.TestCase):
+    """A read timeout is an operational fact, not a reason to throw the attempt away.
+
+    Six of fifteen jev attempts were being voided by a 10 s timeout against the TypeSafe endpoint, which
+    failed the crashes guardrail and so discarded the row. The code rule exists precisely for the ticks
+    the model cannot answer; a pilot that stops flying because a request timed out is a worse pilot than
+    one that falls back.
+    """
+
+    class Broken:
+        name = "broken"
+
+        def ask(self, state, questions):
+            raise IOError("Read timed out. (read timeout=10)")
+
+    def setUp(self):
+        self.cfg = gc.load()
+        self.t = {"HEALTH": 90, "SHELLS": 8, "BULLETS": 40, "POS_X": 0.0, "POS_Y": 0.0, "ANGLE": 0.0}
+
+    def test_the_attempt_carries_on_with_the_rule(self):
+        d = tg.decide(self.t, [cand(), cand(kind="exit", path=900.0)], self.cfg,
+                      tg.TargetMemory(self.cfg), self.Broken(), RULES, 0)
+        self.assertIsNotNone(d["pick"])
+        self.assertTrue(d["answers"], "it should still have answers, from the rule")
+        self.assertEqual(d["intent"]["mode"], "APPROACH")
+
+    def test_it_says_so_rather_than_pretending_the_model_answered(self):
+        d = tg.decide(self.t, [cand()], self.cfg, tg.TargetMemory(self.cfg), self.Broken(), RULES, 0)
+        self.assertIn("Read timed out", d["unavailable"])
+        self.assertEqual(d["reply"]["model"], "code (fallback)")
+
+    def test_the_answers_are_the_rule_s_own(self):
+        cands = [cand(), cand(kind="exit", path=900.0)]
+        d = tg.decide(self.t, cands, self.cfg, tg.TargetMemory(self.cfg), self.Broken(), RULES, 0)
+        state = d["state"]
+        self.assertEqual(d["answers"]["g_t1"]["score"], tg.rule_score(state["targets"]["t1"]))
+
+    def test_a_working_model_is_not_marked_unavailable(self):
+        d = tg.decide(self.t, [cand()], self.cfg, tg.TargetMemory(self.cfg),
+                      TestDeterminismWithinARun.Counter(), RULES, 0)
+        self.assertIsNone(d["unavailable"])

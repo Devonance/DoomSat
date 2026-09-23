@@ -523,14 +523,24 @@ def decide(t, candidates, cfg, mem, system_one, rules, n=0, ask_need=False, cach
     qs = questions(state, cfg, ask_need=ask_need) if candidates else {}
     answers, reply = {}, {"latency_ms": 0}
     sent = dg.state_for(state, qs) if qs else state
+    unavailable = None
     if qs:
         hit = cache.get(sent, qs) if cache is not None else None
         if hit is not None:
             reply = dict(hit, cached=True, latency_ms=0)
         else:
-            reply = system_one.ask(sent, qs)
-            if cache is not None:
-                cache.put(sent, qs, reply)
+            try:
+                reply = system_one.ask(sent, qs)
+                if cache is not None:
+                    cache.put(sent, qs, reply)
+            except Exception as e:                             # noqa: BLE001
+                # The model is unreachable or slow. That is an operational fact, not a reason to throw
+                # away the attempt: the code rule exists precisely for the ticks the model cannot answer,
+                # and a pilot that stops flying because a request timed out is a worse pilot than one
+                # that falls back. Six attempts out of fifteen were being voided by a 10 s read timeout.
+                unavailable = "%s: %s" % (type(e).__name__, str(e)[:120])
+                reply = {"answers": rule_answers(state, qs), "latency_ms": 0, "model": "code (fallback)",
+                         "usage": {"input_tokens": 0}, "unavailable": unavailable}
         answers = reply["answers"]
     pick_i, detail = (None, {}) if not qs else pick(answers, state, candidates, cfg, mem)
     engage = (answers.get("engage") or {}).get("choice")
@@ -548,7 +558,8 @@ def decide(t, candidates, cfg, mem, system_one, rules, n=0, ask_need=False, cach
                         weapon_answer=(answers.get("weapon") or {}).get("choice"), rules=rules)
     return {"state": state, "sent": sent, "questions": qs, "answers": answers, "reply": reply,
             "pick": pick_i, "detail": detail, "intent": intent, "needs": needs,
-            "mode": intent["mode"], "code_only": not qs, "cached": bool(reply.get("cached"))}
+            "mode": intent["mode"], "code_only": not qs, "cached": bool(reply.get("cached")),
+            "unavailable": unavailable}
 
 
 def _keys_held(t):

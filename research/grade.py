@@ -96,6 +96,7 @@ def summarise(graded, conf):
         "episodes": len(graded),
         "freezes": sum(r.get("freezes", 0) for r in graded),
         "freeze_reasons": _freeze_reasons(graded),
+        "model_unavailable": sum(r.get("model_unavailable", 0) or 0 for r in graded),
         "deaths_by_mode": _sum_dicts(graded, "deaths_by_mode"),
         "mode_share": _mean_dicts(graded, "mode_share"),
         "mean_progress": round(statistics.fmean([r["progress"] for r in usable]), 4) if usable else None,
@@ -153,6 +154,9 @@ def main(argv=None):
           % (summary["freezes"], summary["episodes"],
              "  (" + ", ".join("%s x%d" % kv for kv in summary["freeze_reasons"].items()) + ")"
              if summary["freeze_reasons"] else ""))
+    if summary.get("model_unavailable"):
+        print("  decisions the model could not answer (fell back to the rule): %d"
+              % summary["model_unavailable"])
     if summary.get("deaths_by_mode"):
         print("  died in: %s" % ", ".join("%s x%d" % kv for kv in summary["deaths_by_mode"].items()))
     for name, v in summary["guardrails"].items():

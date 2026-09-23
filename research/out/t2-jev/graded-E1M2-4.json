@@ -1,0 +1,75 @@
+{
+ "map": "E1M2",
+ "seed": 4,
+ "tier": "bench",
+ "decider": "jev",
+ "run_id": "t2-jev",
+ "versions": {
+  "commit": "50da602",
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "dee1db53edf1",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "e7d6203ae6a8"
+ },
+ "commit": null,
+ "dirty": null,
+ "score": 0.0,
+ "completed": false,
+ "level_time": 180.09,
+ "end_reason": "timeout",
+ "deaths": 3,
+ "deaths_per_minute": 1.0,
+ "watchdog_trips": {
+  "no displacement for 4 s": 4
+ },
+ "freezes": 4,
+ "executor_stats": {
+  "ticks": 4345,
+  "safe_ticks": 0,
+  "recover_ticks": 294,
+  "intents": 232,
+  "stale_dropped": 0
+ },
+ "cache_hit_rate": 0.0489,
+ "progress": 0.0,
+ "progress_best": 0.2624,
+ "start_distance": 2482.9,
+ "remaining_distance": 2504.0,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": true,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 337,
+  "decisions_per_s": 1.892,
+  "decision_age_p50_ms": 292.0,
+  "decision_age_p95_ms": 383.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.2715,
+  "fallback_rate": 0.365,
+  "speed_explore": 171.68,
+  "coverage_rate": 13.14,
+  "revisit_fraction": 0.3887,
+  "spin_rate": 0.25265,
+  "idle_fraction": 0.2681,
+  "watchdog_trips": {},
+  "mode_share": {
+   "OPERATE": 0.3442,
+   "EXPLORE": 0.2226,
+   "APPROACH": 0.2166,
+   "RETREAT": 0.1365,
+   "FIGHT": 0.0801
+  },
+  "deaths_by_mode": {
+   "APPROACH": 2,
+   "RETREAT": 1
+  },
+  "tokens_per_decision": 4428.1,
+  "cells": 39,
+  "path_units": 31441.4
+ },
+ "warning": "this map has teleports, which the grader does not model: progress may understate a route that goes through one"
+}

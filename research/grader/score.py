@@ -94,6 +94,7 @@ def grade(attempt):
         "freezes": sum((attempt.get("watchdog_trips") or {}).values()),
         "executor_stats": attempt.get("executor_stats") or {},
         "cache_hit_rate": attempt.get("cache_hit_rate"),
+        "model_unavailable": attempt.get("model_unavailable", 0),
         "progress": round(prog, 4),
         "progress_best": round(fm.progress(start_d, best), 4),
         "start_distance": None if start_d is None else round(start_d, 1),

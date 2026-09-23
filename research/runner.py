@@ -210,7 +210,7 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
     tmem = targeting.TargetMemory(graph)
     cache = targeting.DecisionCache()      # charter 3.4: an identical state gets an identical action
     rules = knowledge()
-    goal, rows, deaths = "EXPLORE", [], 0
+    goal, rows, deaths, unavailable = "EXPLORE", [], 0, 0
     tic, n, t_wall = 0, 0, time.time()
     end_reason, end_xy = "timeout", None
     start_xy = None
@@ -242,6 +242,8 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
                 # through the same uplink the flight stack uses, so the bench exercises the packing too
                 p.handle(0x15, intent_bytes(d["intent"]))
                 cmd = d["intent"]
+                if d.get("unavailable"):
+                    unavailable += 1
             else:
                 d = dg.decide(t, graph, mem, goal, decider, n)
                 if "goal" in d["answers"]:
@@ -291,6 +293,7 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
         pass
     return {"tier": "bench", "wad_path": wad_path, "map": map_name, "seed": seed, "skill": skill,
             "watchdog_trips": wd, "executor_stats": ex_stats,
+            "model_unavailable": unavailable,
             "budget_s": budget_s, "start_xy": start_xy, "end_xy": end_xy, "end_reason": end_reason,
             "game_seconds": round(tic / TICRATE, 2), "deaths": deaths, "wall_seconds": round(time.time() - t_wall, 1),
             "decider": getattr(decider, "name", "?"), "decisions": rows,

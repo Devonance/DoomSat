@@ -1,0 +1,74 @@
+{
+ "map": "E1M1",
+ "seed": 1,
+ "tier": "bench",
+ "decider": "jev",
+ "run_id": "t2-jev",
+ "versions": {
+  "commit": "50da602",
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "dee1db53edf1",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "e7d6203ae6a8"
+ },
+ "commit": null,
+ "dirty": null,
+ "score": 0.2076,
+ "completed": false,
+ "level_time": 141.63,
+ "end_reason": "crash",
+ "deaths": 2,
+ "deaths_per_minute": 0.847,
+ "watchdog_trips": {
+  "no displacement for 4 s": 9
+ },
+ "freezes": 9,
+ "executor_stats": {
+  "ticks": 2523,
+  "safe_ticks": 0,
+  "recover_ticks": 517,
+  "intents": 134,
+  "stale_dropped": 0
+ },
+ "cache_hit_rate": 0.0496,
+ "progress": 0.2307,
+ "progress_best": 0.4137,
+ "start_distance": 3231.3,
+ "remaining_distance": 2485.9,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": false,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 265,
+  "decisions_per_s": 1.888,
+  "decision_age_p50_ms": 342.0,
+  "decision_age_p95_ms": 1133.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.4306,
+  "fallback_rate": 0.2302,
+  "speed_explore": 147.54,
+  "coverage_rate": 5.98,
+  "revisit_fraction": 0.3396,
+  "spin_rate": 0.34907,
+  "idle_fraction": 0.1698,
+  "watchdog_trips": {},
+  "mode_share": {
+   "APPROACH": 0.434,
+   "EXPLORE": 0.2943,
+   "FIGHT": 0.1509,
+   "RETREAT": 0.1057,
+   "OPERATE": 0.0151
+  },
+  "deaths_by_mode": {
+   "APPROACH": 1,
+   "EXPLORE": 1
+  },
+  "tokens_per_decision": 4459.0,
+  "cells": 14,
+  "path_units": 21602.7
+ }
+}
