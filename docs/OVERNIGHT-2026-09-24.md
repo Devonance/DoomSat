@@ -75,11 +75,36 @@ this code has existed. `plan_to` had always snapped its goal to the nearest cell
 This is not an oracle problem. It means the pilot could never target an exit it saw, on any run, and the
 whole of the exploring behaviour has been the behaviour of a pilot with no way out in its list.
 
-*(L1 and L2 to be filled from `research/out/ladder3-L1` and `-L2`.)*
+**L1 and L2 were not run to completion.** L0 had already answered, and once the exit bug above was found
+the remaining rungs would have measured a pilot with a known fault in it. I stopped them by pid and spent
+the time on the fault instead. That is a deviation from the brief's "run each rung"; it is recorded in
+§9 with the reason.
 
 **Which case, and why.** Case 1. L0 is the rung with nothing in its way -- the whole level, the exit's
 position, no question of seeing -- and it did not finish. Until it does, an exploration number and a
 perception number are both measurements of the executor with something else's name on them.
+
+**What happened when the exit was finally in the list.** The pilot picked it, walked at it, and wedged.
+From (-416,256) to (-380,431): **175 units of displacement in 180 seconds**, APPROACH on 98% of its
+decisions, and **not one watchdog trip**. The freeze tests measure motion, and flailing is motion -- the
+rub correction leans forty degrees off the heading and alternates shoulders, so a wedged player covers
+hundreds of units inside a box a few feet across and every test reads "fine".
+
+Three things came out of that, in order, each measured on the same seed of Freedoom E1M1 at L0:
+
+| | best progress | rubbing | recovering |
+| --- | --- | --- | --- |
+| exit reachable, nothing else changed | 0.04 | 43% | 0% |
+| watchdog can see flailing | 0.19 | 17% | 28% |
+| recovery turns toward the open side | **0.22** | 18% | 28% |
+
+Two things were tried and reverted with their numbers: throwing the plan away when the next waypoint is
+behind something (0.04 and 0.18 against 0.45 -- the payload only replans when the next INTENT arrives, so
+it left the executor with a target and no path for most of the attempt), and aiming only at the next
+waypoint (0.15 against 0.19).
+
+A quarter of the attempt now goes on recovering, which is not a fix -- it is the flailing made visible.
+§10 says what I would do about it.
 
 ---
 
@@ -248,4 +273,26 @@ Two, both named in the brief, both announced here because they invalidate every 
 
 ## 10. What I would do next, in order
 
-*(to be finished)*
+1. **Make the recovery a retreat along ground already stood on.** The world model keeps `stood`, every
+   cell the player has occupied -- walkable by demonstration, not by inference. A wedged player should
+   back up to the last cell it stood in more than a room away and re-approach, instead of spinning and
+   pushing. The present recovery spins 787 degrees and hopes; it is 28% of an attempt.
+2. **Give the payload a cheap immediate replan.** The one fix tonight that was right in principle and
+   failed in practice -- drop a path the player has come off -- failed only because the payload waits for
+   the next INTENT to plan again, about seventeen tics. `plan_to` is an A* over the walkable set and runs
+   in milliseconds; there is no reason the executor cannot ask for one on the spot.
+3. **Then re-run the whole ladder, all three rungs.** L0 is the test of 1 and 2 and it is cheap. Nothing
+   downstream is worth measuring until L0 finishes a dev level inside 60 s.
+4. **Then the `stuck` head.** The brief gives "what to do when stuck" to Jev and the code has been
+   deciding it -- rub, recover, give up on the target -- for the whole of this project. Once the executor
+   can be told to back off and try another way, that choice is the model's.
+5. **Then step 4's detector.** The templates are read and tested; the matcher is not written. It is
+   load-bearing for E1M1, whose exit is a switch on a wall, and it is the last thing between the pilot
+   and a level it can finish on purpose rather than by walking into the right line.
+
+The give-up rule is worth a separate experiment and I did not run it. `TargetMemory` abandons a target
+that stops getting closer and makes it unattractive for a while -- which is code choosing between
+options, and the brief says code does not do that. With a wedged executor it converts a local sticking
+point into a global oscillation: walk at the exit, wedge, abandon the exit, walk to a frontier, come
+back. The 49% toward / 51% away number is what that looks like from outside. The right shape is that
+`tried_before` goes up and Jev decides whether to persist.
