@@ -69,11 +69,29 @@ class TestTheIntentAndItsTimeToLive(unittest.TestCase):
         self.intent(target_x=1000.0, target_y=700.0, has_target=True)   # about 35 degrees
         self.assertEqual(self.e.step(obs(), 0.1)["move"], ex.RUN_DELTA)
 
-    def test_it_walks_rather_than_runs_when_well_off_line(self):
-        self.intent(target_x=0.0, target_y=1000.0, has_target=True)     # 90 degrees
-        cmd = self.e.step(obs(), 0.1)
-        self.assertGreater(cmd["move"], 0.0)
-        self.assertLess(cmd["move"], ex.RUN_DELTA)
+    def test_the_throttle_is_set_by_the_room_to_turn_in_not_by_the_angle(self):
+        """The same heading error, two rooms, two answers.
+
+        Running at ninety degrees off the aim point is correct in a hall -- the player slides into the
+        turn and the velocity vector points at the target long before the crosshair does -- and it puts
+        the player into the wall in a doorway. A step function on the angle alone said the same thing in
+        both, which is why the oracle rung crossed a level it could see all of at 46 units a second.
+        """
+        self.intent(target_x=0.0, target_y=1000.0, has_target=True)     # 90 degrees off
+        roomy = self.e.step(obs(clear_fwd=400, clear_fl=400, clear_fr=400), 0.1)
+        self.assertEqual(roomy["move"], ex.RUN_DELTA, "four hundred units of room and it will not run")
+
+        wide = self.e._throttle(90.0, obs(clear_fwd=400, clear_fl=400, clear_fr=400))
+        narrow = self.e._throttle(90.0, obs(clear_fwd=64, clear_fl=40, clear_fr=400))
+        tighter = self.e._throttle(90.0, obs(clear_fwd=48, clear_fl=24, clear_fr=400))
+        self.assertGreater(narrow, 0.0, "it still moves; a throttle is not a handbrake")
+        self.assertLess(narrow, wide, "forty units of room is not four hundred units of room")
+        self.assertLess(tighter, narrow, "and less room again means less speed again")
+
+    def test_a_small_heading_error_always_runs(self):
+        self.intent(target_x=1000.0, target_y=40.0, has_target=True)    # a couple of degrees
+        self.assertEqual(self.e.step(obs(clear_fwd=64, clear_fl=40, clear_fr=40), 0.1)["move"],
+                         ex.RUN_DELTA, "there is no drift to allow for when it is already pointing there")
 
     def test_an_intent_outlives_the_decision_that_made_it(self):
         """The whole point of charter 3.1: the player does not stand still waiting for the next answer."""

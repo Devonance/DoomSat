@@ -31,11 +31,8 @@ TURN_PER_TIC = 15.0
 # How far off line the player may be and still move. 25 degrees was too strict: a path through a room
 # bends more than that between waypoints, so the throttle sat at part power for half the level. A Doom
 # player runs and turns at the same time.
-ALIGN_WALK = 140.0      # walk while the heading is within this of where we want to go
-ALIGN_FULL = 45.0       # full speed within this. 70 was tried: running at seventy degrees
-                        # off the aim point puts the player into the wall beside it, and five
-                        # paired seeds fell from 0.448 of the way to the exit to 0.278, with
-                        # coverage from 58 cells to 48
+ALIGN_WALK = 140.0      # more than this off the aim point and there is nothing to do but turn
+PLAYER_RADIUS = 16.0    # the engine's own number, and the margin a throttle has to leave
 # How far ahead to look, as a time rather than a distance. At the old delta of 14 the player covered 4
 # units a tic and a fixed 72-unit guard was five tics of warning; at a run it covers 14.5 and the same 72
 # units is two. A guard that does not scale with speed is a guard that stops working the moment the speed
@@ -345,16 +342,13 @@ class Executor:
             cmd["strafe"] = STRAFE_DELTA * self._freer_side(obs)
         else:
             speed = 0.0
-            if abs(rel) <= ALIGN_FULL:
-                speed = RUN_DELTA
-            elif abs(rel) <= ALIGN_WALK:
-                # Lead with the shoulder. Doom strafes and turns at the same time, and a player closing a
-                # sixty-degree angle does not pivot on the spot and then set off -- they run and slide
-                # into it, so the velocity vector points at the target long before the crosshair does.
-                # Measured with the freezes gone: only 40% of ticks were at full speed and 96% were
-                # turning, which is a player spending its afternoon aiming rather than arriving.
-                speed = RUN_DELTA * 0.6
-                cmd["strafe"] = STRAFE_DELTA * (1.0 if rel > 0 else -1.0)
+            if abs(rel) <= ALIGN_WALK:
+                speed = self._throttle(rel, obs)
+                if abs(rel) > 20.0:
+                    # Lead with the shoulder. Doom strafes and turns at once, and a player closing an
+                    # angle does not pivot on the spot and then set off -- they run and slide into it, so
+                    # the velocity vector points at the target long before the crosshair does.
+                    cmd["strafe"] = STRAFE_DELTA * (1.0 if rel > 0 else -1.0)
             # The guard scales with how fast we are actually going, so it is the same amount of warning
             # at a run as it was at a walk.
             guard = max(AVOID_MIN_UNITS, speed * UNITS_PER_S_PER_DELTA * AVOID_SECONDS)
@@ -394,6 +388,42 @@ class Executor:
         cmd["fire"] = int(self._should_fire(it, obs))
         cmd["use"] = int(self._should_use(it, obs, x, y))
         return cmd
+
+    def _throttle(self, rel, obs):
+        """How fast the player may run while it is still turning, given the room it has to turn in.
+
+        This replaces a step function -- full speed inside 45 degrees, six tenths outside it -- that had
+        no idea how wide the corridor was. Running at 45 degrees off the aim point is fine in a hall and
+        puts the player into the wall in a doorway, and the step function said the same thing in both.
+        ALIGN_FULL was tried at 70 and was worse, and at 45 it still left the oracle rung -- the whole
+        level and the exit in hand -- at 46 units a second with 45% of its ticks pressed against geometry.
+        A better constant was never going to fix it, because the missing term is not a constant.
+
+        The relation is arithmetic, and every term in it is either measured or an engine fact. Turning at
+        TURN_PER_TIC, closing a heading error of `rel` takes |rel|/TURN_PER_TIC tics. During those tics
+        the heading error falls roughly linearly, so the sideways drift is about half what it would be at
+        the full angle:
+
+            drift = speed_per_tic * tics_to_align * sin(|rel|) / 2
+
+        and the room to drift into is what the range camera reports on the side the player is swinging
+        toward, less its own radius. Solve for speed, cap at a run.
+
+        No new tunable: TURN_PER_TIC and the delta-to-speed conversion were already here, the radius is
+        the engine's, and the clearance is a measurement.
+        """
+        rel = abs(rel)
+        if rel < 1.0:
+            return RUN_DELTA
+        tics = rel / TURN_PER_TIC
+        # The narrowest of the three forward bands, because which way the body drifts depends on the
+        # strafe as well as the turn and the honest answer is "whichever is tightest".
+        room = min(obs["clear_fl"], obs["clear_fr"], obs["clear_fwd"])
+        room = max(0.0, room - PLAYER_RADIUS)
+        drift_per_delta = (UNITS_PER_S_PER_DELTA / TICRATE) * tics * math.sin(math.radians(rel)) / 2.0
+        if drift_per_delta <= 1e-6:
+            return RUN_DELTA
+        return max(0.0, min(RUN_DELTA, room / drift_per_delta))
 
     def _should_look(self, obs, now):
         """A panorama on arriving somewhere new, the way a rover takes one at the end of a drive.

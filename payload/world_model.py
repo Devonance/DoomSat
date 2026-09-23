@@ -157,6 +157,17 @@ class Plan:
     def remaining_units(self):
         return max(0, len(self.cells) - self.i - 1) * GRID
 
+    def straight_line_clear(self, x0, y0, x1, y1):
+        """Can the player walk the straight line from here to there without touching anything?
+
+        Set by the world model when it builds a plan. Without it the aim point is chosen by whether the
+        chord stays near the PATH, which is a different question: a chord 38 units off the path still puts
+        a 16-unit-wide player 54 units off the corridor centre, and into the wall. The t3 baseline spent
+        34% of its ticks pressed against geometry with a plan in hand, and the oracle rung -- which has
+        the whole level -- spent 46%.
+        """
+        return True
+
     def advance(self, x, y):
         """Step the cursor past every waypoint already reached. Returns the point to steer at, or None."""
         while self.i < len(self.cells) - 1:
@@ -184,7 +195,8 @@ class Plan:
     def _aim_index(self, x, y):
         best = min(len(self.cells) - 1, self.i + 1)
         for j in range(best, min(len(self.cells), self.i + LOOKAHEAD_CELLS + 1)):
-            if self._chord_clear(x, y, j):
+            tx, ty = cell_centre(self.cells[j])
+            if self._chord_clear(x, y, j) and self.straight_line_clear(x, y, tx, ty):
                 best = j
             else:
                 break
@@ -303,8 +315,7 @@ class WorldModel:
     def crossing_costs(self, walk, now):
         """What each cell costs beyond its distance: a squeeze, a ledge, or both."""
         out = {}
-        mask_of = getattr(self.ex, "blocked_mask", None)
-        if getattr(self.ex, "geom", None) is not None and mask_of is not None:
+        if getattr(self.ex, "geom", None) is not None:
             # Restored, and I was wrong to take it out in the step 2 commit. The argument was that
             # TIGHT_COST compensated for the automap drawing a wall as a fuzzy stroke, so exact lines made
             # it redundant. It does not: the clearance test asks whether a player can STAND in a cell, and
@@ -312,15 +323,11 @@ class WorldModel:
             # the bribe gone the planner ran routes flush against exact walls, and the oracle rung -- the
             # whole level and the exit handed over -- spent 46% of its ticks pressed against geometry with
             # a perfect map in hand.
-            box = mask_of(now, PLAYER_ROOMY_PX)
-            if box is None:
+            free_of = getattr(self.ex, "cell_is_free", None)
+            if free_of is None:
                 return out
-            blk, ix0, iy0 = box
-            wpx = self.ex.wpx
             for c in walk:
-                ix, iy = wpx((c[0] + 0.5) * GRID, (c[1] + 0.5) * GRID)
-                jx, jy = ix - ix0, iy - iy0
-                if 0 <= jy < blk.shape[0] and 0 <= jx < blk.shape[1] and blk[jy, jx]:
+                if free_of(c[0], c[1], now, PLAYER_ROOMY_PX) is False:
                     out[c] = TIGHT_COST
             return out
         near = getattr(self.ex, "near_class", None)
@@ -349,20 +356,13 @@ class WorldModel:
         # getattr, not a hard call: the unit suite drives this with a stand-in Explorer that has no
         # raster to filter, and the point of that stand-in is that the world model can be tested without
         # ViZDoom. Falling back to the per-cell test keeps both honest -- same answer, slower.
-        mask_of = getattr(self.ex, "blocked_mask", None)
-        mask = mask_of(now, PLAYER_CLEARANCE_PX) if mask_of else None
-        if mask is None:
+        free_of = getattr(self.ex, "cell_is_free", None)
+        if free_of is None:
             out = {c for c in self.ex.free if self.passable(c[0], c[1], now)} | self.stood
         else:
-            blk, ix0, iy0 = mask
             out = set(self.stood)
             for c in self.ex.free:
-                if c in self.stood:
-                    out.add(c)
-                    continue
-                ix, iy = self.ex.wpx((c[0] + 0.5) * GRID, (c[1] + 0.5) * GRID)
-                jx, jy = ix - ix0, iy - iy0
-                if 0 <= jy < blk.shape[0] and 0 <= jx < blk.shape[1] and not blk[jy, jx]:
+                if c in self.stood or free_of(c[0], c[1], now, PLAYER_CLEARANCE_PX):
                     out.add(c)
         self._walk_key, self._walk = key, out
         return set(out)
@@ -1016,6 +1016,7 @@ class WorldModel:
                 cur.blocked = True
             return None
         fresh = Plan(cells, cand, now)
+        fresh.straight_line_clear = lambda x0, y0, x1, y1: self.body_can_walk(x0, y0, x1, y1, now)
         if cur is None or cur.blocked or cur.target is None or cur.target.cell != cand.cell or fresh.better_than(cur):
             if cur is None or cur.target is None or cur.target.cell != cand.cell:
                 # Setting off somewhere new, not replanning to the same place: the count is of journeys
@@ -1023,6 +1024,29 @@ class WorldModel:
                 self.targeted[cand.cell] = self.targeted.get(cand.cell, 0) + 1
             self.plan = fresh
         return self.plan
+
+    def body_can_walk(self, x0, y0, x1, y1, now, step=GRID / 2.0):
+        """Is every point along this segment far enough from something solid for the player to fit?
+
+        The same mask the walkable set is built from, sampled along the line rather than at cell centres.
+        The clearance is the player's own radius, which is an engine fact and not a tuning choice.
+        """
+        mask_of = getattr(self.ex, "blocked_mask", None)
+        box = mask_of(now, PLAYER_CLEARANCE_PX) if mask_of else None
+        if box is None:
+            return True
+        blk, ix0, iy0 = box
+        span = math.hypot(x1 - x0, y1 - y0)
+        n = max(1, int(span / step))
+        for k in range(n + 1):
+            t = k / n
+            ix, iy = self.ex.wpx(x0 + t * (x1 - x0), y0 + t * (y1 - y0))
+            jx, jy = ix - ix0, iy - iy0
+            if not (0 <= jy < blk.shape[0] and 0 <= jx < blk.shape[1]):
+                return False
+            if blk[jy, jx]:
+                return False
+        return True
 
     def times_tried(self, cell):
         """Journeys begun to this place or the cells touching it.

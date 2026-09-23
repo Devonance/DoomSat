@@ -92,6 +92,12 @@ def reveal_exit(explorer, exits, always, px=None, py=None):
     the --oracle flag.
     """
     import math
+    if always:
+        # L0 is told where the exit is, which has to mean it can act on it. The honest window is six
+        # hundred units -- an exit line counts while it is in view -- and leaving that in place made the
+        # rung a test of walking to within six hundred units of something it had been told the position
+        # of. ORACLE only, and the reason this line lives in this file.
+        explorer.exit_search_px = explorer.n
     revealed = 0
     for wx, wy in exits:
         ix, iy = explorer.wpx(wx, wy)

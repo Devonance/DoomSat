@@ -243,6 +243,7 @@ class Explorer:
         # classifying -- the two came apart the moment the classes stopped coming from the colours.
         self.drawn = np.zeros((self.n, self.n), bool)
         self.exit_px = set()   # raster pixels recognised as an exit line from close enough to read it
+        self.exit_search_px = 150   # 600 units: an exit line counts while it is in view (charter 2.3)
         self.visited = {}      # cell -> tics the player has stood in it (the walk, remembered)
         self.items = {}        # (kind, rounded x, rounded y) -> {"kind", "name", "x", "y", "seen"}
         self.keys = set()      # colours of keys picked up
@@ -250,6 +251,7 @@ class Explorer:
         self.stamps = 0
         self.geom = None       # set by the payload when the geometry sensor owns the raster
         self._mask_key, self._mask = None, None
+        self._cellblk_key, self._cellblk = None, None
 
     @staticmethod
     def cell(x, y):
@@ -427,6 +429,57 @@ class Explorer:
         self._mask_key, self._mask = key, (out, ix0, iy0)
         return self._mask
 
+    CELL_PX = GRID // WPX          # raster pixels across one planner cell: 32 units at 4 units a pixel
+
+    def cell_blocked(self, now, r):
+        """Which 32-unit cells the player cannot stand ANYWHERE in.
+
+        The distinction is the whole of it. `blocked_mask` answers "can the player stand on this exact
+        point", and asking that of a cell CENTRE is a different and much harsher question: the grid is 32
+        units, the player is 16 across, so in a 64-unit corridor every cell centre sits exactly at the
+        limit and rounding decides. With the camera sweep that never showed, because `free` only held
+        ground the player had already been near. With sightlines filling whole rooms it showed at once --
+        an oracle run with the entire level walkable reported no route to any of twelve frontiers, with
+        16,848 walkable cells on the map, because the corridors between the rooms had every cell centre
+        just inside a wall and the graph fell into disconnected pieces.
+
+        A player can stand anywhere in a cell, so a cell is usable when any point in it is clear.
+        """
+        key = (round(now, 3), r, len(self.free))
+        if self._cellblk_key == key:
+            return self._cellblk
+        box = self.blocked_mask(now, r)
+        if box is None:
+            self._cellblk_key, self._cellblk = key, None
+            return None
+        blk, ix0, iy0 = box
+        c = self.CELL_PX
+        # trim to whole cells, aligned to the raster's own cell grid
+        ax = ix0 + (-ix0) % c
+        ay = iy0 + (-iy0) % c
+        h = ((iy0 + blk.shape[0]) - ay) // c
+        w = ((ix0 + blk.shape[1]) - ax) // c
+        if h <= 0 or w <= 0:
+            self._cellblk_key, self._cellblk = key, None
+            return None
+        sub = blk[ay - iy0:ay - iy0 + h * c, ax - ix0:ax - ix0 + w * c]
+        cells = sub.reshape(h, c, w, c).all(axis=(1, 3))
+        self._cellblk_key = key
+        self._cellblk = (cells, ax // c, ay // c)     # in raster-cell coordinates, y increasing downward
+        return self._cellblk
+
+    def cell_is_free(self, cx, cy, now, r):
+        """Can the player stand somewhere in world cell (cx, cy)?"""
+        got = self.cell_blocked(now, r)
+        if got is None:
+            return None
+        cells, jx0, jy0 = got
+        ix, iy = self.wpx((cx + 0.5) * GRID, (cy + 0.5) * GRID)
+        jx, jy = ix // self.CELL_PX - jx0, iy // self.CELL_PX - jy0
+        if not (0 <= jy < cells.shape[0] and 0 <= jx < cells.shape[1]):
+            return None
+        return not bool(cells[jy, jx])
+
     def klass(self, ix, iy, now, r=1):
         """Class of the raster around a pixel ((2r+1)^2 window), barriers included."""
         if not (r <= ix < self.n - r and r <= iy < self.n - r):
@@ -507,9 +560,15 @@ class Explorer:
         return int(100 * new / cells) if cells else 100
 
     def nearest_exit(self, x, y, now):
-        """Nearest exit-line pixel seen within 600 units, or None."""
+        """Nearest exit-line pixel seen within 600 units, or None.
+
+        The radius is a perception limit: an exit line counts while it is in view, not for the rest of the
+        attempt (charter 2.3). `exit_search_px` is how the ORACLE widens it, and nothing else touches it --
+        without that, rung L0 was handed the exit's position and then could not see it until it had walked
+        to within six hundred units, which is not the rung the brief describes.
+        """
         ix, iy = self.wpx(x, y)
-        r = 150
+        r = self.exit_search_px
         win = self.raster[max(0, iy - r):iy + r, max(0, ix - r):ix + r]
         ys, xs = np.nonzero(win == EXIT)
         if not len(xs):
