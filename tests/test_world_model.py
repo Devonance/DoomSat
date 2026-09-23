@@ -465,3 +465,53 @@ class TestNotSettlingWhatItCannotSee(unittest.TestCase):
     def test_seeing_a_door_leaves_it_alone(self):
         self.assertEqual(self.w.settle_by_arrival(16.0, 16.0, 0.0, "door", 60), 0)
         self.assertFalse(self.rec["not_a_door"])
+
+
+class TestTheOfferRemembersHavingBeenThere(unittest.TestCase):
+    """`tried_before` was the word "no" on every candidate of every flight.
+
+    Frontier tries were hardcoded to zero, so the one feature that says "you have already walked to this"
+    carried nothing, and the target head had eight live words instead of nine. The count is of journeys
+    begun rather than replans, and it looks at neighbouring cells because a frontier recedes as the player
+    approaches it: keyed exactly, setting off for the same opening five times still reads as "no".
+    """
+
+    def setUp(self):
+        self.ex = FakeExplorer()
+        self.ex.free |= room(0, 0, 12, 12)
+        self.w = wm.WorldModel(self.ex)
+        self.w.see_doors = lambda *a, **k: None
+
+    def cand_at(self, cx, cy):
+        return wm.Candidate(wm.KIND_FRONTIER, (cx + 0.5) * GRID, (cy + 0.5) * GRID, 100.0, cell=(cx, cy))
+
+    def test_a_journey_begun_is_counted_once_however_often_it_replans(self):
+        c = self.cand_at(8, 8)
+        self.w.route_to(16.0, 16.0, c, 0.0)
+        for t in (2.0, 4.0, 6.0):
+            self.w.route_to(16.0, 16.0, c, t)
+        self.assertEqual(self.w.times_tried((8, 8)), 1)
+
+    def test_setting_off_somewhere_else_and_back_counts_twice(self):
+        self.w.route_to(16.0, 16.0, self.cand_at(8, 8), 0.0)
+        self.w.route_to(16.0, 16.0, self.cand_at(2, 9), 2.0)
+        self.w.route_to(16.0, 16.0, self.cand_at(8, 8), 4.0)
+        self.assertEqual(self.w.times_tried((8, 8)), 2)
+
+    def test_a_frontier_that_receded_by_one_cell_keeps_its_history(self):
+        self.w.route_to(16.0, 16.0, self.cand_at(8, 8), 0.0)
+        self.assertEqual(self.w.times_tried((9, 8)), 1, "the edge moves; the memory should not")
+        self.assertEqual(self.w.times_tried((11, 8)), 0, "two cells away is somewhere else")
+
+    def test_the_count_reaches_the_offer(self):
+        """The end-to-end one: set off for something the model itself offered, and see the next offer
+        of that same place say so. This is the path that was broken -- the counter can be perfect and
+        still never reach the word jev reads."""
+        first = [c for c in self.w.candidates(16.0, 16.0, 0.0, 0.0) if c.kind == wm.KIND_FRONTIER]
+        self.assertTrue(first, "no frontier was offered at all")
+        self.assertEqual([c.tries for c in first], [0] * len(first))
+        self.w.route_to(16.0, 16.0, first[0], 0.0)
+        again = {c.cell: c.tries for c in self.w.candidates(16.0, 16.0, 0.0, 5.0)
+                 if c.kind == wm.KIND_FRONTIER}
+        self.assertEqual(again.get(first[0].cell), 1,
+                         "the frontier just walked to still says it has never been tried")

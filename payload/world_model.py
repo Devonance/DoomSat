@@ -195,6 +195,11 @@ class WorldModel:
         self._frontiers = []
         self.dead_frontiers = set()   # openings the player stood on that stayed openings
         self.start = None             # where this attempt began; the fixed point "outward" is measured from
+        # How many separate times the player has set off for a place. `tried_before` is one of the nine
+        # things a target decision rests on and it has been the word "no" on every candidate of every
+        # flight, because frontier tries were hardcoded to zero -- so the one signal that says "you have
+        # already been there" was missing from the only head that could have used it.
+        self.targeted = {}
         self.planner_calls = 0
         self.planner_failures = 0
 
@@ -661,7 +666,7 @@ class WorldModel:
 
         for cell, size, unseen, depth in self.frontiers(x, y, now):
             goals.append(cell)
-            meta[cell] = (KIND_FRONTIER, size, "", 0)
+            meta[cell] = (KIND_FRONTIER, size, "", self.times_tried(cell))
             self._features[cell] = self.frontier_features(cell, size, unseen, depth, x, y)
 
         # Doors, and only the ones that have earned the name. Capped, so that a level full of ceiling
@@ -774,8 +779,22 @@ class WorldModel:
             return None
         fresh = Plan(cells, cand, now)
         if cur is None or cur.blocked or cur.target is None or cur.target.cell != cand.cell or fresh.better_than(cur):
+            if cur is None or cur.target is None or cur.target.cell != cand.cell:
+                # Setting off somewhere new, not replanning to the same place: the count is of journeys
+                # begun, so holding a target through twenty replans still reads as having tried it once.
+                self.targeted[cand.cell] = self.targeted.get(cand.cell, 0) + 1
             self.plan = fresh
         return self.plan
+
+    def times_tried(self, cell):
+        """Journeys begun to this place or the cells touching it.
+
+        Neighbours count because a frontier recedes: walk at the edge of the known and the edge moves, so
+        the cell offered next time is next door to the one offered last time. Keyed exactly, the player
+        would set off for the same opening all afternoon and every offer would still say "no".
+        """
+        return sum(n for c, n in self.targeted.items()
+                   if abs(c[0] - cell[0]) <= 1 and abs(c[1] - cell[1]) <= 1)
 
     def clear_plan(self):
         self.plan = None
