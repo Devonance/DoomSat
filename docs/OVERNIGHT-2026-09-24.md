@@ -291,6 +291,19 @@ Two, both named in the brief, both announced here because they invalidate every 
 
 ---
 
+## 7b. What the watchdog says now
+
+The new test, in the dev bench's own words:
+
+    [executor] watchdog: covered 670 units and got 9 in 4 s -- recovering
+
+Six hundred and seventy units of travel and nine units of displacement. Under the old tests that attempt
+was a player in perfectly good health: it covered far more than the 48 units the "went nowhere" test asks
+for, so nothing tripped, and the pilot flailed for as long as it liked. That one line is the whole of §8
+blocker 1, stated by the code that now notices it.
+
+---
+
 ## 8. Blockers
 
 1. **The executor cannot follow a path it has been given.** The rub loop: pressed against geometry, the
