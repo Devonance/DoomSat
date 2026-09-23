@@ -444,7 +444,7 @@ class Payload:
         # door_precision: presses that opened something, over presses. A ceiling-change line that is not
         # a door absorbs presses and opens nothing, so this is the number that says whether the senses
         # are telling the truth about doors.
-        self.press_total, self.press_opened = 0, 0
+        self.press_total, self.press_opened, self.doors_settled = 0, 0, 0
         self.press_watch = None      # (cell key, clearance when first pressed, game time)
         self.world = None            # charter 3.2, rebuilt every episode
         self.executor = None         # charter 3.1, rebuilt every episode
@@ -531,6 +531,7 @@ class Payload:
         self.sense, self.door_presses, self.door_at = None, 0, None
         self.use_ok = False
         self.press_total, self.press_opened, self.press_watch = 0, 0, None
+        self.doors_settled = 0
         print(f"[payload] episode {self.episode} started on {self.map} (level {self.level})", flush=True)
 
     def level_finished(self):
@@ -670,6 +671,8 @@ class Payload:
             elif opened:
                 self.press_opened += 1
             self.press_watch = None
+        # A suspect the player is standing in front of, with nothing to open, is settled here and now.
+        self.doors_settled += self.world.settle_by_arrival(x, y, angle, s["ahead_kind"], s["ahead_dist"])
         # doors: presses are counted while something usable is at arm's length; a door that never opens becomes a wall for a while
         usable = s["ahead_kind"] in ("door", "exit") and s["ahead_dist"] <= 80
         self.use_ok = usable

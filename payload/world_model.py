@@ -33,6 +33,7 @@ DOOR_MIN_WIDTH, DOOR_MAX_WIDTH = 40.0, 200.0
 DOOR_CONFIRM_UNITS = 400.0   # close enough for the range camera to have an opinion
 SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means it is not solid
 MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
+ARRIVED_UNITS = 96.0         # close enough that the arm's-length probe has the final word
 
 FRONTIER_MIN_CELLS = 2     # a frontier smaller than this is sensor noise, not a way on
 FRONTIER_MAX = 24          # clusters to consider before pruning to the candidates the ground scores
@@ -312,6 +313,35 @@ class WorldModel:
             if seen is not None and seen > dist + SEE_PAST_UNITS:
                 rec["see_through"] = True
                 rec["why"] = "the camera sees %.0f units past it" % (seen - dist)
+
+    def settle_by_arrival(self, x, y, angle, ahead_kind, ahead_dist):
+        """Standing in front of a suspect and seeing no door is evidence, and it is free.
+
+        A suspect was only ever disproved by pressing Use on it -- but the executor only presses when the
+        arm's-length probe already says "door", which for a ceiling change it never does. So a false
+        suspect could not be disproved: the pilot walked to it, found nothing to press, gave up, and the
+        suspect went straight back on the list. Zero Use presses in a whole flight, and six phantom doors
+        approached over and over.
+
+        This closes the loop with the evidence the payload already computes. If the player is at arm's
+        length, facing it, and what is at arm's length is not a door, then it is not a door.
+        """
+        if ahead_kind in ("door", "exit", "locked"):
+            return 0
+        settled = 0
+        for _cell, rec in self.doors.items():
+            if rec.get("not_a_door") or rec.get("opened"):
+                continue
+            d = math.hypot(rec["x"] - x, rec["y"] - y)
+            if d > ARRIVED_UNITS:
+                continue
+            rel = (math.degrees(math.atan2(rec["y"] - y, rec["x"] - x)) - angle + 180) % 360 - 180
+            if abs(rel) > 50:
+                continue
+            rec["not_a_door"] = True
+            rec["why"] = "stood at it facing it; nothing there to open"
+            settled += 1
+        return settled
 
     def note_door_try(self, x, y, now, opened=False):
         """A press, and what it proved. One press that opens nothing settles it for the attempt.

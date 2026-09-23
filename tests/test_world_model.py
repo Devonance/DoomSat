@@ -335,3 +335,39 @@ class TestADoorHasToEarnTheName(unittest.TestCase):
         near = self.suspect(cell=(1, 0))
         cands = [c for c in self.w.candidates(16.0, 16.0, 0.0, 0.0) if c.kind == wm.KIND_DOOR]
         self.assertTrue(any(abs(c.x - near["x"]) < GRID for c in cands))
+
+
+class TestSettlingASuspectByStandingAtIt(unittest.TestCase):
+    """A suspect was only ever disproved by pressing Use on it -- but the executor only presses when the
+    arm's-length probe already says "door", which for a ceiling change it never does. So a false suspect
+    could not be disproved: the pilot walked to it, found nothing to press, gave up, and it went straight
+    back on the list. Zero Use presses in a whole flight, six phantom doors approached over and over."""
+
+    def setUp(self):
+        self.w = wm.WorldModel(FakeExplorer(free=room(0, 0, 12, 6)))
+        self.w.doors[(2, 0)] = {"x": 80.0, "y": 16.0, "colour": "", "tries": 0, "opened": False,
+                                "last_try": 0.0, "not_a_door": False, "see_through": False,
+                                "width": 64.0, "why": ""}
+
+    def test_standing_in_front_of_nothing_settles_it(self):
+        n = self.w.settle_by_arrival(16.0, 16.0, 0.0, "wall", 60)
+        self.assertEqual(n, 1)
+        self.assertTrue(self.w.doors[(2, 0)]["not_a_door"])
+
+    def test_a_real_door_at_arms_length_is_left_alone(self):
+        self.assertEqual(self.w.settle_by_arrival(16.0, 16.0, 0.0, "door", 60), 0)
+        self.assertFalse(self.w.doors[(2, 0)]["not_a_door"])
+
+    def test_looking_the_other_way_proves_nothing(self):
+        self.assertEqual(self.w.settle_by_arrival(16.0, 16.0, 180.0, "wall", 60), 0)
+        self.assertFalse(self.w.doors[(2, 0)]["not_a_door"])
+
+    def test_being_far_away_proves_nothing(self):
+        self.assertEqual(self.w.settle_by_arrival(-900.0, 16.0, 0.0, "wall", 60), 0)
+        self.assertFalse(self.w.doors[(2, 0)]["not_a_door"])
+
+    def test_a_settled_suspect_stops_being_offered(self):
+        self.w.see_doors = lambda *a, **k: None
+        self.assertIn(wm.KIND_DOOR, [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)])
+        self.w.settle_by_arrival(16.0, 16.0, 0.0, "wall", 60)
+        self.assertNotIn(wm.KIND_DOOR, [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)])
