@@ -715,8 +715,25 @@ class WorldModel:
         rest = [c for c in out if c.kind not in (KIND_EXIT, KIND_KEY)]
         room = max(0, limit - len(must))
         near = sorted(rest, key=lambda c: c.path_units)[:max(1, room // 2)]
-        promise = [c for c in sorted(rest, key=lambda c: -(c.novelty + c.depth // GRID)) if c not in near]
+        promise = [c for c in sorted(rest, key=lambda c: -self._promise(c)) if c not in near]
         return (must + near + promise)[:limit]
+
+    def _promise(self, c):
+        """How much a candidate is worth offering: unknown behind it, how far that runs, and how far out
+        it is from where the level began.
+
+        Outwardness belongs here rather than in the rubric. Code builds the candidate list (charter 3.3),
+        and "an exploring player goes outward" is a policy about what to consider, not a judgement about
+        which of two things is better -- the judgement is still the model's, over whatever is offered.
+        Putting it in the rubric did not work: jev scored frontiers further out at 4.92 and ones back
+        toward the start at 5.52, the wrong way round, because it is one clause among nine.
+
+        It uses nothing but the player's own spawn position. Wherever the way out is, it is not there.
+        """
+        out = 0.0
+        if self.start is not None:
+            out = math.hypot(c.x - self.start[0], c.y - self.start[1]) / GRID
+        return c.novelty + c.depth / GRID + out
 
     # ------------------------------------------------------------------ commitment
     def route_to(self, x, y, cand, now, force=False):
