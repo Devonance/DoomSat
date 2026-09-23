@@ -254,8 +254,12 @@ def main(argv=None):
 
 def _write(a, conf, keys, v, p_graded, p_sum, c_graded, c_sum):
     decision = a.decision or v["decision"]
+    # The track the run was MEASURED on, not the track the repo is on today. For a history row those are
+    # different by definition, and writing today's track on a run from a fortnight ago is exactly the
+    # confusion the track column exists to prevent.
+    track = (c_graded[0].get("versions") or {}).get("track") or conf["track"]
     row = {
-        "exp_id": a.exp or next_exp_id(), "date": time.strftime("%Y-%m-%d"), "track": conf["track"],
+        "exp_id": a.exp or next_exp_id(), "date": time.strftime("%Y-%m-%d"), "track": track,
         "parent_commit": (p_graded[0].get("versions") or {}).get("commit") or "",
         "commit": (c_graded[0].get("versions") or {}).get("commit") or git("rev-parse", "--short", "HEAD"),
         "author": a.author, "area": a.area, "hypothesis": a.hypothesis, "change": a.change,
