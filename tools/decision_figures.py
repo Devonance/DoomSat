@@ -193,7 +193,8 @@ def decision_graph_dot():
 def decision_flow_dot():
     g = ['digraph F {',
          f'  graph [bgcolor="{BG}", rankdir=TB, fontname="{FONT}", fontcolor="{TXT}", labelloc=t, labeljust=l, nodesep=0.3, ranksep=0.35, pad=0.4,',
-         f'         label="DOOMSAT . ONE DECISION END TO END (graph v1, jev-1.13.0, 22 Sep 2026)\\l"];',
+         f'         label="DOOMSAT . ONE DECISION END TO END . the tic the exit appeared, on the flight '
+         f'that finished E1M1 (jev-1.13.0, 24 Sep 2026)\\l"];',
          f'  node [shape=box, style="rounded,filled", fillcolor="{CELL}", fontname="{FONT}", fontsize=11, fontcolor="{TXT}", penwidth=1.4, margin="0.2,0.12"];',
          f'  edge [color="{DIM}", fontname="{FONT}", fontsize=10, fontcolor="{DIM}", penwidth=1.2];']
     boxes = [(t, c, body) for t, c, body in FLOW if body]
@@ -230,7 +231,7 @@ def decision_flow_tex():
             out.append(r"\fcolorbox{black!50}{black!4}{\begin{minipage}{\dimexpr\linewidth-2\fboxsep-2\fboxrule}\raggedright " + inner + r"\end{minipage}}")
         else:
             out.append(r"\par\vspace{1pt}$\downarrow$\enspace\emph{" + tex(title) + r"}\par\vspace{1pt}")
-    out.append(r"\caption{One real decision end to end (graph v1, jev-1.13.0, 22 September 2026): the "
+    out.append(r"\caption{One real decision end to end, taken from the flight that finished E1M1 on 24 September 2026 (jev-1.13.0, tic 3244, the tic the exit first entered the candidate list): the "
                r"numbers Yamcs delivered, the words code made from them, jev's probabilities, the code rules and the "
                r"command that went up.}")
     out.append(r"\end{figure}")
@@ -245,11 +246,47 @@ def main():
     for name, text in (("decision_graph_table.tex", decision_graph_tex()), ("decision_flow.tex", decision_flow_tex())):
         with open(os.path.join(DOCS, name), "w", encoding="utf-8") as f:
             f.write(text + "\n")
-    wsl_dir = "/mnt/c" + os.path.abspath(OUT).replace("\\", "/")[2:]
-    names = ("decision_graph", "decision_flow", "dataflow", "architecture")
-    cmd = " && ".join(f"dot -T{fmt} -Gdpi={dpi} {n}.dot -o {n}.{fmt}" for n in names for fmt, dpi in (("png", 200), ("svg", 96)))
-    subprocess.run(["wsl", "-d", "ros2", "bash", "-c", f"cd '{wsl_dir}' && {cmd}"], check=True)
+    render(("decision_graph", "decision_flow", "dataflow", "architecture"))
     print("wrote", OUT, "and the tex fragments in", DOCS)
+
+
+def find_dot():
+    """The `dot` binary, preferring a local one.
+
+    It used to shell into the WSL distro unconditionally. That distro is also where the game runs, so a
+    wedged run meant the diagrams could not be rebuilt at all -- which is how the decision-graph figure
+    came to describe an architecture two rewrites out of date while nobody could regenerate it. A picture
+    of the code should not depend on the code being able to run.
+    """
+    from shutil import which
+    local = which("dot") or next(
+        (p for p in (os.path.join(r"C:\Program Files", "Graphviz", "bin", "dot.exe"),
+                     os.path.join(r"C:\Program Files (x86)", "Graphviz", "bin", "dot.exe"))
+         if os.path.isfile(p)), None)
+    return local
+
+
+def render(names, dpi_png=200, dpi_svg=96):
+    """PNG and SVG for each .dot in OUT. Local graphviz if there is one, the WSL distro if not."""
+    dot = find_dot()
+    if dot:
+        for n in names:
+            src = os.path.join(OUT, n + ".dot")
+            if not os.path.isfile(src):
+                print("  skipped %s: no .dot" % n)
+                continue
+            for fmt, dpi in (("png", dpi_png), ("svg", dpi_svg)):
+                out = os.path.join(OUT, "%s.%s" % (n, fmt))
+                r = subprocess.run([dot, "-T" + fmt, "-Gdpi=%d" % dpi, src, "-o", out],
+                                   capture_output=True, text=True)
+                if r.returncode:
+                    raise SystemExit("dot failed on %s.%s: %s" % (n, fmt, r.stderr[-400:]))
+            print("  rendered %s" % n)
+        return
+    wsl_dir = "/mnt/c" + os.path.abspath(OUT).replace("\\", "/")[2:]
+    cmd = " && ".join(f"dot -T{fmt} -Gdpi={dpi} {n}.dot -o {n}.{fmt}"
+                      for n in names for fmt, dpi in (("png", dpi_png), ("svg", dpi_svg)))
+    subprocess.run(["wsl", "-d", "ros2", "bash", "-c", f"cd '{wsl_dir}' && {cmd}"], check=True)
 
 
 if __name__ == "__main__":

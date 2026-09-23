@@ -1,6 +1,6 @@
 digraph F {
   graph [bgcolor="#0f1116", rankdir=TB, fontname="DejaVu Sans Mono", fontcolor="#d8dde6", labelloc=t, labeljust=l, nodesep=0.3, ranksep=0.35, pad=0.4,
-         label="DOOMSAT . ONE DECISION END TO END (graph v1, jev-1.13.0, 22 Sep 2026)\l"];
+         label="DOOMSAT . ONE DECISION END TO END . the tic the exit appeared, on the flight that finished E1M1 (jev-1.13.0, 24 Sep 2026)\l"];
   node [shape=box, style="rounded,filled", fillcolor="#161a22", fontname="DejaVu Sans Mono", fontsize=11, fontcolor="#d8dde6", penwidth=1.4, margin="0.2,0.12"];
   edge [color="#8b93a1", fontname="DejaVu Sans Mono", fontsize=10, fontcolor="#8b93a1", penwidth=1.2];
   b0 [label="Payload telemetry through F Prime, CCSDS and Yamcs -- tic\l3244, 92.7 s into the level\lhealth 33, armor 0, shotgun loaded; one Zombieman in view at\lmid-range\leight candidate places, each with a world position, a path\ldistance, how much unseen ground lies behind it, how wide the\lway on is and what is standing near it\lone of them is the level exit: the automap drew that line 166\lunits away, the first time this attempt has seen it\lthe position and the distances are for CODE to aim and plan\lwith; none of them reach the model\l", color="#4a5160"];
