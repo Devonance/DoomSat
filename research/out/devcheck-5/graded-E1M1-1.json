@@ -1,0 +1,86 @@
+{
+ "map": "E1M1",
+ "seed": 1,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "devcheck-5",
+ "versions": {
+  "commit": "9c4f47d",
+  "pinned": null,
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "6ca52161f731",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "051c7540a48f"
+ },
+ "commit": "9c4f47d",
+ "dirty": true,
+ "score": 0.0,
+ "completed": false,
+ "level_time": 180.06,
+ "end_reason": "timeout",
+ "deaths": 1,
+ "deaths_per_minute": 0.333,
+ "watchdog_trips": {
+  "no displacement for 4 s": 21
+ },
+ "freezes": 21,
+ "executor_stats": {
+  "ticks": 6302,
+  "safe_ticks": 0,
+  "recover_ticks": 1008,
+  "intents": 333,
+  "stale_dropped": 0,
+  "look_ticks": 547,
+  "no_plan_ticks": 136
+ },
+ "cache_hit_rate": 0.1608,
+ "model_unavailable": 0,
+ "door_presses": 176,
+ "door_opens": 1,
+ "door_precision": 0.0057,
+ "door_recall": {
+  "real_doors": 31,
+  "came_into_view": 6,
+  "offered": 2,
+  "door_recall": 0.3333
+ },
+ "exit_ever_seen": false,
+ "progress": 0.0,
+ "progress_best": 0.4137,
+ "start_distance": 3231.3,
+ "remaining_distance": 3711.9,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": false,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 333,
+  "decisions_per_s": 1.859,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.3182,
+  "fallback_rate": 0.5676,
+  "speed_explore": 158.43,
+  "coverage_rate": 14.07,
+  "revisit_fraction": 0.0901,
+  "spin_rate": 0.2959,
+  "idle_fraction": 0.2105,
+  "watchdog_trips": {},
+  "mode_share": {
+   "APPROACH": 0.6456,
+   "EXPLORE": 0.3213,
+   "OPERATE": 0.021,
+   "RETREAT": 0.012
+  },
+  "deaths_by_mode": {
+   "APPROACH": 1
+  },
+  "tokens_per_decision": 0.0,
+  "cells": 42,
+  "path_units": 27308.0
+ }
+}

@@ -1,0 +1,62 @@
+{
+ "attempts": 2,
+ "suite_score": 0.1396,
+ "score_sd": 0.1974,
+ "completed": 0,
+ "deaths": 2,
+ "episodes": 2,
+ "freezes": 37,
+ "freeze_reasons": {
+  "no displacement for 4 s": 37
+ },
+ "model_unavailable": 0,
+ "door_presses": 85,
+ "door_opens": 0,
+ "door_precision": 0.0,
+ "exit_ever_seen": 0,
+ "door_recall": {
+  "came_into_view": 15,
+  "offered": 9,
+  "recall": 0.6
+ },
+ "deaths_by_mode": {
+  "RETREAT": 1,
+  "APPROACH": 1
+ },
+ "mode_share": {
+  "APPROACH": 0.6312,
+  "EXPLORE": 0.327,
+  "OPERATE": 0.027,
+  "RETREAT": 0.0149
+ },
+ "mean_progress": 0.1552,
+ "maps_without_a_usable_progress_score": [],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "deaths_per_minute": {
+   "pass": true,
+   "value": "0.33 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": true,
+   "value": "n/a: code baseline, no model in the loop"
+  }
+ },
+ "guardrails_pass": true,
+ "per_level": {
+  "E1M1": {
+   "n": 1,
+   "mean": 0.2792,
+   "sd": null
+  },
+  "E1M4": {
+   "n": 1,
+   "mean": 0.0,
+   "sd": null
+  }
+ },
+ "run_dir": "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/devcheck-4"
+}

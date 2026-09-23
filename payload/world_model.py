@@ -33,6 +33,7 @@ DOOR_MIN_WIDTH, DOOR_MAX_WIDTH = 40.0, 200.0
 DOOR_CONFIRM_UNITS = 400.0   # close enough for the range camera to have an opinion
 SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means it is not solid
 MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
+PLAYER_CLEARANCE_PX = 4      # raster pixels of room a cell needs: the player has a 16-unit radius
 ARRIVED_UNITS = 160.0        # close enough that the arm's-length probe has the final word. 96 was
                              # too tight: a suspect sitting inside a wall can never be walked to, so
                              # the pilot approached it, could not arrive, gave up, and got it back.
@@ -202,7 +203,13 @@ class WorldModel:
         if (cx, cy) not in self.ex.free:
             return False
         ix, iy = self.ex.wpx((cx + 0.5) * GRID, (cy + 0.5) * GRID)
-        c = self.ex.klass(ix, iy, now, r=3)
+        # r=5 is +-20 raster units, and the player is a cylinder of radius 16. At r=3 the test only
+        # cleared +-12, so a cell whose centre sat fourteen units from a wall counted as walkable, the
+        # planner ran paths that hugged the geometry, and the player ground along them until the freeze
+        # watchdog pulled it out -- eight of thirteen trips in a dev attempt had a perfectly good plan
+        # and a wall at arm's length. The grader learned the same lesson about its own grid; this is it
+        # applied to the map the pilot actually steers by.
+        c = self.ex.klass(ix, iy, now, r=PLAYER_CLEARANCE_PX)
         if c in BLOCKING:
             return False
         if c in LOCK_KEY and LOCK_KEY[c] not in self.ex.keys:

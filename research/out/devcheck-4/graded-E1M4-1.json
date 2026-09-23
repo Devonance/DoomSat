@@ -1,0 +1,83 @@
+{
+ "map": "E1M4",
+ "seed": 1,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "devcheck-4",
+ "versions": {
+  "commit": "9c4f47d",
+  "pinned": "9c4f47d50ca583e5682dc1a8cabc8bb0e9ff1457",
+  "dirty": false,
+  "branch": "HEAD",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "6ca52161f731",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "051c7540a48f"
+ },
+ "commit": "9c4f47d50ca583e5682dc1a8cabc8bb0e9ff1457",
+ "dirty": false,
+ "score": 0.0,
+ "completed": false,
+ "level_time": 180.46,
+ "end_reason": "timeout",
+ "deaths": 0,
+ "deaths_per_minute": 0.0,
+ "watchdog_trips": {
+  "no displacement for 4 s": 22
+ },
+ "freezes": 22,
+ "executor_stats": {
+  "ticks": 6316,
+  "safe_ticks": 0,
+  "recover_ticks": 1152,
+  "intents": 333,
+  "stale_dropped": 0,
+  "look_ticks": 50,
+  "no_plan_ticks": 206
+ },
+ "cache_hit_rate": 0.1118,
+ "model_unavailable": 0,
+ "door_presses": 42,
+ "door_opens": 0,
+ "door_precision": 0.0,
+ "door_recall": {
+  "real_doors": 34,
+  "came_into_view": 9,
+  "offered": 7,
+  "door_recall": 0.7778
+ },
+ "exit_ever_seen": false,
+ "progress": 0.0,
+ "progress_best": 0.021,
+ "start_distance": 6999.6,
+ "remaining_distance": 7046.0,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": true,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 333,
+  "decisions_per_s": 1.851,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.3023,
+  "fallback_rate": 0.5736,
+  "speed_explore": 137.21,
+  "coverage_rate": 5.34,
+  "revisit_fraction": 0.7117,
+  "spin_rate": 0.21118,
+  "idle_fraction": 0.1176,
+  "watchdog_trips": {},
+  "mode_share": {
+   "APPROACH": 0.6156,
+   "EXPLORE": 0.3844
+  },
+  "deaths_by_mode": {},
+  "tokens_per_decision": 0.0,
+  "cells": 16,
+  "path_units": 29770.8
+ },
+ "warning": "this map has teleports, which the grader does not model: progress may understate a route that goes through one"
+}

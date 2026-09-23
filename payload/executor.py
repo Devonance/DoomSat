@@ -194,9 +194,12 @@ class Executor:
             # sensing actions it had chosen. The watchdog is for freezes, not for looking.
             self.watchdog.pause(now)
             return self._look(obs)
+        before = sum(self.watchdog.trips.values())
         tripped = self.watchdog.step(now, x, y, obs.get("all_blocked", False), obs["expire_barriers"])
-        if tripped:
-            # No more guessing at why it froze: write down what it could see at the moment it did.
+        if sum(self.watchdog.trips.values()) > before:
+            # Only a genuine trip, not the ticks of recovery that follow it. step() returns True for the
+            # whole recovery, so logging on `tripped` filled the record with the aftermath -- and since
+            # recovery clears the plan, every entry said "no plan" and pointed at itself.
             plan = getattr(self.world, "plan", None)
             self.watchdog.trip_log.append({
                 "mode": it.mode if (it := self.intent) else None,
