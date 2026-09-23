@@ -44,14 +44,14 @@ information. The executor is not slow so much as unreliable.
 
 | Step | State | Exit test | Commit |
 | --- | --- | --- | --- |
-| 0 Make the bench the flight robot | **done**, bench half | tic p95 10.8 ms: **met**; flight half not run | `63bdd81`, `7c6bd0f` |
+| 0 Make the bench the flight robot | **done** | bench p95 10.8 ms and flight 35.0 tics/s: **both met** | `63bdd81`, `7c6bd0f` |
 | 0.6 t2 experiments into the ledger | **done** | twelve `HIST-` rows | `4ca607a` |
 | 1 Oracle ladder | **L0 done**, L1/L2 stopped | diagnostic only, §3 | `6dc0689` |
 | 1b Executor | **partial** | L0 inside 60 s: **not met** | `d2a7dae`, `213fcc9` |
 | 2 Seen geometry | **done** | §5 | `63bdd81`, `7c6bd0f` |
 | 3 Explore by seeing, rubric | **done** | §5 | `bbc8d7a` |
 | 4 Switch and exit recognition | **half**: templates read and tested, no detector | — | `9981859` |
-| 5 E1M1 status flights | **not started** | — | — |
+| 5 E1M1 status flights | **flown** | §1; best 0.67, not finished | `d535278` |
 
 ---
 
