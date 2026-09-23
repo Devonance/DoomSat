@@ -237,6 +237,44 @@ the range camera reports. Solve for speed. `ALIGN_FULL` is gone.
 
 ---
 
+## 6b. The noise floor was two tracks old, and the t3 baseline in full
+
+`research/noise_floor.json` -- the number `ledger.py` divides by to decide whether a change beat the
+harness -- was measured on **t1**, on commit 5313412. Every keep and discard taken through the whole of t2
+was judged against the spread of a robot with a different gait, a different decider and a forward delta
+of 14.
+
+Re-measured on t3 from the 18-attempt code baseline, which is repeats of the same levels with nothing
+changed, and that is what a noise floor is:
+
+| | E1M1 | E1M2 | E1M3 | E1M4 | E1M5 | E1M6 | mean |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| t1 (in force until tonight) | 0.142 | 0.000 | 0.000 | 0.016 | 0.042 | 0.043 | 0.041 |
+| **t3** | 0.093 | 0.041 | 0.000 | 0.006 | 0.044 | 0.122 | **0.051** |
+
+The t1 file is kept as `research/noise_floor.t1.json`, so the rows it judged can still be read against
+their own ruler.
+
+**The t3 code baseline, in full** (geometry off, 6 dev maps, 3 seeds, 180 s, commit `63bdd81`):
+
+| | |
+| --- | --- |
+| suite score | 0.168 (sd 0.144) |
+| completed | 0 of 18 |
+| mean closest approach | 0.224 |
+| mean final progress | 0.050 |
+| deaths | 45 (0.83/min, ceiling 2.20) |
+| freezes the watchdog caught | 26, of which 25 were "asked to move and did not" |
+| door precision | 0.072 -- 130 of 1,811 Use presses opened something |
+| door recall | 0.46 -- 70 of 151 real doors that came into view were ever offered |
+| exit seen | 3 of 18 attempts |
+| decisions by reason | asked and used 50%, unsure band 16%, cached 16%, held 9%, gave up 7%, none 1% |
+
+The gap between 0.224 and 0.050 is the whole argument for scoring on closest approach: on the old ruler
+this run scored 0.050, and the pilot had been 0.224 of the way there.
+
+---
+
 ## 7. Track t3, and the harness changes that start it
 
 Two, both named in the brief, both announced here because they invalidate every t2 number:
