@@ -51,7 +51,6 @@ SAFE_FIRE_UNITS = 220.0 # in safe mode, only point-blank attackers
 # LOOK_SPACING is roughly a large room, so a level costs a handful of them rather than one a corridor.
 LOOK_SECONDS = 1.4
 LOOK_SPACING = 320.0
-NO_PLAN_PATIENCE = 70   # tics of walking a bare bearing before it stops and looks for a real way
 
 MODES = ("EXPLORE", "APPROACH", "OPERATE", "FIGHT", "RETREAT", "RECOVER")
 STANCES = ("advance", "advance_strafing", "hold", "retreat")
@@ -231,13 +230,12 @@ class Executor:
                 if pt is not None:
                     want = math.degrees(math.atan2(pt[1] - y, pt[0] - x))
             if want is None and it.has_target:
-                # A target with no plan is a target with no known route. Walking its bearing is how the
-                # player ends up pressed against geometry with clear space to either side, so it only
-                # gets a few seconds of benefit of the doubt before this becomes a look-around instead.
+                # A target with no plan is a target with no known route, and the payload no longer hands
+                # one over: it matches the intent to an offered candidate, re-routes to the nearest
+                # reachable one if that fails, and clears the target if nothing is reachable. Counted
+                # here so that if it ever happens again it is visible rather than a mystery freeze.
                 if plan is None or plan.blocked:
                     self.stats["no_plan_ticks"] = self.stats.get("no_plan_ticks", 0) + 1
-                    if self.stats["no_plan_ticks"] % NO_PLAN_PATIENCE == 0:
-                        self.looked.clear()          # force a fresh panorama: look for a way out
                 want = math.degrees(math.atan2(it.target_y - y, it.target_x - x))
         if want is None:
             want = angle
