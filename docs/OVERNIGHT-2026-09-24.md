@@ -29,7 +29,7 @@ information. The executor is not slow so much as unreliable.
 | --- | --- | --- | --- |
 | 0 Make the bench the flight robot | **done** | §4 | `63bdd81` |
 | 1 Oracle ladder | **done** | diagnostic only, §3 | `6dc0689` |
-| 1b Executor | **partial** | L0 inside 60 s: **not met** | `6dc0689` |
+| 1b Executor | **partial** | L0 inside 60 s: **not met** | `6dc0689`, `d2a7dae` |
 | 2 Seen geometry | **done** | §5 | `63bdd81` |
 | 3 Explore by seeing, rubric | **done** | §5 | `bbc8d7a` |
 | 4 Switch and exit recognition | **not started** | — | — |
@@ -204,10 +204,22 @@ bench with geometry on has not been run.
 
 | Fix | Evidence it was wrong | Where |
 | --- | --- | --- |
+| **A goal on a wall was dropped in silence** | the exit was offered on 0 of 999 decisions while telemetry carried it on all of them | `payload/world_model.py` |
+| **The freeze tests could not see flailing** | 175 units of displacement in 180 s, APPROACH 98%, zero watchdog trips | `payload/executor.py` |
+| The recovery always turned left | `recover_dir` set to 1 in the constructor, never assigned again, 787 degrees a recovery | `payload/executor.py` |
 | Throttle was a step function on heading error alone | L0 at 46 u/s, 45% rubbing, with a perfect map | `payload/executor.py` |
+| Throttle counted forward clearance as turning room | zero throttle for any heading error over a degree, against a wall it could have slid along | `payload/executor.py` |
 | Aim point chosen by nearness to the path, not walkability | a chord 38 units off the path puts a 16-unit body 54 units off centre | `payload/world_model.py` |
 | A cell called walkable by its centre point | L0: "no route" to all 12 frontiers with 16,848 walkable cells | `payload/doom_payload.py` |
 | L0 could not see the exit it had been told about | `nearest_exit` searches 600 units; the rung became "walk to within sight of it" | `payload/oracle.py` |
+| `speed_explore` divided by a 1e-6 floor | the ladder reported 401,352,305 units a second | `research/frozen_metrics.py` |
+
+**The one to read first.** `candidates()` asks `path_costs` for the distance to every goal and discards
+whatever the flood cannot reach. An exit line is a one-sided wall. Its cell is not walkable. So it was
+never reached, so it was dropped -- on every attempt, on every level, for as long as this code has
+existed. `plan_to` had always snapped its goal to the nearest cell a player can stand in; `path_costs`
+never did. Every exploring number this project has ever taken was taken by a pilot with no way out in its
+candidate list.
 
 The throttle is the one worth reading twice. Full speed inside 45 degrees, six tenths outside it, and no
 idea how wide the corridor was -- which is right in a hall and drives into the wall in a doorway.
