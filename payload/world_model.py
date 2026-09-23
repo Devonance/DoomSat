@@ -34,9 +34,9 @@ DOOR_CONFIRM_UNITS = 400.0   # close enough for the range camera to have an opin
 SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means it is not solid
 MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
 PLAYER_CLEARANCE_PX = 4      # raster pixels of room a cell needs: the player has a 16-unit radius
-ARRIVED_UNITS = 160.0        # close enough that the arm's-length probe has the final word. 96 was
-                             # too tight: a suspect sitting inside a wall can never be walked to, so
-                             # the pilot approached it, could not arrive, gave up, and got it back.
+ARRIVED_UNITS = 96.0        # close enough that the arm's-length probe has the final word. 96 was
+                             # the probe's own reach. A suspect inside a wall is settled by having
+                             # no route to it, which is a stronger test than standing near it.
 
 FRONTIER_MIN_CELLS = 2     # a frontier smaller than this is sensor noise, not a way on
 MIN_UNSEEN_CELLS = 6       # unknown ground behind an opening, below which it is a pinhole in the sweep
@@ -475,6 +475,12 @@ class WorldModel:
         length, facing it, and what is at arm's length is not a door, then it is not a door.
         """
         if ahead_kind in ("door", "exit", "locked"):
+            return 0
+        if ahead_kind == "nothing" or not ahead_dist:
+            # The arm's-length probe only classifies what is within about 120 units; beyond that it
+            # reports nothing, which is an absence of evidence and not evidence of absence. Treating it
+            # as proof settled every real door as a not-a-door on approach: door_recall said five of six
+            # were offered, and the pilot pressed Use exactly zero times in a whole flight.
             return 0
         settled = 0
         for _cell, rec in self.doors.items():

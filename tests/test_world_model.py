@@ -431,3 +431,27 @@ class TestSteeringAhead(unittest.TestCase):
         for pos in ((16.0, 16.0), (48.0, 16.0), (80.0, 16.0)):
             plan.advance(*pos)
             self.assertGreater(plan._aim_index(*pos), plan.i - 1)
+
+
+class TestNotSettlingWhatItCannotSee(unittest.TestCase):
+    """The arm's-length probe classifies what is within about 120 units and reports "nothing" beyond
+    that. Treating that as proof settled every real door as a not-a-door on approach: five of six real
+    doors were offered and the pilot pressed Use exactly zero times in a whole flight."""
+
+    def setUp(self):
+        self.w = wm.WorldModel(FakeExplorer(free=room(0, 0, 8, 4)))
+        self.rec = {"x": 80.0, "y": 16.0, "colour": "", "tries": 0, "opened": False, "last_try": 0.0,
+                    "not_a_door": False, "see_through": False, "width": 64.0, "why": ""}
+        self.w.doors[(2, 0)] = self.rec
+
+    def test_seeing_nothing_settles_nothing(self):
+        self.assertEqual(self.w.settle_by_arrival(16.0, 16.0, 0.0, "nothing", 0), 0)
+        self.assertFalse(self.rec["not_a_door"])
+
+    def test_seeing_a_wall_where_the_suspect_is_settles_it(self):
+        self.assertEqual(self.w.settle_by_arrival(16.0, 16.0, 0.0, "wall", 60), 1)
+        self.assertTrue(self.rec["not_a_door"])
+
+    def test_seeing_a_door_leaves_it_alone(self):
+        self.assertEqual(self.w.settle_by_arrival(16.0, 16.0, 0.0, "door", 60), 0)
+        self.assertFalse(self.rec["not_a_door"])
