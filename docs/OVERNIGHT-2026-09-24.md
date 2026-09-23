@@ -277,9 +277,11 @@ things the brief itself asks for, which is a question for you rather than for me
 - **Commitment is the brief's own frozen fallback** (§2 rule 3: "keep the current target, else the nearest
   frontier"). Every decision where commitment holds is one the metric scores against the model. The better
   commitment works -- and it needed fixing tonight -- the lower `jev_share` reads.
-- **The unsure band was settled by the wrong rule.** It fell back to `rule_score`, which is a different
-  rule from the one the brief permits. Changed tonight to the frozen fallback; that is a correctness fix
-  against the brief, not a way of moving the number.
+- **The unsure band is settled by the wrong rule.** It falls back to `rule_score`, which is a different
+  rule from the one the brief permits. The correction -- keep the current target, else the nearest way on
+  -- is written and staged in `research/_queued_patch8.py`; whether it is in the tree by the time you read
+  this depends on whether the last flight left room to measure it, and the commit log is the honest
+  answer. It is a correctness fix against the brief, not a way of moving the number.
 
 I have not changed `jev_share`'s definition. It is a frozen metric, changing it is a track change, and
 this is a question about the target rather than about the measurement.
