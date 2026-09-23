@@ -33,8 +33,12 @@ mistake, and the script now gives each flight its own log:
 | 2 | *log lost* | | | | | | |
 | 3 | 0.34 | 47 | 117 u/s | 0 | 0.38 | 755 ms | no |
 
-For scale: the best E1M1 number this project had before tonight was 0.45, on the bench, on a ruler that
-scored where an attempt stopped rather than how far it got.
+For scale, and stated carefully because the honest comparison is not flattering: the best five-seed mean
+this project had on E1M1 before tonight was **0.448**, on the bench, on a ruler that scored where an
+attempt stopped rather than how far it got -- but single runs on that code reached **0.06 and 0.84** of
+the way to the same exit, which is the spread a commit of 22 September records in `payload/doom_payload.py`
+and the reason nothing here is claimed from one flight. Two graded flights tonight, 0.67 and 0.34, sit
+inside that spread. What is new is not the number; it is that the exit is in the candidate list at all.
 
 The night's real result is not that number. It is that **the pilot could never target an exit it saw** --
 on any run, on any level, for as long as this code has existed -- and that is now fixed. §5.
