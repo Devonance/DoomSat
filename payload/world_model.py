@@ -949,7 +949,10 @@ class WorldModel:
                 # door suspect it is close to proof: a door you cannot walk to is not a door you can use,
                 # and one sitting inside a wall would otherwise be approached, abandoned and offered again
                 # for the rest of the attempt.
-                if cell in door_cells:
+                # `cell in self.doors` as well, because a goal may have been moved to the nearest cell
+                # a player can stand in and that cell is not where the door is. Without the second test
+                # this raised KeyError and killed a twelve-attempt run on its first level.
+                if cell in door_cells and cell in self.doors:
                     self.doors[cell]["not_a_door"] = True
                     self.doors[cell]["why"] = "no walkable route to it"
                 continue
@@ -1021,7 +1024,9 @@ class WorldModel:
             if moved not in meta or kind in (KIND_EXIT, KIND_KEY):
                 meta[moved] = meta[cell]
                 self._features.setdefault(moved, self._features.get(cell, {}))
-            if cell in door_cells:
+            if cell in door_cells and moved in self.doors:
+                # Only if the moved cell is itself a known door. Otherwise the door stays where it is and
+                # the goal is simply the floor in front of it, which is where a player stands to open it.
                 door_cells.add(moved)
             out.append(moved)
         return out
