@@ -372,3 +372,37 @@ class TestSettlingASuspectByStandingAtIt(unittest.TestCase):
         self.assertIn(wm.KIND_DOOR, [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)])
         self.w.settle_by_arrival(16.0, 16.0, 0.0, "wall", 60)
         self.assertNotIn(wm.KIND_DOOR, [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)])
+
+
+class TestASuspectYouCannotReach(unittest.TestCase):
+    """A ceiling-change line sitting inside a wall can never be walked to, so the pilot approached it,
+    could not arrive, gave up and was offered it again for the rest of the attempt. On two dev maps that
+    was 172 of 334 decisions in APPROACH and 15 watchdog freezes."""
+
+    def setUp(self):
+        self.ex = FakeExplorer(free=room(0, 0, 8, 4))
+        self.w = wm.WorldModel(self.ex)
+        self.w.see_doors = lambda *a, **k: None
+
+    def suspect(self, cell):
+        self.w.doors[cell] = {"x": (cell[0] + 0.5) * GRID, "y": (cell[1] + 0.5) * GRID, "colour": "",
+                              "tries": 0, "opened": False, "last_try": 0.0, "not_a_door": False,
+                              "see_through": False, "width": 64.0, "why": ""}
+        return self.w.doors[cell]
+
+    def test_a_reachable_suspect_is_offered(self):
+        self.suspect((6, 2))
+        self.assertIn(wm.KIND_DOOR, [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)])
+
+    def test_one_with_no_route_to_it_is_settled_for_good(self):
+        rec = self.suspect((40, 40))          # nowhere near the swept floor
+        self.w.candidates(16.0, 16.0, 0.0, 0.0)
+        self.assertTrue(rec["not_a_door"], rec)
+        self.assertIn("no walkable route", rec["why"])
+
+    def test_a_frontier_with_no_route_is_only_skipped_for_now(self):
+        """The map may open up later; a door sitting in a wall will not."""
+        self.ex.free.add((40, 40))
+        before = dict(self.w.doors)
+        self.w.candidates(16.0, 16.0, 0.0, 0.0)
+        self.assertEqual(set(before), set(self.w.doors), "a frontier must not be settled like a door")

@@ -33,7 +33,9 @@ DOOR_MIN_WIDTH, DOOR_MAX_WIDTH = 40.0, 200.0
 DOOR_CONFIRM_UNITS = 400.0   # close enough for the range camera to have an opinion
 SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means it is not solid
 MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
-ARRIVED_UNITS = 96.0         # close enough that the arm's-length probe has the final word
+ARRIVED_UNITS = 160.0        # close enough that the arm's-length probe has the final word. 96 was
+                             # too tight: a suspect sitting inside a wall can never be walked to, so
+                             # the pilot approached it, could not arrive, gave up, and got it back.
 
 FRONTIER_MIN_CELLS = 2     # a frontier smaller than this is sensor noise, not a way on
 MIN_UNSEEN_CELLS = 6       # unknown ground behind an opening, below which it is a pinhole in the sweep
@@ -439,7 +441,7 @@ class WorldModel:
             if d > ARRIVED_UNITS:
                 continue
             rel = (math.degrees(math.atan2(rec["y"] - y, rec["x"] - x)) - angle + 180) % 360 - 180
-            if abs(rel) > 50:
+            if abs(rel) > 90:
                 continue
             rec["not_a_door"] = True
             rec["why"] = "stood at it facing it; nothing there to open"
@@ -592,7 +594,7 @@ class WorldModel:
         """
         self._last_pos = (x, y)
         self.see_doors(now)
-        goals, meta = [], {}
+        goals, meta, door_cells = [], {}, set()
 
         for cell, size, unseen, depth in self.frontiers(x, y, now):
             goals.append(cell)
@@ -611,6 +613,7 @@ class WorldModel:
         for _d, cell, rec in sorted(usable)[:MAX_DOOR_CANDIDATES]:
             goals.append(cell)
             meta[cell] = (KIND_DOOR, 0, rec["colour"], rec["tries"])
+            door_cells.add(cell)
 
         ex_seen = self.ex.nearest_exit(x, y, now)
         if ex_seen:
@@ -638,7 +641,14 @@ class WorldModel:
         out = []
         for cell in set(goals):
             if cell not in costs:
-                continue                       # no way there from here: not a candidate
+                # No route to it at all. For a frontier that is temporary -- the map may open up. For a
+                # door suspect it is close to proof: a door you cannot walk to is not a door you can use,
+                # and one sitting inside a wall would otherwise be approached, abandoned and offered again
+                # for the rest of the attempt.
+                if cell in door_cells:
+                    self.doors[cell]["not_a_door"] = True
+                    self.doors[cell]["why"] = "no walkable route to it"
+                continue
             kind, size, colour, tries = meta[cell]
             wx, wy = cell_centre(cell)
             tc, tn = self.threat_near(wx, wy)

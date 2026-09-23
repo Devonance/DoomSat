@@ -1,0 +1,24 @@
+{
+ "run_id": "devcheck-frontiers",
+ "tier": "bench",
+ "set": "dev",
+ "decider": "code",
+ "versions": {
+  "commit": "1b0c07e",
+  "pinned": "1b0c07ea6d80358c4bbad0560b1633bbbcb6ab91",
+  "dirty": false,
+  "branch": "HEAD",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "6ca52161f731",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "051c7540a48f"
+ },
+ "attempts": [
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/devcheck-frontiers/attempt-E1M1-1.json",
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/devcheck-frontiers/attempt-E1M1-2.json",
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/devcheck-frontiers/attempt-E1M4-1.json",
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/devcheck-frontiers/attempt-E1M4-2.json"
+ ]
+}
