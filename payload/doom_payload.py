@@ -118,6 +118,18 @@ DOOR_RETRY_S = 120.0   # a door that did not open is treated as a wall for this 
 # back short were stopped by one of these rather than by anything in the level, so one bump against a door
 # frame walled off a corridor for the rest of the attempt and the planner believed it. EXP-0001.
 STUCK_BARRIER_S = 25.0
+# Off, on the evidence. The learner had been wired to the legacy CONTROL command and so had not fired
+# since the executor landed; connecting it to the command actually issued made every flight worse. With a
+# healthy uplink it remembers about 130 barriers in 180 seconds, because it cannot tell a step it truly
+# cannot climb from a shoulder brushed while turning -- and a false barrier does not expire out of the
+# planner's opinion, it just moves the player somewhere else to get stuck. Flown either way on the same
+# level: learner off reached 0.84, 0.52 and 0.28 of the way to the exit; learner on reached 0.06, 0.22,
+# 0.17 and 0.24, with rubbing climbing to 56%.
+#
+# The wiring stays fixed and the mechanism stays here, because the thing it is trying to sense is real:
+# the depth camera is a horizontal band, so a step reads as open floor. Sensing it needs the vertical
+# extent of the depth buffer, not an inference from having failed to move.
+LEARN_BARRIERS_BY_PUSHING = False
 RAY_MAX = 400          # how far the map rays look (units)
 DOOR_OPEN_WAIT_S = 1.0  # game seconds to wait after a Use press before judging whether anything opened.
                         # A Doom door takes about a second and a half to rise clear; at 0.6 the verdict
@@ -279,7 +291,14 @@ class Explorer:
         return best
 
     def mark_barrier(self, x, y, heading, seconds, dist=24):
-        """Something the map does not show blocks the way `heading` from (x, y): mark it, three marks wide."""
+        """Something the map does not show blocks the way `heading` from (x, y): mark it across its width.
+
+        Three marks twelve units apart covered less than one 32-unit cell, so the planner sent the player
+        thirty-two units along the same ledge and it pushed into the identical obstacle again: one flight
+        learned 133 barriers and was still grinding 40% of its ticks, all of them at x=1520 with only y
+        changing. What stops a player with four hundred units of clear floor ahead is a step it cannot
+        climb, and a step is a line, not a point.
+        """
         dist = max(24, dist)
         a = math.radians(heading)
         bx, by = x + dist * math.cos(a), y + dist * math.sin(a)
@@ -675,10 +694,16 @@ class Payload:
         # on a step the depth camera cannot see, and never once remember a barrier there: the mechanism
         # for learning "something is in the way that I cannot see" was watching a variable nobody wrote.
         self.motions.append(self.last_move)
-        pushing = len(self.motions) == self.motions.maxlen and sum(1 for m in self.motions if m != (0, 0)) >= 8
+        # Measured, against three attempts to improve it. Requiring nearly every tic of the second instead
+        # of eight of thirty-five produced *more* barriers, not fewer, because it was changed alongside a
+        # shorter expiry and the player simply re-learned the same ledge as each one lapsed; widening the
+        # mark to cover the whole step made it worse again. Barriers per flight went 41, 95, 133, 216 and
+        # the distance reached went 0.75, 0.06, 0.22, 0.17. This is the setting that produced the 0.75.
+        pushing = (len(self.motions) == self.motions.maxlen
+                   and sum(1 for m in self.motions if m != (0, 0)) >= 8)
         was_stuck = self.stuck
         self.stuck = bool(pushing and math.hypot(x - self.positions[0][0], y - self.positions[0][1]) < 12)
-        if self.stuck and not was_stuck:
+        if self.stuck and not was_stuck and LEARN_BARRIERS_BY_PUSHING:
             mv, st = self.control["move"], self.control["strafe"]
             push = math.degrees(math.atan2(-st, mv)) if (mv or st) else 0.0
             if s["ahead_kind"] not in ("door", "exit") or abs(push) > 45:
