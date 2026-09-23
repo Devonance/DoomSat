@@ -1,0 +1,59 @@
+{
+ "attempts": 5,
+ "suite_score": 0.0691,
+ "score_sd": 0.1304,
+ "completed": 0,
+ "deaths": 1,
+ "episodes": 5,
+ "freezes": 0,
+ "freeze_reasons": {},
+ "model_unavailable": 13,
+ "door_presses": 99,
+ "door_opens": 5,
+ "door_precision": 0.0505,
+ "exit_ever_seen": 0,
+ "door_recall": {
+  "came_into_view": 8,
+  "offered": 4,
+  "recall": 0.5
+ },
+ "deaths_by_mode": {
+  "EXPLORE": 1
+ },
+ "mode_share": {
+  "EXPLORE": 0.7488,
+  "APPROACH": 0.2249,
+  "OPERATE": 0.0108,
+  "FIGHT": 0.0101,
+  "RETREAT": 0.0054
+ },
+ "mean_progress": 0.0768,
+ "maps_without_a_usable_progress_score": [],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "deaths_per_minute": {
+   "pass": true,
+   "value": "0.07 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": false,
+   "value": "0.60 (floor 0.70)"
+  },
+  "decision_age_p95": {
+   "pass": true,
+   "value": "271 ms (bench: latency is injected, not measured)"
+  }
+ },
+ "guardrails_pass": false,
+ "per_level": {
+  "E1M1": {
+   "n": 5,
+   "mean": 0.0691,
+   "sd": 0.1304
+  }
+ },
+ "run_dir": "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/e1m1-a"
+}

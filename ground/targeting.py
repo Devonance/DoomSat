@@ -35,6 +35,10 @@ ENEMY_CLASSES = ("Zombieman", "ShotgunGuy", "ChaingunGuy", "DoomImp", "Demon", "
 KIND_WORDS = {"frontier": "unexplored edge", "door": "a door", "exit": "the level exit",
               "key": "a key", "item": "a pickup", "switch": "a switch", "enemy": "an enemy"}
 NEEDS = ("health", "ammo", "armor")
+# Where a level puts you down is not where it lets you out. That is true of the form, not of any level,
+# and it is the one thing that can be said about a direction without having been down it.
+OUTWARD_WORDS = {0: "no, back toward where the level began", 1: "about as far out",
+                 2: "yes, further out than where the player is"}
 
 # The rubric as a function, level by level, worst first. Kept beside the criteria in graph_config so the
 # two can be read together; a test asserts they have the same number of levels.
@@ -131,6 +135,7 @@ def target_words(cand, need, keys_held, rules=None, all_cands=()):
         words["the_way_on_is"] = opening_word(cand.get("opening", 0))
         words["unknown_runs"] = depth_word(cand.get("depth", 0))
         words["further_out_than_here"] = "yes" if cand.get("away", True) else "no"
+        words["further_from_the_start"] = OUTWARD_WORDS.get(cand.get("outward", 1), "about as far out")
     if kind == "door" and cand.get("colour") in ("red", "blue", "yellow"):
         words["locked"] = cand["colour"] + (" (held)" if cand["colour"] in keys_held else " (no key)")
     if kind == "item":
@@ -690,7 +695,10 @@ def normalise(c, t):
                              else int(get("threatClass", get("threat_class", 255)))),
             "threat_count": int(get("threatCount", get("threat_count", 0)) or 0),
             "colour": COLOURS[flags & 3] if kind == "door" else str(get("need", "") or ""),
-            "tries": (flags >> 2) & 15}
+            "tries": (flags >> 2) & 15,
+            # Bits 6-7: 0 back toward where the level began, 1 about as far out, 2 further out than here.
+            # The payload works it out from the player's own spawn and its own position.
+            "outward": (flags >> 6) & 3}
 
 
 # ---------------------------------------------------------------- determinism within a run

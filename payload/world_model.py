@@ -85,6 +85,7 @@ LOOKAHEAD_CELLS = 4        # waypoints ahead to steer at: about 128 units
 ARRIVE_UNITS = 24.0        # close enough to a waypoint to take the next one, and under one cell: at 48
                            # the cursor cleared two waypoints at once and the walk cut every corner
 TARGET_UNITS = 64.0        # close enough to the target to call it reached
+OUTWARD_UNITS = 128.0      # further from the spawn than here by this much counts as further out
 
 KIND_FRONTIER, KIND_DOOR, KIND_EXIT, KIND_KEY, KIND_ITEM, KIND_SWITCH, KIND_ENEMY = range(7)
 KIND_NAME = {KIND_FRONTIER: "frontier", KIND_DOOR: "door", KIND_EXIT: "exit", KIND_KEY: "key",
@@ -832,6 +833,25 @@ class WorldModel:
         near = sorted(rest, key=lambda c: c.path_units)[:max(1, room // 2)]
         promise = [c for c in sorted(rest, key=lambda c: -self._promise(c)) if c not in near]
         return (must + near + promise)[:limit]
+
+    def outwardness(self, c, x, y):
+        """0 back toward where the level began, 1 about as far out, 2 further out than here.
+
+        The player's own spawn and its own position, nothing else. A level's way on leads away from where
+        it put you down -- that is true of the whole form, not of any particular level -- and it is the
+        one thing the pilot can say about a direction without having seen what is down it. `_promise`
+        already uses it to decide what to OFFER; this is the same fact said in words, so the head that
+        actually chooses can weigh it against the opening, the depth and what is standing there.
+        """
+        if self.start is None:
+            return 1
+        here = math.hypot(x - self.start[0], y - self.start[1])
+        there = math.hypot(c.x - self.start[0], c.y - self.start[1])
+        if there > here + OUTWARD_UNITS:
+            return 2
+        if there < here - OUTWARD_UNITS:
+            return 0
+        return 1
 
     def _promise(self, c):
         """How much a candidate is worth offering: unknown behind it, how far that runs, and how far out

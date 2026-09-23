@@ -32,7 +32,10 @@ TURN_PER_TIC = 15.0
 # bends more than that between waypoints, so the throttle sat at part power for half the level. A Doom
 # player runs and turns at the same time.
 ALIGN_WALK = 140.0      # walk while the heading is within this of where we want to go
-ALIGN_FULL = 45.0       # full speed within this
+ALIGN_FULL = 45.0       # full speed within this. 70 was tried: running at seventy degrees
+                        # off the aim point puts the player into the wall beside it, and five
+                        # paired seeds fell from 0.448 of the way to the exit to 0.278, with
+                        # coverage from 58 cells to 48
 # How far ahead to look, as a time rather than a distance. At the old delta of 14 the player covered 4
 # units a tic and a fixed 72-unit guard was five tics of warning; at a run it covers 14.5 and the same 72
 # units is two. A guard that does not scale with speed is a guard that stops working the moment the speed

@@ -895,7 +895,8 @@ class Payload:
             cand_count=len(self.candidates),
             threat_class=worst_enemy, threat_count=min(255, len(enemies)),
             door_presses_total=self.press_total, door_opens_total=self.press_opened,
-            candidates=[self.pack_candidate(c, x, y, angle) for c in self.candidates])
+            candidates=[self.pack_candidate(c, x, y, angle, self.world.outwardness(c, x, y))
+                        for c in self.candidates])
 
     def need_now(self):
         """What a detour would actually be for. Nothing, most of the time."""
@@ -918,10 +919,12 @@ class Payload:
         print("[payload] barrier marks expired (watchdog)", flush=True)
 
     @staticmethod
-    def pack_candidate(c, x, y, angle):
+    def pack_candidate(c, x, y, angle, outward=1):
         colour = {"red": 1, "blue": 2, "yellow": 3}.get(c.colour, 0)
         return (c.kind, float(c.x), float(c.y), int(min(65535, c.path_units)), int(min(255, c.novelty)),
-                colour | (min(15, c.tries) << 2), c.threat_class, c.threat_count,
+                # bits 0-1 key colour, bits 2-5 tries, bits 6-7 how far out it is from the spawn
+                colour | (min(15, c.tries) << 2) | ((outward & 3) << 6),
+                c.threat_class, c.threat_count,
                 int(min(65535, c.opening)), int(min(65535, c.depth)), int(bool(c.away)))
 
     @staticmethod

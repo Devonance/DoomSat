@@ -1,0 +1,19 @@
+{
+ "run_id": "flight-34",
+ "tier": "flight",
+ "versions": {
+  "commit": "672381c5",
+  "pinned": null,
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "6ca52161f731",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "051c7540a48f"
+ },
+ "attempts": [
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/flight-34/attempt-E1M1-0.json"
+ ]
+}
