@@ -56,7 +56,7 @@ MAX_CANDIDATES = 8
 # because the ground has to be able to aim an intent at the place itself: a bearing plus a path distance
 # does not locate anything once the route bends, and the index alone is not safe because the list is
 # rebuilt while an intent is in flight.
-CAND_FMT = "BffHBBBB"
+CAND_FMT = "BffHBBBBHHB"
 # What is threatening the PLAYER, as against what is near a candidate: the worst visible monster
 # class and how many are in view. Facts; how dangerous that is comes from the knowledge file on the
 # ground (charter 4, the `engage` head).
@@ -445,6 +445,7 @@ class Payload:
         # a door absorbs presses and opens nothing, so this is the number that says whether the senses
         # are telling the truth about doors.
         self.press_total, self.press_opened, self.doors_settled = 0, 0, 0
+        self.frontiers_dropped = 0
         self.press_watch = None      # (cell key, clearance when first pressed, game time)
         self.world = None            # charter 3.2, rebuilt every episode
         self.executor = None         # charter 3.1, rebuilt every episode
@@ -531,7 +532,7 @@ class Payload:
         self.sense, self.door_presses, self.door_at = None, 0, None
         self.use_ok = False
         self.press_total, self.press_opened, self.press_watch = 0, 0, None
-        self.doors_settled = 0
+        self.doors_settled, self.frontiers_dropped = 0, 0
         print(f"[payload] episode {self.episode} started on {self.map} (level {self.level})", flush=True)
 
     def level_finished(self):
@@ -673,6 +674,8 @@ class Payload:
             self.press_watch = None
         # A suspect the player is standing in front of, with nothing to open, is settled here and now.
         self.doors_settled += self.world.settle_by_arrival(x, y, angle, s["ahead_kind"], s["ahead_dist"])
+        if state.tic % SENSE_EVERY == 0:
+            self.frontiers_dropped += self.world.note_frontier_reached(x, y, now)
         # doors: presses are counted while something usable is at arm's length; a door that never opens becomes a wall for a while
         usable = s["ahead_kind"] in ("door", "exit") and s["ahead_dist"] <= 80
         self.use_ok = usable
@@ -785,7 +788,8 @@ class Payload:
     def pack_candidate(c, x, y, angle):
         colour = {"red": 1, "blue": 2, "yellow": 3}.get(c.colour, 0)
         return (c.kind, float(c.x), float(c.y), int(min(65535, c.path_units)), int(min(255, c.novelty)),
-                colour | (min(15, c.tries) << 2), c.threat_class, c.threat_count)
+                colour | (min(15, c.tries) << 2), c.threat_class, c.threat_count,
+                int(min(65535, c.opening)), int(min(65535, c.depth)), int(bool(c.away)))
 
     @staticmethod
     def pack_status(o):
@@ -793,7 +797,7 @@ class Payload:
         tail = [min(MAX_CANDIDATES, int(o["cand_count"]))]
         for c in cands:
             tail.extend(c)
-        tail.extend([0, 0.0, 0.0, 0, 0, 0, 255, 0] * (MAX_CANDIDATES - len(cands)))
+        tail.extend([0, 0.0, 0.0, 0, 0, 0, 255, 0, 0, 0, 0] * (MAX_CANDIDATES - len(cands)))
         tail.extend([int(o.get("threat_class", 255)), int(o.get("threat_count", 0))])
         tail.extend([min(65535, int(o.get("door_presses_total", 0))),
                      min(65535, int(o.get("door_opens_total", 0)))])

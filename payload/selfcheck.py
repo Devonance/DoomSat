@@ -65,6 +65,7 @@ check("candidates come back with a path distance", bool(cands) and all(c.path_un
 obs = {"x": 0.0, "y": 0.0, "angle": 0.0, "clear_fwd": 400, "clear_fl": 400, "clear_fr": 400,
        "clear_back": 400, "enemies": [], "ahead_kind": "nothing", "ahead_dist": 0,
        "all_blocked": False, "expire_barriers": lambda: None, "has_ammo": True}
+executor.looked.append((0.0, 0.0))   # skip the arrival panorama for this check
 cmd = executor.step(obs, 0.0)
 check("with no intent the executor holds still", cmd["move"] == 0 and cmd["turn"] == 0)
 executor.set_intent(ex_mod.Intent(mode="EXPLORE", target_x=400.0, target_y=0.0, has_target=True, ttl_ms=2000), now=0.0)
@@ -75,6 +76,7 @@ check("a stale intent falls back to safe behaviour", cmd["move"] == 0.0)
 
 # a stationary player, sampled at 35 Hz the way the real loop does
 fresh = ex_mod.Executor(world)
+fresh.looked.append((0.0, 0.0))
 tripped = False
 for i in range(200):
     tripped = fresh.watchdog.step(i / 35.0, 0.0, 0.0, False, lambda: None) or tripped

@@ -48,8 +48,9 @@ STATE_PATHS = {
              "health", "armor", "ammunition"),
     "seen": ("exit", "key", "health_pickup", "ammo_pickup", "armor_pickup", "ground_hint"),
     # Charter 3.3: somewhere to go, built onboard where the map is, scored here.
-    "targets": {"*": ("what", "how_far", "direction", "unseen_ground_behind_it", "tried_before",
-                      "locked", "needed_now")},
+    "targets": {"*": ("what", "how_far", "relative_distance", "direction", "unseen_ground_behind_it",
+                      "tried_before", "threat", "locked", "needed_now",
+                      "the_way_on_is", "unknown_runs", "leads_away_from_walked_ground")},
     "needs": ("health", "ammo", "armor"),
     "combat_seen": ("threat", "what", "count", "distance"),
 }

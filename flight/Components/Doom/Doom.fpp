@@ -81,6 +81,9 @@ module DoomMission {
         flags: U8       @< bits 0-1 key colour (0 none, 1 red, 2 blue, 3 yellow), bits 2-5 tries so far
         threatClass: U8 @< worst monster class standing near it, by index; 255 = nothing there
         threatCount: U8 @< how many live things are near it
+        opening: U16    @< how wide the way on is, in map units
+        depth: U16      @< how far the unknown runs past it
+        away: U8        @< 1 when it leads away from the ground already walked
     }
 
     @ !binary

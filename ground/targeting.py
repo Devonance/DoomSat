@@ -25,6 +25,10 @@ import math
 # Path-distance buckets. These are the words the model sees; the numbers never reach it.
 DIST_WORDS = ((96.0, "right here"), (320.0, "close"), (800.0, "mid-range"), (1600.0, "far"))
 NOVELTY_WORDS = ((16, "none"), (64, "a little"), (160, "some"))
+# What an opening looks like. A corridor mouth and the corner of the room you are standing in are the
+# same distance away and nothing else about them is alike; these are the words that tell them apart.
+OPENING_WORDS = ((48.0, "a crack"), (112.0, "a doorway"), (256.0, "a wide opening"))
+DEPTH_WORDS = ((96.0, "no depth"), (320.0, "a little way"), (800.0, "a fair way"))
 ENEMY_CLASSES = ("Zombieman", "ShotgunGuy", "ChaingunGuy", "DoomImp", "Demon", "Spectre", "LostSoul",
                  "Cacodemon", "BaronOfHell", "HellKnight", "Revenant", "Arachnotron", "Fatso",
                  "PainElemental", "Archvile", "WolfensteinSS")   # pinned to payload/mapclasses.py by a test
@@ -50,6 +54,14 @@ def dist_word(units):
 
 def novelty_word(n):
     return bucket(n, NOVELTY_WORDS, "a lot")
+
+
+def opening_word(units):
+    return bucket(units, OPENING_WORDS, "a whole side of the room")
+
+
+def depth_word(units):
+    return bucket(units, DEPTH_WORDS, "a long way")
 
 
 def tried_word(tries):
@@ -115,6 +127,10 @@ def target_words(cand, need, keys_held, rules=None, all_cands=()):
         "tried_before": tried_word(cand.get("tries", 0)),
         "threat": threat_word(cand, rules or {}),
     }
+    if kind == "frontier":
+        words["the_way_on_is"] = opening_word(cand.get("opening", 0))
+        words["unknown_runs"] = depth_word(cand.get("depth", 0))
+        words["leads_away_from_walked_ground"] = "yes" if cand.get("away", True) else "no"
     if kind == "door" and cand.get("colour") in ("red", "blue", "yellow"):
         words["locked"] = cand["colour"] + (" (held)" if cand["colour"] in keys_held else " (no key)")
     if kind == "item":
@@ -255,6 +271,9 @@ def rule_score(w, levels=RULE_LEVELS):
     if what == "a door":
         return float(levels - 3) if tried == "no" else 0.0
     if what == "unexplored edge":
+        # Distance only. The rule does not look at how wide the way on is or how far the unknown runs
+        # past it -- that is what the rubric asks the model to weigh, and a rule that read the same
+        # fields would make the comparison meaningless.
         near = {"the nearest": 0, "the only one": 0, "nearer than most": 1,
                 "further than most": 2, "the furthest": 3}.get(w.get("relative_distance"), 2)
         return max(1.0, float(levels - 4 - near))
@@ -648,6 +667,8 @@ def normalise(c, t):
     return {"kind": kind, "x": x, "y": y,
             "bearing": bearing_to(px, py, heading, x, y),
             "path_units": float(get("dist", 0) or 0), "novelty": int(get("novelty", 0) or 0),
+            "opening": int(get("opening", 0) or 0), "depth": int(get("depth", 0) or 0),
+            "away": bool(get("away", 1)),
             "colour": COLOURS[flags & 3] if kind == "door" else str(get("need", "") or ""),
             "tries": (flags >> 2) & 15}
 

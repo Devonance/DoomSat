@@ -9,6 +9,7 @@ The grader is the only thing that opens the WAD, and it does so only to answer "
 import argparse
 import importlib.util
 import json
+import math
 import os
 
 from . import wad
@@ -27,6 +28,40 @@ def _last(rows, key, default=0):
         if v is not None:
             return int(v)
     return int(default or 0)
+
+
+def door_recall(level, rows, within=160.0):
+    """Real doors the player got close to, and how many of them the pilot ever offered as a candidate.
+
+    Precision without recall is a trap: rejecting every suspect scores a perfect precision and leaves the
+    player unable to leave any room a door closes off. This is the other half, and only the grader can
+    compute it, because only the grader is allowed to know where the doors really are.
+    """
+    real = []
+    for line in level.lines:
+        if line[3] in wad.DOOR or line[3] in wad.KEY_DOOR:
+            a, b = level.verts[line[0]], level.verts[line[1]]
+            real.append(((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0))
+    if not real:
+        return {"real_doors": 0, "came_into_view": 0, "offered": 0, "door_recall": None}
+    near, offered = set(), set()
+    for r in rows:
+        raw = r.get("raw") or {}
+        if raw.get("POS_X") is None:
+            continue
+        px, py = float(raw["POS_X"]), float(raw["POS_Y"])
+        for i, (dx, dy) in enumerate(real):
+            if math.hypot(dx - px, dy - py) <= 512.0:
+                near.add(i)
+        for c in r.get("cand_xy") or []:
+            if c.get("kind") != "door":
+                continue
+            for i, (dx, dy) in enumerate(real):
+                if math.hypot(dx - c["x"], dy - c["y"]) <= within:
+                    offered.add(i)
+    seen = len(near)
+    return {"real_doors": len(real), "came_into_view": seen, "offered": len(offered & near),
+            "door_recall": round(len(offered & near) / seen, 4) if seen else None}
 
 
 def _precision(rows, attempt):
@@ -114,6 +149,7 @@ def grade(attempt):
         "door_presses": _last(rows, "DOOR_PRESSES", attempt.get("door_presses", 0)),
         "door_opens": _last(rows, "DOOR_OPENS", attempt.get("door_opens", 0)),
         "door_precision": _precision(rows, attempt),
+        "door_recall": door_recall(level, rows),
         "exit_ever_seen": any((r.get("raw") or {}).get("EXIT_DIST") for r in rows),
         "progress": round(prog, 4),
         "progress_best": round(fm.progress(start_d, best), 4),

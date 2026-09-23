@@ -92,11 +92,13 @@ class TestTheRubricAsksForJudgement(unittest.TestCase):
         the rule, the model can only reproduce the rule and the comparison measures nothing.
         """
         text = " ".join(self.criteria)
-        for soft in ("threat", "health", "ammunition", "relative_distance", "needs"):
+        for soft in ("threat", "health", "ammunition", "relative_distance", "needs",
+                     "unknown_runs", "lead away"):
             self.assertIn(soft, text, "the rubric does not ask about %s" % soft)
         # Behavioural, not textual: the rule must be unmoved by the things the rubric is asked to weigh.
         base = cand()
-        for field, value in (("threat_class", 8), ("threat_count", 5)):
+        for field, value in (("threat_class", 8), ("threat_count", 5),
+                             ("opening", 400), ("depth", 2000), ("away", False)):
             other = dict(base)
             other[field] = value
             self.assertEqual(tg.rule_score(tg.target_words(base, None, [], RULES, [base])),

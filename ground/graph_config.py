@@ -123,15 +123,16 @@ DEFAULT = {
             "instructions": {
                 "question": "How well does going to {t} serve finding the level exit alive, weighed against "
                             "the other targets and what the player has left?",
-                "inspect": "`targets.{t}`, the other entries in `targets`, `here`, `needs`"},
+                "inspect": "`targets.{t}`, the other entries in `targets`, `here`, `needs`. For a way on, "
+                           "`the_way_on_is` and `unknown_runs` say what is behind it; distance says least."},
             "criteria": [
                 "not reachable in any useful sense: `targets.{t}.locked` names a key the player does not hold, or `targets.{t}.tried_before` is several times and it has not opened",
                 "a bad trade: `targets.{t}.threat` is dangerous or deadly while `here.health` is critical or low, or `here.ammunition` is empty",
-                "not worth the walk: `targets.{t}.relative_distance` is the furthest and there is little behind it, with nothing in `needs` that it answers",
-                "would be worth it nearer: it answers something in `needs`, but it is the furthest of the targets and `targets.{t}.threat` is not none",
-                "a fair next step: unexplored ground at a distance in line with the others, and nothing dangerous standing near it",
-                "worth a detour: it answers a need the player actually has, it is not the furthest, and `targets.{t}.threat` is none or a straggler",
-                "the obvious move: close or the nearest of them, a lot of unseen ground behind it, and nothing near it worth avoiding",
+                "not worth the walk: `targets.{t}.unknown_runs` is no depth, or it does not lead away from ground already walked",
+                "would be worth it nearer: it answers something in `needs`, but `targets.{t}.relative_distance` is the furthest and `targets.{t}.threat` is not none",
+                "a fair next step: a doorway or wider with the unknown running a little way past it, and nothing dangerous near it",
+                "worth a detour: it answers a need the player has, `targets.{t}.relative_distance` is not the furthest, and `targets.{t}.threat` is none or a straggler",
+                "the obvious move: a wide opening with the unknown running a fair way or more past it, leading away from walked ground, nothing near it worth avoiding",
                 "the way on: an untried door or a key the player is missing, and what `targets.{t}.threat` says is standing there is worth facing with the health and ammunition in `here`",
                 "the way out: the level exit, and nothing between here and it that `here.health` and `here.ammunition` could not survive"]},
         # Charter 3.3 and 4. The charter's own example of a question worth asking: "three imps and a

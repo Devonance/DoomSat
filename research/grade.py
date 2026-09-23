@@ -76,6 +76,15 @@ def _mean_dicts(graded, key):
     return {k: round(v / n, 4) for k, v in sorted(out.items(), key=lambda kv: -kv[1])}
 
 
+def _recall(graded):
+    """Real doors that came into view, and how many the pilot ever offered. The other half of precision:
+    rejecting every suspect scores a perfect precision and cannot open a door."""
+    seen = sum((r.get("door_recall") or {}).get("came_into_view", 0) for r in graded)
+    got = sum((r.get("door_recall") or {}).get("offered", 0) for r in graded)
+    return {"came_into_view": seen, "offered": got,
+            "recall": round(got / seen, 4) if seen else None}
+
+
 def _freeze_reasons(graded):
     out = {}
     for r in graded:
@@ -103,6 +112,7 @@ def summarise(graded, conf):
                                  / sum(r.get("door_presses", 0) or 0 for r in graded), 4)
                            if sum(r.get("door_presses", 0) or 0 for r in graded) else None),
         "exit_ever_seen": sum(1 for r in graded if r.get("exit_ever_seen")),
+        "door_recall": _recall(graded),
         "deaths_by_mode": _sum_dicts(graded, "deaths_by_mode"),
         "mode_share": _mean_dicts(graded, "mode_share"),
         "mean_progress": round(statistics.fmean([r["progress"] for r in usable]), 4) if usable else None,
@@ -167,6 +177,10 @@ def main(argv=None):
         print("  door_precision: %s  (%d of %d Use presses opened something); exit seen in %d of %d"
               % (summary["door_precision"], summary["door_opens"], summary["door_presses"],
                  summary["exit_ever_seen"], summary["attempts"]))
+    rec = summary.get("door_recall") or {}
+    if rec.get("came_into_view"):
+        print("  door_recall:    %s  (%d of %d real doors that came into view were ever offered)"
+              % (rec["recall"], rec["offered"], rec["came_into_view"]))
     if summary.get("deaths_by_mode"):
         print("  died in: %s" % ", ".join("%s x%d" % kv for kv in summary["deaths_by_mode"].items()))
     for name, v in summary["guardrails"].items():

@@ -133,7 +133,8 @@ GOAL = ["EXPLORE", "KILL_ENEMY", "STOCK_AMMO", "RESTORE_HEALTH", "ADD_ARMOR", "U
 ENUMS = {"ahead_kind": AHEAD_KIND, "weapon": WEAPON, "goal": GOAL}
 
 
-CAND_FIELDS = ("kind", "x", "y", "dist", "novelty", "flags", "threat_class", "threat_count")
+CAND_FIELDS = ("kind", "x", "y", "dist", "novelty", "flags", "threat_class", "threat_count",
+               "opening", "depth", "away")
 
 
 def telemetry_from(o):

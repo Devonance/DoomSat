@@ -41,6 +41,10 @@ FIRE_DEG = 7.0          # an enemy this close to the crosshair is worth a shot
 FIRE_UNITS = 900.0
 USE_UNITS = 96.0        # press Use when this close to a door or switch we were sent to
 SAFE_FIRE_UNITS = 220.0 # in safe mode, only point-blank attackers
+# The panorama. 360 degrees at TURN_PER_TIC is about 1.3 s, comfortably inside the watchdog's four, and
+# LOOK_SPACING is roughly a large room, so a level costs a handful of them rather than one a corridor.
+LOOK_SECONDS = 1.4
+LOOK_SPACING = 320.0
 
 MODES = ("EXPLORE", "APPROACH", "OPERATE", "FIGHT", "RETREAT", "RECOVER")
 STANCES = ("advance", "advance_strafing", "hold", "retreat")
@@ -144,6 +148,9 @@ class Executor:
 
     def __init__(self, world):
         self.world = world
+        self.looked = []           # places a panorama has already been taken from
+        self.look_until = 0.0
+        self.looks = 0
         self.intent = None
         self.applied_tic = -1
         self.watchdog = Watchdog()
@@ -172,6 +179,8 @@ class Executor:
         if tripped or self.watchdog.recovering(now):
             self.stats["recover_ticks"] += 1
             return self._recover(obs)
+        if self._should_look(obs, now):
+            return self._look(obs)
         it = self.intent
         if it is None or it.expired(now):
             self.stats["safe_ticks"] += 1
@@ -224,6 +233,37 @@ class Executor:
         cmd["fire"] = int(self._should_fire(it, obs))
         cmd["use"] = int(self._should_use(it, obs, x, y))
         return cmd
+
+    def _should_look(self, obs, now):
+        """A panorama on arriving somewhere new, the way a rover takes one at the end of a drive.
+
+        The camera has a 90 degree field of view, so the automap only fills in where the player happens
+        to be facing, and it fills in slowly. One turn on the spot when the player reaches ground it has
+        not stood near before is worth more map than a minute of walking and looking forward. It is a
+        sensing routine, so code owns it outright -- it decides nothing about where to go.
+
+        It is skipped when anything is in view: a second and a half spinning in front of a monster is a
+        second and a half of free shots.
+        """
+        if now < self.look_until:
+            return True
+        if obs["enemies"]:
+            return False
+        x, y = obs["x"], obs["y"]
+        if any(math.hypot(x - px, y - py) < LOOK_SPACING for px, py in self.looked):
+            return False
+        self.looked.append((x, y))
+        if len(self.looked) > 400:
+            self.looked.pop(0)
+        self.look_until = now + LOOK_SECONDS
+        self.looks += 1
+        return True
+
+    def _look(self, obs):
+        """Turn on the spot, seeing. Nothing else: no walking into what has not been looked at yet."""
+        self.stats["look_ticks"] = self.stats.get("look_ticks", 0) + 1
+        return {"turn": TURN_PER_TIC, "move": 0.0, "strafe": 0.0, "fire": 0, "use": 0,
+                "weapon": WEAPON_KEEP}
 
     # ---------------------------------------------------------------- pieces
     @staticmethod

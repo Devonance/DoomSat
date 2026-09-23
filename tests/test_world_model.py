@@ -21,10 +21,11 @@ GRID = wm.GRID
 class FakeExplorer:
     """Everything WorldModel is allowed to know: swept floor, a class per place, keys held."""
 
-    def __init__(self, free=(), walls=(), keys=()):
+    def __init__(self, free=(), walls=(), keys=(), visited=None):
         self.free = set(free)
         self.walls = dict(walls)          # cell -> class
         self.keys = set(keys)
+        self.visited = dict(visited or {})
         import numpy as np
         self.n = 512
         self.ox, self.oy = -1024.0, 1024.0
@@ -81,7 +82,7 @@ class TestFrontiers(unittest.TestCase):
         w = wm.WorldModel(FakeExplorer(free=room(0, 0, 5, 5)))
         fr = w.frontiers(0.0, 0.0, 0.0, force=True)
         self.assertTrue(fr)
-        self.assertTrue(all(size >= wm.FRONTIER_MIN_CELLS for _c, size in fr))
+        self.assertTrue(all(size >= wm.FRONTIER_MIN_CELLS for _c, size, _u, _d in fr))
 
     def test_floor_with_no_edge_has_no_frontier(self):
         """Every cell swept and every neighbour swept: nothing left to discover."""
@@ -90,14 +91,14 @@ class TestFrontiers(unittest.TestCase):
         inner = wm.WorldModel(FakeExplorer(free=big))
         fr = inner.frontiers(0.0, 0.0, 0.0, force=True)
         # the outer ring is still an edge, so there is a frontier; the interior contributes none
-        cells = {c for c, _s in fr}
+        cells = {c for c, _s, _u, _d in fr}
         self.assertTrue(all(abs(c[0]) >= 5 or abs(c[1]) >= 5 for c in cells), cells)
         self.assertTrue(w.frontiers(0.0, 0.0, 0.0, force=True))
 
     def test_separate_openings_cluster_separately(self):
         free = room(0, 0, 3, 3) | room(20, 20, 23, 23)
         fr = wm.WorldModel(FakeExplorer(free=free)).frontiers(0.0, 0.0, 0.0, force=True)
-        cells = {c for c, _s in fr}
+        cells = {c for c, _s, _u, _d in fr}
         self.assertGreaterEqual(len(cells), 2)
         self.assertTrue(any(c[0] < 10 for c in cells) and any(c[0] > 10 for c in cells))
 

@@ -71,8 +71,8 @@ class TestTheBenchSpeaksTheSameLanguageAsFlight(unittest.TestCase):
         self.assertEqual(len(CAND_CHANNELS), n, "Doom.fpp declares a different number of candidate slots")
         self.assertEqual(int(re.search(r"MAX_CANDIDATES = (\d+)", PAYLOAD).group(1)), n)
         # kind U8 + x F32 + y F32 + pathUnits U16 + novelty U8 + flags U8 + threatClass U8 + threatCount U8
-        self.assertEqual(each, 15)
-        self.assertEqual(re.search(r'CAND_FMT = "(\w+)"', PAYLOAD).group(1), "BffHBBBB")
+        self.assertEqual(each, 20)
+        self.assertEqual(re.search(r'CAND_FMT = "(\w+)"', PAYLOAD).group(1), "BffHBBBBHHB")
         core = int(re.search(r"STATUS_CORE_LEN = (\d+)", cpp).group(1))
         self.assertEqual(core, 120, "the pre-charter part of the status changed size")
         # and the two bytes after the candidates: what is threatening the player

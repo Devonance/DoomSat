@@ -30,8 +30,8 @@ U8 rdU8(const U8*& p) { return *p++; }
 void wrF32(U8* p, F32 f) { U32 u; std::memcpy(&u, &f, sizeof u); p[0] = static_cast<U8>(u >> 24); p[1] = static_cast<U8>(u >> 16); p[2] = static_cast<U8>(u >> 8); p[3] = static_cast<U8>(u); }
 constexpr U16 STATUS_CORE_LEN = 120;  // struct.calcsize of the payload STATUS_FMT
 constexpr U8 MAX_CANDIDATES = 8;      // charter 3.3: the ground scores at most this many targets
-constexpr U16 CAND_LEN = 15;          // kind U8, x F32, y F32, pathUnits U16, novelty U8, flags U8,
-                                      // threatClass U8, threatCount U8
+constexpr U16 CAND_LEN = 20;          // kind U8, x F32, y F32, pathUnits U16, novelty U8, flags U8,
+                                      // threatClass U8, threatCount U8, opening U16, depth U16, away U8
 constexpr U16 THREAT_LEN = 2;         // threatClass U8, threatCount U8
 constexpr U16 DOOR_LEN = 4;           // doorPresses U16, doorOpens U16
 constexpr U16 STATUS_LEN = STATUS_CORE_LEN + 1 + CAND_LEN * MAX_CANDIDATES + THREAT_LEN + DOOR_LEN;
@@ -353,6 +353,9 @@ void Doom ::handleStatus(const U8* body, U16 length) {
         c.set_flags(rdU8(p));
         c.set_threatClass(rdU8(p));
         c.set_threatCount(rdU8(p));
+        c.set_opening(rdU16(p));
+        c.set_depth(rdU16(p));
+        c.set_away(rdU8(p));
         switch (i) {
             case 0: this->tlmWrite_CAND0(c); break;
             case 1: this->tlmWrite_CAND1(c); break;

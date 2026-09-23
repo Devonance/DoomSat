@@ -36,6 +36,8 @@ MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
 ARRIVED_UNITS = 96.0         # close enough that the arm's-length probe has the final word
 
 FRONTIER_MIN_CELLS = 2     # a frontier smaller than this is sensor noise, not a way on
+MIN_UNSEEN_CELLS = 6       # unknown ground behind an opening, below which it is a pinhole in the sweep
+UNSEEN_FLOOD_LIMIT = 400   # stop counting the unknown beyond an opening at this many cells
 FRONTIER_MAX = 24          # clusters to consider before pruning to the candidates the ground scores
 REPLAN_MARGIN = 0.80       # a new path must be this much shorter than the one being walked to replace it
 REPLAN_EVERY_S = 1.0       # never replan faster than this, whatever happens
@@ -58,10 +60,10 @@ class Candidate:
     """
 
     __slots__ = ("kind", "x", "y", "path_units", "novelty", "colour", "tries", "cell", "note",
-                 "threat_class", "threat_count")
+                 "threat_class", "threat_count", "opening", "depth", "away")
 
     def __init__(self, kind, x, y, path_units, novelty=0, colour="", tries=0, cell=None, note="",
-                 threat_class=NO_ENEMY, threat_count=0):
+                 threat_class=NO_ENEMY, threat_count=0, opening=0, depth=0, away=True):
         self.kind, self.x, self.y = kind, float(x), float(y)
         self.path_units, self.novelty = float(path_units), int(novelty)
         self.colour, self.tries = colour, int(tries)
@@ -69,12 +71,17 @@ class Candidate:
         # What is standing near it, as a fact: which class, and how many. Whether that is worth facing is
         # a judgement, and it is made on the ground with the knowledge file in hand.
         self.threat_class, self.threat_count = int(threat_class), int(threat_count)
+        # What the opening looks like: how wide it is, how far the unknown runs past it, and whether it
+        # leads away from the ground already walked. A corridor mouth and the corner of this room are
+        # the same distance away and nothing else about them is alike.
+        self.opening, self.depth, self.away = int(opening), int(depth), bool(away)
 
     def as_dict(self, px, py, heading):
         bearing = (math.degrees(math.atan2(self.y - py, self.x - px)) - heading + 180) % 360 - 180
         return {"kind": KIND_NAME[self.kind], "x": self.x, "y": self.y, "bearing": bearing,
                 "path_units": self.path_units, "novelty": self.novelty, "colour": self.colour,
                 "threat_class": self.threat_class, "threat_count": self.threat_count,
+                "opening": self.opening, "depth": self.depth, "away": self.away,
                 "tries": self.tries, "note": self.note}
 
     def __repr__(self):
@@ -139,12 +146,14 @@ class WorldModel:
         self.objects = {}            # (kind, rx, ry) -> {kind, name, x, y, first_seen_tic, last_seen_tic, state}
         self.doors = {}              # (cx, cy) -> {"x","y","colour","tries","opened","last_try"}
         self.switches = {}           # (cx, cy) -> {"x","y","pressed"}
+        self._features = {}          # cell -> what makes this opening worth judging
         self.plan = None
         self.last_plan_t = 0.0
         self.last_frontier_t = -1e9      # not 0.0: that makes the very first call hit the cache and
                                          # return nothing, so the first candidate list of every level
                                          # would be empty
         self._frontiers = []
+        self.dead_frontiers = set()   # openings the player stood on that stayed openings
         self.planner_calls = 0
         self.planner_failures = 0
 
@@ -170,24 +179,61 @@ class WorldModel:
         return {c for c in self.ex.free if self.passable(c[0], c[1], now)}
 
     # ------------------------------------------------------------------ frontiers
-    def frontiers(self, x, y, now, force=False):
-        """Clusters of swept floor that border on ground nothing has seen.
+    def known(self, now):
+        """Every cell this attempt has any evidence about: floor the camera swept, or a line the automap
+        drew.
 
-        Yamauchi 1997. A frontier cell is walkable and has at least one neighbour that has never been
-        swept; the clusters are the places that, walked to, would show something new.
+        The distinction matters more than it sounds. The range camera is trusted to about 400 units and
+        samples forty columns a tic, so the floor it sweeps is sparse and full of holes -- and a cell
+        beside one of those holes looks exactly like a cell beside the edge of the map. That is why every
+        frontier came out "right here" and they all looked alike: most of them were pinholes two metres
+        away, not ways on. The automap has seen every wall that has been in view, including far ones the
+        camera never swept, so using it as well tells the difference between "not looked at" and "not
+        there".
+        """
+        out = set(self.ex.free)
+        ex = self.ex
+        import numpy as np
+        ys, xs = np.nonzero(ex.raster)
+        if len(xs):
+            step = max(1, len(xs) // 6000)
+            for k in range(0, len(xs), step):
+                wx = ex.ox + int(xs[k]) * WPX
+                wy = ex.oy - int(ys[k]) * WPX
+                out.add((int(math.floor(wx / GRID)), int(math.floor(wy / GRID))))
+        return out
+
+    def frontiers(self, x, y, now, force=False):
+        """Ways on: walkable floor that borders on ground this attempt knows nothing about.
+
+        Yamauchi 1997, with the two corrections the flights asked for. A frontier has to border the
+        genuinely unknown rather than an unswept pinhole, and it is weighed by how much is likely to be
+        behind it rather than by how near it is -- weighting by expected unseen area is the standard
+        improvement on nearest-frontier exploration, and here it is the difference between a corridor
+        mouth and the corner of the room you are standing in.
         """
         if not force and now - self.last_frontier_t < 0.5:
             return self._frontiers
         self.last_frontier_t = now
         walk = self.walkable(now)
+        known = self.known(now)
         edge = []
         for (cx, cy) in walk:
+            if (cx, cy) in self.dead_frontiers:
+                continue
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                if (cx + dx, cy + dy) not in self.ex.free:
+                if (cx + dx, cy + dy) not in known:
                     edge.append((cx, cy))
                     break
-        self._frontiers = self._cluster(set(edge))
-        return self._frontiers
+        self._frontiers = []
+        for cell, size in self._cluster(set(edge)):
+            unseen, depth = self._beyond(cell, known)
+            if unseen < MIN_UNSEEN_CELLS:
+                continue          # a pinhole in the sweep, not a way on
+            self._frontiers.append((cell, size, unseen, depth))
+        # biggest promise first; the ground still gets to disagree
+        self._frontiers.sort(key=lambda f: -(f[2] + f[3]))
+        return self._frontiers[:FRONTIER_MAX]
 
     @staticmethod
     def _cluster(cells):
@@ -214,7 +260,64 @@ class WorldModel:
                 best = min(group, key=lambda g: (g[0] - mx) ** 2 + (g[1] - my) ** 2)
                 out.append((best, len(group)))
         out.sort(key=lambda g: -g[1])
-        return out[:FRONTIER_MAX]
+        return out
+
+    def _beyond(self, cell, known, limit=UNSEEN_FLOOD_LIMIT):
+        """How much unknown lies past this opening, and how far it runs.
+
+        Returns (cells of unknown reachable through it, how far the furthest of them is, in cells). A
+        corner of a room has a handful; a corridor mouth has hundreds and they run away from you.
+        """
+        seen, q = {cell}, deque([(cell, 0)])
+        unseen, far = 0, 0
+        while q and unseen < limit:
+            (cx, cy), d = q.popleft()
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                n = (cx + dx, cy + dy)
+                if n in seen:
+                    continue
+                seen.add(n)
+                if n in known:
+                    continue
+                unseen += 1
+                far = max(far, d + 1)
+                q.append((n, d + 1))
+        return unseen, far
+
+    def frontier_features(self, cell, size, unseen, depth, px, py):
+        """What a decision about this opening rests on, as numbers; the ground turns them into words."""
+        wx, wy = cell_centre(cell)
+        centre = self.explored_centre()
+        away = True
+        if centre is not None:
+            here = math.hypot(px - centre[0], py - centre[1])
+            there = math.hypot(wx - centre[0], wy - centre[1])
+            away = there >= here - GRID
+        return {"opening_units": size * GRID, "unseen_cells": unseen,
+                "open_depth_units": depth * GRID, "leads_away": away}
+
+    def explored_centre(self):
+        """The middle of everywhere the player has actually walked."""
+        if not self.ex.visited:
+            return None
+        xs = [c[0] for c in self.ex.visited]
+        ys = [c[1] for c in self.ex.visited]
+        return (sum(xs) / len(xs) + 0.5) * GRID, (sum(ys) / len(ys) + 0.5) * GRID
+
+    def note_frontier_reached(self, x, y, now):
+        """A frontier the player has stood at and which is still a frontier revealed nothing.
+
+        Standing on an opening and having it stay an opening means the camera could not see through it --
+        a fake gap, a grating, a drop. Dropping it for the attempt is the same discipline as settling a
+        door suspect by standing at it, and for the same reason: arriving is evidence.
+        """
+        here = self.ex.cell(x, y)
+        dropped = 0
+        for (cell, _size, _unseen, _depth) in list(self._frontiers):
+            if abs(cell[0] - here[0]) <= 1 and abs(cell[1] - here[1]) <= 1:
+                self.dead_frontiers.add(cell)
+                dropped += 1
+        return dropped
 
     # ------------------------------------------------------------------ objects, doors, switches
     def see_objects(self, x, y, labels, tic):
@@ -491,9 +594,10 @@ class WorldModel:
         self.see_doors(now)
         goals, meta = [], {}
 
-        for cell, size in self.frontiers(x, y, now):
+        for cell, size, unseen, depth in self.frontiers(x, y, now):
             goals.append(cell)
             meta[cell] = (KIND_FRONTIER, size, "", 0)
+            self._features[cell] = self.frontier_features(cell, size, unseen, depth, x, y)
 
         # Doors, and only the ones that have earned the name. Capped, so that a level full of ceiling
         # changes cannot crowd the frontiers out of a list of eight.
@@ -538,9 +642,14 @@ class WorldModel:
             kind, size, colour, tries = meta[cell]
             wx, wy = cell_centre(cell)
             tc, tn = self.threat_near(wx, wy)
-            out.append(Candidate(kind, wx, wy, costs[cell], novelty=min(255, size * 4),
+            f = self._features.get(cell, {})
+            out.append(Candidate(kind, wx, wy, costs[cell],
+                                 novelty=min(255, int(f.get("unseen_cells", size * 4))),
                                  colour=colour, tries=tries, cell=cell,
-                                 threat_class=tc, threat_count=tn))
+                                 threat_class=tc, threat_count=tn,
+                                 opening=int(f.get("opening_units", 0)),
+                                 depth=int(f.get("open_depth_units", 0)),
+                                 away=bool(f.get("leads_away", True))))
         # The exit and keys always make the cut; the rest compete on how far away they are, because a
         # candidate the ground never sees is a candidate the ground cannot choose.
         must = [c for c in out if c.kind in (KIND_EXIT, KIND_KEY)]

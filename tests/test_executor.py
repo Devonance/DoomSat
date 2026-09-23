@@ -35,9 +35,15 @@ def enemy(bearing, dist):
     return [(abs(bearing), bearing, dist, None)]
 
 
+def settled(e, at=(0.0, 0.0)):
+    """An executor that has already taken its panorama here, so a test can watch it move."""
+    e.looked.append(at)
+    return e
+
+
 class TestTheIntentAndItsTimeToLive(unittest.TestCase):
     def setUp(self):
-        self.e = ex.Executor(NoWorld())
+        self.e = settled(ex.Executor(NoWorld()))
 
     def intent(self, **kw):
         kw.setdefault("ttl_ms", 1000)
@@ -100,7 +106,7 @@ class TestLocalAvoidance(unittest.TestCase):
     """Sidestepping a doorframe is not a question worth half a second of latency."""
 
     def setUp(self):
-        self.e = ex.Executor(NoWorld())
+        self.e = settled(ex.Executor(NoWorld()))
         self.e.set_intent(ex.Intent(target_x=1000.0, target_y=0.0, has_target=True, ttl_ms=5000), now=0.0)
 
     def test_it_steps_toward_the_freer_shoulder(self):
@@ -122,7 +128,7 @@ class TestLocalAvoidance(unittest.TestCase):
 
 class TestFiringAndUsing(unittest.TestCase):
     def setUp(self):
-        self.e = ex.Executor(NoWorld())
+        self.e = settled(ex.Executor(NoWorld()))
 
     def arm(self, **kw):
         kw.setdefault("ttl_ms", 5000)
@@ -159,7 +165,7 @@ class TestTheWatchdog(unittest.TestCase):
     """Charter phase 2: invariants that pull the player out of a freeze. Each is one of September's."""
 
     def setUp(self):
-        self.e = ex.Executor(NoWorld())
+        self.e = settled(ex.Executor(NoWorld()))
         self.e.set_intent(ex.Intent(target_x=1000.0, has_target=True, ttl_ms=100000), now=0.0)
 
     def run_tics(self, n, **kw):
@@ -175,6 +181,7 @@ class TestTheWatchdog(unittest.TestCase):
 
     def test_a_player_that_is_moving_is_left_alone(self):
         for i in range(250):
+            self.e.looked.append((i * 20.0, 0.0))     # not testing the panorama here
             self.e.step(obs(x=i * 20.0), i / 35.0)
         self.assertFalse(self.e.watchdog.trips, "it was making progress and got interrupted anyway")
 
@@ -182,6 +189,7 @@ class TestTheWatchdog(unittest.TestCase):
         """Late in a run every sector reads blocked because the barrier marks never expire."""
         expired = []
         for i in range(200):
+            self.e.looked.append((i * 20.0, 0.0))
             self.e.step(obs(x=i * 20.0, all_blocked=True, expire_barriers=lambda: expired.append(1)),
                         i / 35.0)
         self.assertTrue(expired, "nothing ever cleared the barriers")
@@ -227,3 +235,50 @@ class TestTheContractWithThePayload(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestThePanorama(unittest.TestCase):
+    """A rover takes a picture at the end of a drive. With a 90 degree field of view the automap only
+    fills in where the player happens to be facing, and it fills in slowly; one turn on the spot when it
+    reaches ground it has not stood near is worth more map than a minute of walking and looking forward.
+    Code owns it: it is a sensing routine and it decides nothing about where to go."""
+
+    def setUp(self):
+        self.e = ex.Executor(NoWorld())
+        self.e.set_intent(ex.Intent(target_x=1000.0, has_target=True, ttl_ms=100000), now=0.0)
+
+    def test_it_looks_around_on_arriving_somewhere_new(self):
+        cmd = self.e.step(obs(), 0.0)
+        self.assertEqual(cmd["move"], 0.0)
+        self.assertNotEqual(cmd["turn"], 0.0)
+        self.assertEqual(self.e.looks, 1)
+
+    def test_a_panorama_is_a_full_turn_and_then_it_gets_on_with_it(self):
+        for i in range(int(ex.LOOK_SECONDS * 35) + 2):
+            self.e.step(obs(), i / 35.0)
+        turned = ex.TURN_PER_TIC * ex.LOOK_SECONDS * 35
+        self.assertGreaterEqual(turned, 360.0, "the look is too short to see all the way round")
+        self.assertGreater(self.e.step(obs(), 3.0)["move"], 0.0, "it never stopped looking")
+
+    def test_it_does_not_look_twice_in_the_same_place(self):
+        for i in range(120):
+            self.e.step(obs(), i / 35.0)
+        self.assertEqual(self.e.looks, 1)
+
+    def test_it_looks_again_somewhere_else(self):
+        for i in range(120):
+            self.e.step(obs(), i / 35.0)
+        for i in range(120):
+            self.e.step(obs(x=2000.0, y=2000.0), 10.0 + i / 35.0)
+        self.assertEqual(self.e.looks, 2)
+
+    def test_it_does_not_stand_and_spin_in_front_of_a_monster(self):
+        """A second and a half turning on the spot in front of something is a second and a half of free
+        shots for it."""
+        cmd = self.e.step(obs(enemies=enemy(20.0, 200.0)), 0.0)
+        self.assertEqual(self.e.looks, 0)
+        self.assertNotEqual(cmd["move"], 0.0)
+
+    def test_the_look_is_shorter_than_the_watchdog_s_patience(self):
+        self.assertLess(ex.LOOK_SECONDS, ex.Watchdog.STILL_SECONDS,
+                        "the panorama would trip the freeze watchdog")
