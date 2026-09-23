@@ -222,6 +222,21 @@ bench with geometry on has not been run.
 
 ---
 
+## 5b. Jev and the flight stack, running
+
+Confirmed end to end at 02:23, on Freedoom E1M1 with the geometry sensor on:
+
+    [pilot] System One = jev plays; System Two = none reviews after each episode; graph v3
+    [pilot] #10 jev 458 ms cmd 46 ms  hp=100 EXPLORE cand=6 pick=2
+            g_t0=5.93 g_t1=6.14 g_t2=4.95 g_t3=4.02 g_t4=2.84 g_t5=3.77
+            -> EXPLORE target advance ttl=1500ms  frames ok=41 lost=1
+
+Payload to F´ to CCSDS to Yamcs to the pilot to jev and back up, with jev scoring six candidates and the
+pilot picking one, at 380 to 460 ms a decision and a 45 to 60 ms command hop. System Two off, as the
+brief asks for tonight.
+
+---
+
 ## 6. What the ladder made me fix
 
 | Fix | Evidence it was wrong | Where |
