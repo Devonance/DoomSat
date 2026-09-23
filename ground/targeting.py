@@ -543,7 +543,11 @@ def intent_for(t, state, candidates, pick, cfg, mode=None, danger_level=None, in
             if threatened:
                 stance = "advance_strafing"
             else:
-                stance = "hold" if cand is not None and cand["path_units"] < 48 else "advance"
+                # Not "hold". A player opening a door walks into it and taps Use; they do not stop
+                # forty-eight units short and stand there. Holding was six of seventeen freezes in the
+                # 150 s check -- the watchdog counting a deliberate stand-still as a stuck player -- and
+                # every one of those cost four seconds plus a recovery.
+                stance = "advance"
     return {
         "intent_id": int(intent_id) & 0xFFFF,
         "based_on_tic": int(t.get("TIC", tic) or 0),
@@ -666,9 +670,22 @@ def normalise(c, t):
     heading = float(t.get("ANGLE", 0.0) or 0.0)
     return {"kind": kind, "x": x, "y": y,
             "bearing": bearing_to(px, py, heading, x, y),
-            "path_units": float(get("dist", 0) or 0), "novelty": int(get("novelty", 0) or 0),
+            # "pathUnits" is the name in the F Prime Candidate struct, and the only name Yamcs delivers.
+            # Reading "dist" silently returned the default, so every candidate on the flight path arrived
+            # at zero distance: jev saw six options all described as "right here" and all "the nearest",
+            # scored them 5.00 across the board, and the pick became a coin toss. Two of the ten words it
+            # sees are distance words; both were constants. "dist" is kept as a fallback because the bench
+            # builds candidates straight from the payload and has always used it.
+            "path_units": float(get("pathUnits", None) or get("dist", 0) or 0),
+            "novelty": int(get("novelty", 0) or 0),
             "opening": int(get("opening", 0) or 0), "depth": int(get("depth", 0) or 0),
             "away": bool(get("away", 1)),
+            # Same mismatch as pathUnits: threat_word reads these two and normalise never set them, so
+            # every candidate's threat word was "none" whatever was standing on it. The payload has been
+            # measuring and downlinking both all along.
+            "threat_class": (None if get("threatClass", get("threat_class", 255)) in (None, 255)
+                             else int(get("threatClass", get("threat_class", 255)))),
+            "threat_count": int(get("threatCount", get("threat_count", 0)) or 0),
             "colour": COLOURS[flags & 3] if kind == "door" else str(get("need", "") or ""),
             "tries": (flags >> 2) & 15}
 

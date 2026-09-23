@@ -1,0 +1,53 @@
+{
+ "attempts": 1,
+ "suite_score": 0.0,
+ "score_sd": 0.0,
+ "completed": 0,
+ "deaths": 0,
+ "episodes": 1,
+ "freezes": 24,
+ "freeze_reasons": {
+  "no displacement for 4 s": 24
+ },
+ "model_unavailable": 0,
+ "door_presses": 489,
+ "door_opens": 7,
+ "door_precision": 0.0143,
+ "exit_ever_seen": 0,
+ "door_recall": {
+  "came_into_view": 6,
+  "offered": 4,
+  "recall": 0.6667
+ },
+ "deaths_by_mode": {},
+ "mode_share": {
+  "APPROACH": 0.8237,
+  "OPERATE": 0.1187,
+  "EXPLORE": 0.0576
+ },
+ "mean_progress": 0.0,
+ "maps_without_a_usable_progress_score": [],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "deaths_per_minute": {
+   "pass": true,
+   "value": "0.00 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": true,
+   "value": "n/a: code baseline, no model in the loop"
+  }
+ },
+ "guardrails_pass": true,
+ "per_level": {
+  "E1M1": {
+   "n": 1,
+   "mean": 0.0,
+   "sd": null
+  }
+ },
+ "run_dir": "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/press1"
+}

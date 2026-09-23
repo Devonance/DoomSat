@@ -23,11 +23,14 @@ _FIELDS = {}
 
 
 def _last(rows, key, default=0):
-    for r in reversed(rows):
-        v = (r.get("raw") or {}).get(key)
-        if v is not None:
-            return int(v)
-    return int(default or 0)
+    """The high-water mark of a counter, not its last value.
+
+    These count up within an episode and restart with it, so reading the last row reports whatever
+    happened after the final reset -- which for an attempt that ran its level budget is zero. One flight
+    was recorded as pressing Use no times when it had pressed 11.
+    """
+    seen = [int(v) for v in ((r.get("raw") or {}).get(key) for r in rows) if v is not None]
+    return max(seen) if seen else int(default or 0)
 
 
 def door_recall(level, rows, within=160.0):
@@ -142,7 +145,12 @@ def grade(attempt):
         "deaths_per_minute": round(fm.deaths_per_minute(int(attempt.get("deaths") or 0), level_time), 3),
         # charter phase 2: a freeze is only ever visible as the onboard watchdog having had to step in
         "watchdog_trips": attempt.get("watchdog_trips") or {},
-        "freezes": sum((attempt.get("watchdog_trips") or {}).values()),
+        # None, not 0, when nothing reported them. A flight attempt carries no watchdog_trips at all:
+        # Doom.cpp initialises m_watchdogTrips to zero and never assigns it, so the WATCHDOG_TRIPS channel
+        # has always been zero on the wire. Summing an absent dict gave 0 and every flight report said
+        # "0 freezes" while the payload log filled with them. An unmeasured thing has to read as unmeasured.
+        "freezes": (sum(attempt["watchdog_trips"].values())
+                    if attempt.get("watchdog_trips") is not None else None),
         "executor_stats": attempt.get("executor_stats") or {},
         "cache_hit_rate": attempt.get("cache_hit_rate"),
         "model_unavailable": attempt.get("model_unavailable", 0),

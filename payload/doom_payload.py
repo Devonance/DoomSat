@@ -932,8 +932,15 @@ class Payload:
                 # Watch the way ahead. A door that opens reveals the room behind it, so the clearance
                 # jumps; a wall absorbs the press and nothing changes. Judged a moment later, in
                 # observe(), because the engine takes a few tics to move the ceiling.
-                self.press_watch = (self.exec_obs["x"], self.exec_obs["y"],
-                                    self.exec_obs["clear_fwd"], self.game_time)
+                #
+                # Only one press is ever in flight. Presses are pulsed every eight tics and the verdict
+                # needs twenty-one, so re-arming on every press overwrote the pending watch before it
+                # could ever be read: note_door_try was reached almost never, no suspect was ever marked
+                # not-a-door, and one flight spent 568 Use presses proving nothing. The first press is
+                # the one that answers the question anyway.
+                if self.press_watch is None:
+                    self.press_watch = (self.exec_obs["x"], self.exec_obs["y"],
+                                        self.exec_obs["clear_fwd"], self.game_time)
             return self.buttons(cmd)
         c = self.control
         if time.time() - self.last_control_time > UPLINK_TIMEOUT_S:

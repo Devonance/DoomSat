@@ -6,6 +6,7 @@ sharpening the rubric drove agreement with ten lines of code from 79% to 89% -- 
 reproduce the rule, so the comparison measured nothing. `test_the_rule_is_not_a_copy_of_the_rubric` is
 the guard against doing it again.
 """
+import io
 import os
 import re
 import sys
@@ -536,11 +537,15 @@ class TestFightingWhileBusy(unittest.TestCase):
         t = {"HEALTH": 90, "SHELLS": 8, "BULLETS": 50}
         self.state = tg.build_state(t, self.cands, tg.needs_from(t, RULES), [], rules=RULES)
 
-    def test_a_door_in_an_empty_room_is_worked_standing_still(self):
+    def test_a_door_in_an_empty_room_is_leaned_on_not_stood_in_front_of(self):
+        """Standing still at a door was six of seventeen watchdog freezes: a deliberate stand-still
+        reads as a stuck player, and each one cost four seconds plus a recovery. A player walks into
+        the door and taps Use."""
         it = tg.intent_for({"HEALTH": 90, "SHELLS": 8, "BULLETS": 50, "ENEMY_COUNT": 0},
                            self.state, self.cands, 0, self.cfg, rules=RULES)
         self.assertEqual(it["mode"], "OPERATE")
-        self.assertEqual(it["stance"], "hold")
+        self.assertEqual(it["stance"], "advance")
+        self.assertTrue(it["use_at_target"])
 
     def test_a_door_with_something_shooting_at_it_is_not(self):
         """37 of 203 deaths were in OPERATE with stance=hold."""
@@ -548,3 +553,56 @@ class TestFightingWhileBusy(unittest.TestCase):
                            self.state, self.cands, 0, self.cfg, rules=RULES)
         self.assertNotEqual(it["stance"], "hold")
         self.assertEqual(it["fire_policy"], tg.FIRE_ANY_ATTACKER)
+
+
+class TestTheStructNamesMatch(unittest.TestCase):
+    """The flight struct and the ground decoder have to agree on spelling.
+
+    They did not. `normalise` read "dist" where the F Prime Candidate struct calls it `pathUnits`, and
+    never read threatClass/threatCount at all, so on every flight jev was handed six candidates all
+    described as "right here", all "the nearest", all with threat "none" -- it scored them 5.00 across
+    the board and the pick fell to the tie-break. Nothing failed, nothing logged, and the run looked
+    like a model that could not tell options apart. Read the names out of the .fpp so the next rename
+    breaks a test instead of a flight.
+    """
+
+    def struct_members(self):
+        fpp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "flight", "Components", "Doom", "Doom.fpp")
+        text = io.open(fpp, encoding="utf-8").read()
+        body = text.split("struct Candidate {", 1)[1].split("}", 1)[0]
+        return [ln.strip().split(":")[0].strip() for ln in body.splitlines() if ":" in ln]
+
+    def test_normalise_reads_every_member_the_struct_downlinks(self):
+        members = self.struct_members()
+        self.assertIn("pathUnits", members)
+        seen = {}
+        c = {m: 1 for m in members}
+        c.update({"kind": 0, "x": 10.0, "y": 20.0, "pathUnits": 640, "novelty": 30,
+                  "opening": 96, "depth": 512, "away": 1, "flags": 0,
+                  "threatClass": 3, "threatCount": 2})
+
+        class Watched(dict):
+            def get(self, k, d=None):
+                seen[k] = True
+                return dict.get(self, k, d)
+
+        out = tg.normalise(Watched(c), {"POS_X": 0.0, "POS_Y": 0.0, "ANGLE": 0.0})
+        missed = [m for m in members if m not in seen]
+        self.assertEqual(missed, [], "normalise never reads %s" % missed)
+        self.assertEqual(out["path_units"], 640.0)
+        self.assertEqual(out["threat_class"], 3)
+        self.assertEqual(out["threat_count"], 2)
+
+    def test_the_words_move_when_the_numbers_do(self):
+        """The failure was not a wrong word, it was the same word every time. Pin the variation."""
+        t = {"POS_X": 0.0, "POS_Y": 0.0, "ANGLE": 0.0}
+        near = tg.normalise({"kind": 0, "x": 64.0, "y": 0.0, "pathUnits": 64}, t)
+        far = tg.normalise({"kind": 0, "x": 900.0, "y": 0.0, "pathUnits": 900}, t)
+        both = [near, far]
+        self.assertNotEqual(tg.target_words(near, None, [], all_cands=both)["how_far"],
+                            tg.target_words(far, None, [], all_cands=both)["how_far"])
+        self.assertEqual(tg.target_words(near, None, [], all_cands=both)["relative_distance"],
+                         "the nearest")
+        self.assertEqual(tg.target_words(far, None, [], all_cands=both)["relative_distance"],
+                         "the furthest")

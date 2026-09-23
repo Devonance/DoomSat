@@ -24,11 +24,14 @@ import time
 TICRATE = 35
 RUN_DELTA = 50.0        # Doom's running forwardmove; measured at 507 units/s, and the engine caps there
 STRAFE_DELTA = 40.0     # Doom's running sidemove
-TURN_PER_TIC = 8.0      # degrees; fast enough to face a threat, slow enough not to overshoot
+# 15 degrees a tic is 525 a second, which turns the player right around in a third of a second.
+# At 8 it took two thirds, and a measured half of all executor ticks were spent not moving --
+# 62% of them turning. A Doom player turns as fast as the mouse moves.
+TURN_PER_TIC = 15.0
 # How far off line the player may be and still move. 25 degrees was too strict: a path through a room
 # bends more than that between waypoints, so the throttle sat at part power for half the level. A Doom
 # player runs and turns at the same time.
-ALIGN_WALK = 100.0      # walk while the heading is within this of where we want to go
+ALIGN_WALK = 140.0      # walk while the heading is within this of where we want to go
 ALIGN_FULL = 45.0       # full speed within this
 # How far ahead to look, as a time rather than a distance. At the old delta of 14 the player covered 4
 # units a tic and a fixed 72-unit guard was five tics of warning; at a run it covers 14.5 and the same 72
@@ -45,6 +48,17 @@ AVOID_MIN_UNITS = 48.0
 # The delta is not map units per tic. payload/speed_probe.py measured delta 50 at 507 units/s, and the
 # relation is linear below the engine's cap, so this is the conversion from a button value to a speed.
 UNITS_PER_S_PER_DELTA = 507.0 / 50.0
+# Rubbing: pressed against geometry, commanding movement, going nowhere. Every one of the 18 freezes in
+# the 150 s time check was this -- APPROACH, a plan, a wall ahead, and four seconds of scraping before the
+# watchdog noticed. Doom slides the player along a wall for free, so the answer to a wall is not to crawl
+# at 15% speed into it; it is to keep the throttle on, lean off the wall, and alternate shoulders so a
+# corner that swallows one side gets tried from the other. Half a second of correction instead of four
+# seconds of freeze plus a recovery.
+RUB_SECONDS = 0.45      # no real displacement for this long while asking to move
+RUB_UNITS = 12.0        # "no real displacement"; a run covers 228 units in that time
+RUB_FLIP_S = 0.7        # how long to try one shoulder before trying the other
+RUB_TURN_DEG = 40.0     # lean this far off the heading, the angle a player takes to slide past a corner
+
 FIGHT_KEEP_UNITS = 260.0   # in a fight, hold this much room rather than closing at a run
 FIRE_DEG = 7.0          # an enemy this close to the crosshair is worth a shot
 FIRE_UNITS = 900.0
@@ -52,8 +66,8 @@ USE_UNITS = 96.0        # press Use when this close to a door or switch we were 
 SAFE_FIRE_UNITS = 220.0 # in safe mode, only point-blank attackers
 # The panorama. 360 degrees at TURN_PER_TIC is about 1.3 s, comfortably inside the watchdog's four, and
 # LOOK_SPACING is roughly a large room, so a level costs a handful of them rather than one a corridor.
-LOOK_SECONDS = 1.4
-LOOK_SPACING = 320.0
+LOOK_SECONDS = 0.8
+LOOK_SPACING = 512.0
 
 MODES = ("EXPLORE", "APPROACH", "OPERATE", "FIGHT", "RETREAT", "RECOVER")
 STANCES = ("advance", "advance_strafing", "hold", "retreat")
@@ -126,11 +140,18 @@ class Watchdog:
             self.track.pop(0)
         if now < self.recover_until:
             return True
-        old = [p for p in self.track if now - p[0] >= self.STILL_SECONDS]
-        if old:
-            p = old[-1]
-            if math.hypot(x - p[1], y - p[2]) < self.STILL_UNITS:
-                return self._trip(now, "no displacement for %.0f s" % self.STILL_SECONDS)
+        # Ground covered, not net displacement. Displacement from the position four seconds ago cannot
+        # tell a player wedged in a corner from one that walked three hundred units to a target, changed
+        # its mind, and walked three hundred units back: both end up inside the 48-unit circle. The second
+        # is indecision, and the recovery that follows -- which clears the plan -- makes it worse. Forty
+        # freezes in one 190 s flight were logged with clear_fwd 400 and every shoulder open; nothing
+        # there was stuck. Path length says what the leg muscles did.
+        window = [p for p in self.track if now - p[0] <= self.STILL_SECONDS]
+        if window and now - window[0][0] >= self.STILL_SECONDS * 0.9:
+            covered = sum(math.hypot(b[1] - a[1], b[2] - a[2])
+                          for a, b in zip(window, window[1:]))
+            if covered < self.STILL_UNITS:
+                return self._trip(now, "went nowhere for %.0f s" % self.STILL_SECONDS)
         if all_blocked:
             self.blocked_since = self.blocked_since or now
             if now - self.blocked_since > self.BLOCKED_SECONDS:
@@ -173,6 +194,8 @@ class Executor:
         self.use_phase = 0
         self.last_weapon = WEAPON_KEEP
         self.stats = {"ticks": 0, "safe_ticks": 0, "recover_ticks": 0, "intents": 0, "stale_dropped": 0}
+        self._trail = []        # (game time, x, y) for about a second, to notice rubbing
+        self._rub_since = None
 
     # ---------------------------------------------------------------- uplink
     def set_intent(self, intent, now=None):
@@ -196,6 +219,7 @@ class Executor:
             # window that wants 48 units of travel, and 16% of the attempt went on recovering from
             # sensing actions it had chosen. The watchdog is for freezes, not for looking.
             self.watchdog.pause(now)
+            self._trail = []
             return self._look(obs)
         before = sum(self.watchdog.trips.values())
         tripped = self.watchdog.step(now, x, y, obs.get("all_blocked", False), obs["expire_barriers"])
@@ -213,13 +237,27 @@ class Executor:
                 "enemies": len(obs["enemies"]), "all_blocked": bool(obs.get("all_blocked")),
                 "has_plan": bool(plan and plan.cells), "plan_left": (len(plan.cells) - plan.i) if plan else 0,
                 "has_target": bool(self.intent and self.intent.has_target)})
+            # Printed as well as recorded. The flight stack does not downlink the trip count, let alone
+            # the context, so on a flight this log line is the only evidence of why the player stopped --
+            # and forty freezes in one 190 s flight is most of the flight.
+            c = self.watchdog.trip_log[-1]
+            print("[executor] freeze: %s/%s ahead=%s@%.0f fwd=%.0f back=%.0f fl=%.0f fr=%.0f "
+                  "plan=%s left=%d enemies=%d" %
+                  (c["mode"], c["stance"], c["ahead"], c["ahead_dist"], c["clear_fwd"], c["clear_back"],
+                   c["clear_fl"], c["clear_fr"], c["has_plan"], c["plan_left"], c["enemies"]), flush=True)
         if tripped or self.watchdog.recovering(now):
             self.stats["recover_ticks"] += 1
+            self._trail = []
             return self._recover(obs)
         it = self.intent
         if it is None or it.expired(now):
             self.stats["safe_ticks"] += 1
             return self._safe(obs)
+
+        self._trail.append((now, x, y))
+        while len(self._trail) > 2 and now - self._trail[0][0] > 1.0:
+            self._trail.pop(0)
+        rub = self._rubbing(now, x, y)
 
         want = None
         if it.mode in ("FIGHT", "RETREAT") and obs["enemies"]:
@@ -251,7 +289,11 @@ class Executor:
                "fire": 0, "use": 0, "weapon": it.weapon}
 
         if it.stance == "hold":
-            pass
+            # Holding position still leans on a door if one is in front of us: Doom opens a door on the
+            # Use edge, and leaning into it is both what a player does and the only way the payload finds
+            # out the thing is not a door.
+            if obs["ahead_kind"] in ("door", "exit") and obs["ahead_dist"] > 32:
+                cmd["move"] = RUN_DELTA * 0.35
         elif it.stance == "retreat":
             # Backwards, facing the threat, still shooting. `move` is negative and the heading is the
             # enemy's, so this withdraws from it rather than toward it.
@@ -270,6 +312,13 @@ class Executor:
                 # something solid ahead: keep the heading, step around it, and slow down first
                 cmd["strafe"] = STRAFE_DELTA * self._freer_side(obs)
                 speed *= 0.5 if obs["clear_fwd"] > AVOID_MIN_UNITS else 0.15
+            if rub:
+                # Override the guard rather than obey it: the guard is what put us here.
+                side = 1.0 if int((now - self._rub_since) / RUB_FLIP_S) % 2 == 0 else -1.0
+                cmd["strafe"] = STRAFE_DELTA * side
+                cmd["turn"] = max(-TURN_PER_TIC, min(TURN_PER_TIC, rel + RUB_TURN_DEG * side))
+                speed = RUN_DELTA
+                self.stats["rub_ticks"] = self.stats.get("rub_ticks", 0) + 1
             cmd["move"] = speed
             if it.stance == "advance_strafing" and obs["enemies"]:
                 cmd["strafe"] = STRAFE_DELTA * self._circle_side(now)
@@ -278,6 +327,11 @@ class Executor:
                 if obs["enemies"][0][2] < FIGHT_KEEP_UNITS:
                     cmd["move"] = min(cmd["move"], 0.0)
 
+        # Where the time actually goes, at control rate.
+        self.stats["move_ticks"] = self.stats.get("move_ticks", 0) + (1 if cmd["move"] else 0)
+        self.stats["full_speed_ticks"] = self.stats.get("full_speed_ticks", 0) + (
+            1 if abs(cmd["move"]) >= RUN_DELTA else 0)
+        self.stats["turn_ticks"] = self.stats.get("turn_ticks", 0) + (1 if abs(cmd["turn"]) > 1 else 0)
         cmd["fire"] = int(self._should_fire(it, obs))
         cmd["use"] = int(self._should_use(it, obs, x, y))
         return cmd
@@ -312,6 +366,19 @@ class Executor:
         self.stats["look_ticks"] = self.stats.get("look_ticks", 0) + 1
         return {"turn": TURN_PER_TIC, "move": 0.0, "strafe": 0.0, "fire": 0, "use": 0,
                 "weapon": WEAPON_KEEP}
+
+    def _rubbing(self, now, x, y):
+        """Asking to move, and not moving. Measured over RUB_SECONDS so a doorway pause is not a rub."""
+        old = None
+        for t, px, py in self._trail:
+            if now - t >= RUB_SECONDS:
+                old = (px, py)
+        if old is None or math.hypot(x - old[0], y - old[1]) >= RUB_UNITS:
+            self._rub_since = None
+            return False
+        if self._rub_since is None:
+            self._rub_since = now
+        return True
 
     # ---------------------------------------------------------------- pieces
     @staticmethod

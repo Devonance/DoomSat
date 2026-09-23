@@ -103,7 +103,8 @@ def summarise(graded, conf):
         "completed": sum(1 for r in graded if r["completed"]),
         "deaths": sum(r["deaths"] for r in graded),
         "episodes": len(graded),
-        "freezes": sum(r.get("freezes", 0) for r in graded),
+        "freezes": (None if all(r.get("freezes") is None for r in graded)
+                    else sum(r.get("freezes") or 0 for r in graded)),
         "freeze_reasons": _freeze_reasons(graded),
         "model_unavailable": sum(r.get("model_unavailable", 0) or 0 for r in graded),
         "door_presses": sum(r.get("door_presses", 0) or 0 for r in graded),
@@ -166,10 +167,14 @@ def main(argv=None):
           % (summary["suite_score"], summary["attempts"], summary["score_sd"],
              summary["completed"], summary["deaths"]))
     # Charter phase 2's exit test: a freeze is only ever visible as the watchdog having had to step in.
-    print("  freezes the watchdog caught: %d in %d episodes%s"
-          % (summary["freezes"], summary["episodes"],
-             "  (" + ", ".join("%s x%d" % kv for kv in summary["freeze_reasons"].items()) + ")"
-             if summary["freeze_reasons"] else ""))
+    if summary["freezes"] is None:
+        print("  freezes the watchdog caught: not measured here (the flight stack does not downlink the "
+              "count; see the payload log)")
+    else:
+        print("  freezes the watchdog caught: %d in %d episodes%s"
+              % (summary["freezes"], summary["episodes"],
+                 "  (" + ", ".join("%s x%d" % kv for kv in summary["freeze_reasons"].items()) + ")"
+                 if summary["freeze_reasons"] else ""))
     if summary.get("model_unavailable"):
         print("  decisions the model could not answer (fell back to the rule): %d"
               % summary["model_unavailable"])
