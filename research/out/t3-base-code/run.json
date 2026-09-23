@@ -1,0 +1,38 @@
+{
+ "run_id": "20260923T003556-code-21bf",
+ "tier": "bench",
+ "set": "dev",
+ "decider": "code",
+ "versions": {
+  "commit": "3b173236",
+  "pinned": null,
+  "dirty": false,
+  "branch": "overnight-0924",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t3",
+  "levels_sha": "c596038d5921",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "30a5d19a30fc"
+ },
+ "attempts": [
+  "research/out/t3-base-code/attempt-E1M1-1.json",
+  "research/out/t3-base-code/attempt-E1M1-2.json",
+  "research/out/t3-base-code/attempt-E1M1-3.json",
+  "research/out/t3-base-code/attempt-E1M2-1.json",
+  "research/out/t3-base-code/attempt-E1M2-2.json",
+  "research/out/t3-base-code/attempt-E1M2-3.json",
+  "research/out/t3-base-code/attempt-E1M3-1.json",
+  "research/out/t3-base-code/attempt-E1M3-2.json",
+  "research/out/t3-base-code/attempt-E1M3-3.json",
+  "research/out/t3-base-code/attempt-E1M4-1.json",
+  "research/out/t3-base-code/attempt-E1M4-2.json",
+  "research/out/t3-base-code/attempt-E1M4-3.json",
+  "research/out/t3-base-code/attempt-E1M5-1.json",
+  "research/out/t3-base-code/attempt-E1M5-2.json",
+  "research/out/t3-base-code/attempt-E1M5-3.json",
+  "research/out/t3-base-code/attempt-E1M6-1.json",
+  "research/out/t3-base-code/attempt-E1M6-2.json",
+  "research/out/t3-base-code/attempt-E1M6-3.json"
+ ]
+}

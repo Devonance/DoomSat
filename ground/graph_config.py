@@ -134,16 +134,29 @@ DEFAULT = {
                             "the other targets and what the player has left?",
                 "inspect": "`targets.{t}`, the other entries in `targets`, `here`, `needs`. For a way on, "
                            "`the_way_on_is` and `unknown_runs` say what is behind it; distance says least."},
+            # Two changes on 24 September, both because a level is not a tree.
+            #
+            # A door had its own level at the top, above every frontier. But a door IS a frontier -- it is
+            # exactly where the seen map ends -- and "untried door" beat "the corridor that leads onward"
+            # every time one was in the list. It is now judged on what is behind it, like any other way
+            # on, with `gate` saying what stands in the way.
+            #
+            # And "further from the start" is a feature here, never a level. As a level it ruled targets
+            # out: a Doom level loops back on itself, so the way on is regularly nearer the start than the
+            # place you are standing, and a pilot that will not walk back the way it came gets stuck at the
+            # far end of a dead end. It went in on cb7a4c3 and comes out here; the word still rides with
+            # the target, because "away from where I came in" is worth something -- it is worth a thumb on
+            # the scale, not a veto.
             "criteria": [
                 "not reachable in any useful sense: `targets.{t}.locked` names a key the player does not hold, or `targets.{t}.tried_before` is several times and it has not opened",
                 "a bad trade: `targets.{t}.threat` is dangerous or deadly while `here.health` is critical or low, or `here.ammunition` is empty",
-                "back toward where the level began: `targets.{t}.further_from_the_start` says back toward where the level began, or `targets.{t}.further_out_than_here` is no, or `targets.{t}.unknown_runs` is no depth",
+                "nothing behind it: `targets.{t}.unknown_runs` is no depth and `targets.{t}.unseen_ground_behind_it` is none, so going there shows the player nothing it has not already seen",
                 "would be worth it nearer: it answers something in `needs`, but `targets.{t}.relative_distance` is the furthest and `targets.{t}.threat` is not none",
-                "a fair next step: `targets.{t}.further_out_than_here` is yes, a doorway or wider, the unknown running a little way past it, nothing dangerous near it",
+                "a fair next step: a doorway or wider, the unknown running a little way past it, nothing dangerous near it",
                 "worth a detour: it answers a need the player has, `targets.{t}.relative_distance` is not the furthest, and `targets.{t}.threat` is none or a straggler",
-                "the obvious move: a wide opening, the unknown running a fair way or more past it, `targets.{t}.further_from_the_start` yes and `targets.{t}.further_out_than_here` yes, nothing near it worth avoiding",
-                "the way on: an untried door or a key the player is missing, and what `targets.{t}.threat` says is standing there is worth facing with the health and ammunition in `here`",
-                "the way out: the level exit, and nothing between here and it that `here.health` and `here.ammunition` could not survive"]},
+                "the obvious move: a wide opening, the unknown running a fair way or more past it, nothing near it worth avoiding, and `targets.{t}.further_from_the_start` leading away rather than back",
+                "the way on: a lot of unseen ground behind it, and whatever `targets.{t}.threat` says stands there is worth facing on the health and ammunition in `here`. A shut `targets.{t}.gate` is why it is unseen",
+                "the way out: the level exit, or the key the player is missing, and nothing between here and it that `here.health` and `here.ammunition` could not survive"]},
         # Charter 3.3 and 4. The charter's own example of a question worth asking: "three imps and a
         # sergeant between me and the only frontier, 38 health, 12 shells, armor behind me. Fight, detour
         # or retreat?" No field settles that, and the exact rule underneath it (retreat when health is

@@ -1,0 +1,206 @@
+{
+ "ORACLE": [
+  "L0"
+ ],
+ "run_dir": "research/out/ladder-L0",
+ "attempts": 6,
+ "not_scored": "charter 2.2 and the 23 September brief: diagnostic only",
+ "per_attempt": [
+  {
+   "map": "E1M1",
+   "seed": 1,
+   "end_reason": "timeout",
+   "level_time": 180.17,
+   "completed": false,
+   "progress_best": 0.1453,
+   "progress": 0.0,
+   "tic_rate": 107.5,
+   "geometry_stats": {
+    "classified": 1050,
+    "admitted": 1050,
+    "pending": 0,
+    "sectors": 182,
+    "reveal": "all",
+    "doors": 70,
+    "admitted_unseen": 816,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 1,
+   "freezes": 0,
+   "cells": 31,
+   "path_units": 23502.2,
+   "speed_explore": 124.31,
+   "jev_share": 0.5,
+   "decision_reasons": {
+    "no answers": 0.7778,
+    "asked and used": 0.1592,
+    "unsure band": 0.042,
+    "cached": 0.015,
+    "held": 0.006
+   }
+  },
+  {
+   "map": "E1M1",
+   "seed": 2,
+   "end_reason": "timeout",
+   "level_time": 180.46,
+   "completed": false,
+   "progress_best": 0.1502,
+   "progress": 0.0,
+   "tic_rate": 117.6,
+   "geometry_stats": {
+    "classified": 1050,
+    "admitted": 1050,
+    "pending": 0,
+    "sectors": 182,
+    "reveal": "all",
+    "doors": 70,
+    "admitted_unseen": 775,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 0,
+   "freezes": 0,
+   "cells": 18,
+   "path_units": 10922.1,
+   "speed_explore": 56.2,
+   "jev_share": 0.75,
+   "decision_reasons": {
+    "no answers": 0.9249,
+    "asked and used": 0.0691,
+    "cached": 0.006
+   }
+  },
+  {
+   "map": "E1M1",
+   "seed": 3,
+   "end_reason": "timeout",
+   "level_time": 180.43,
+   "completed": false,
+   "progress_best": 0.1424,
+   "progress": 0.0483,
+   "tic_rate": 110.4,
+   "geometry_stats": {
+    "classified": 1050,
+    "admitted": 1050,
+    "pending": 0,
+    "sectors": 182,
+    "reveal": "all",
+    "doors": 70,
+    "admitted_unseen": 714,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 0,
+   "freezes": 0,
+   "cells": 29,
+   "path_units": 19783.7,
+   "speed_explore": 88.03,
+   "jev_share": 0.16,
+   "decision_reasons": {
+    "no answers": 0.7139,
+    "unsure band": 0.2289,
+    "asked and used": 0.0542,
+    "cached": 0.003
+   }
+  },
+  {
+   "map": "E1M2",
+   "seed": 1,
+   "end_reason": "timeout",
+   "level_time": 180.11,
+   "completed": false,
+   "progress_best": 0.2651,
+   "progress": 0.0,
+   "tic_rate": 96.4,
+   "geometry_stats": {
+    "classified": 1835,
+    "admitted": 1835,
+    "pending": 0,
+    "sectors": 380,
+    "reveal": "all",
+    "doors": 99,
+    "admitted_unseen": 1436,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 2,
+   "freezes": 3,
+   "cells": 33,
+   "path_units": 39176.9,
+   "speed_explore": 139.82,
+   "jev_share": 1.0,
+   "decision_reasons": {
+    "asked and used": 0.6667,
+    "cached": 0.3273,
+    "no answers": 0.003,
+    "gave up": 0.003
+   }
+  },
+  {
+   "map": "E1M2",
+   "seed": 2,
+   "end_reason": "timeout",
+   "level_time": 180.06,
+   "completed": false,
+   "progress_best": 0.2678,
+   "progress": 0.0,
+   "tic_rate": 103.6,
+   "geometry_stats": {
+    "classified": 1835,
+    "admitted": 1835,
+    "pending": 0,
+    "sectors": 380,
+    "reveal": "all",
+    "doors": 99,
+    "admitted_unseen": 1474,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 2,
+   "freezes": 1,
+   "cells": 34,
+   "path_units": 19634.3,
+   "speed_explore": 127.3,
+   "jev_share": 0.8,
+   "decision_reasons": {
+    "asked and used": 0.619,
+    "unsure band": 0.1548,
+    "held": 0.131,
+    "cached": 0.0744,
+    "gave up": 0.0179,
+    "no answers": 0.003
+   }
+  },
+  {
+   "map": "E1M2",
+   "seed": 3,
+   "end_reason": "timeout",
+   "level_time": 180.2,
+   "completed": false,
+   "progress_best": 0.2678,
+   "progress": 0.2624,
+   "tic_rate": 110.2,
+   "geometry_stats": {
+    "classified": 1835,
+    "admitted": 1835,
+    "pending": 0,
+    "sectors": 380,
+    "reveal": "all",
+    "doors": 99,
+    "admitted_unseen": 1509,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 3,
+   "freezes": 0,
+   "cells": 33,
+   "path_units": 20322.4,
+   "speed_explore": 213.59,
+   "jev_share": 0.8958,
+   "decision_reasons": {
+    "asked and used": 0.7589,
+    "cached": 0.119,
+    "held": 0.0565,
+    "unsure band": 0.0446,
+    "gave up": 0.0179,
+    "no answers": 0.003
+   }
+  }
+ ]
+}

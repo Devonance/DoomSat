@@ -549,16 +549,18 @@ class TestItCannotWallItselfIn(unittest.TestCase):
             self.assertIn((cx, 0), walk, "the trail it walked in on is no longer a route out")
 
 class TestDoorsDoNotCrowdOutTheWayOn(unittest.TestCase):
-    """Doors are `must` candidates and the rubric's top level is "an untried door".
+    """A door competes with the frontiers instead of outranking them, and is capped so it cannot fill the list.
 
-    At the closest approach of three separate attempts on the same level, the frontier that actually led
-    onward was offered every time, with the lowest true distance to the exit of anything in the list --
-    and every time two doors behind the player sat alongside it and won. Two of eight slots is a quarter
-    of the list spent on the way the player came in.
+    It used to be a `must` candidate with its own top rubric level, so every door in the list beat the
+    frontier that actually led onward -- and a door is exactly where the seen map ends, so it has the same
+    thing to be judged on as a frontier does: what is behind it. That is the change of 24 September.
 
-    Settling a door by standing in it was tried instead and measured worse: mean closest approach across
-    five seeds fell from 0.42 of the way to the exit to 0.29, and door recall from ten of ten to six of
-    eight, because too many suspects are ceiling-height lines the player walks over constantly.
+    The cap that remains is about the shape of the list, not the worth of a door: a room with four
+    doorways must not spend half of eight slots on them. The value of going through one is the model's
+    question now.
+
+    The one-slot version this replaces was set from closest-approach numbers on a shareware level, which
+    is exactly the kind of justification the overnight brief rules out.
     """
 
     def setUp(self):
@@ -570,9 +572,21 @@ class TestDoorsDoNotCrowdOutTheWayOn(unittest.TestCase):
                                      "opened": False, "last_try": 0.0, "not_a_door": False,
                                      "see_through": False, "width": 64.0, "why": ""}
 
-    def test_at_most_one_door_is_offered(self):
+    def test_doors_cannot_fill_the_list(self):
         kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)]
-        self.assertEqual(kinds.count(wm.KIND_DOOR), 1)
+        self.assertEqual(kinds.count(wm.KIND_DOOR), wm.MAX_DOOR_CANDIDATES,
+                         "three doors are in view and the cap says how many of them reach the list")
+        self.assertLess(wm.MAX_DOOR_CANDIDATES, 8 // 2,
+                        "a list that could be mostly doors is a list with no way on in it")
+
+    def test_a_door_is_judged_on_what_is_behind_it(self):
+        """It carries the same features a frontier does, so the rubric can compare the two."""
+        for c in self.w.candidates(16.0, 16.0, 0.0, 0.0):
+            if c.kind == wm.KIND_DOOR:
+                self.assertIsNotNone(c.novelty)
+                self.assertIn("gate", self.w._features.get(c.cell, {}))
+                return
+        self.fail("no door was offered at all")
 
     def test_a_door_is_still_offered_at_all(self):
         self.assertIn(wm.KIND_DOOR, [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)],

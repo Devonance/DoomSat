@@ -39,7 +39,10 @@ SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means i
 # every time, with the lowest true distance to the exit of anything in the list, and every time two doors
 # behind the player sat alongside it and won. Two of eight slots is a quarter of the list spent on the
 # way the player came in.
-MAX_DOOR_CANDIDATES = 1
+# Two, now that a door competes on what is behind it rather than sitting in a reserved slot at the top of
+# the rubric. The cap exists so that a room with four doorways cannot fill a list of eight; it is not a
+# statement about how important doors are, which is the model's question.
+MAX_DOOR_CANDIDATES = 2
 # Clearance is a preference, not a permission. The player has a 16-unit radius, so 4 raster pixels is
 # +-16 and exactly no margin: a cell whose centre sits sixteen units from a wall counts as walkable and
 # the player arrives already touching it, which is what the rub log shows -- clear_fwd 14, one shoulder
@@ -299,14 +302,27 @@ class WorldModel:
 
     def crossing_costs(self, walk, now):
         """What each cell costs beyond its distance: a squeeze, a ledge, or both."""
-        if getattr(self.ex, "geom", None) is not None:
-            # Brief 6.5. TIGHT_COST exists because the automap draws a wall as a fuzzy stroke and the
-            # clearance test around it was approximate, so the planner had to be bribed toward the middle
-            # of a corridor. With exact lines the test is exact -- a cell is walkable when its centre is
-            # a player radius from a real line -- and the bribe is a second opinion about a question that
-            # no longer has two answers. It also costs a second max filter per decision.
-            return {}
         out = {}
+        mask_of = getattr(self.ex, "blocked_mask", None)
+        if getattr(self.ex, "geom", None) is not None and mask_of is not None:
+            # Restored, and I was wrong to take it out in the step 2 commit. The argument was that
+            # TIGHT_COST compensated for the automap drawing a wall as a fuzzy stroke, so exact lines made
+            # it redundant. It does not: the clearance test asks whether a player can STAND in a cell, and
+            # a 16-unit cylinder moving 14.5 units a tic while turning needs room to MOVE through it. With
+            # the bribe gone the planner ran routes flush against exact walls, and the oracle rung -- the
+            # whole level and the exit handed over -- spent 46% of its ticks pressed against geometry with
+            # a perfect map in hand.
+            box = mask_of(now, PLAYER_ROOMY_PX)
+            if box is None:
+                return out
+            blk, ix0, iy0 = box
+            wpx = self.ex.wpx
+            for c in walk:
+                ix, iy = wpx((c[0] + 0.5) * GRID, (c[1] + 0.5) * GRID)
+                jx, jy = ix - ix0, iy - iy0
+                if 0 <= jy < blk.shape[0] and 0 <= jx < blk.shape[1] and blk[jy, jx]:
+                    out[c] = TIGHT_COST
+            return out
         near = getattr(self.ex, "near_class", None)
         for c in walk:
             extra = TIGHT_COST if self.tight(c[0], c[1], now) else 0.0
@@ -491,7 +507,7 @@ class WorldModel:
             there = math.hypot(wx - centre[0], wy - centre[1])
             away = there >= here - GRID
         return {"opening_units": size * GRID, "unseen_cells": unseen,
-                "open_depth_units": depth * GRID, "leads_away": away}
+                "open_depth_units": depth * GRID, "leads_away": away, "gate": ""}
 
     def explored_centre(self):
         """Where the level started, which is the one reference point that does not move.
@@ -853,10 +869,20 @@ class WorldModel:
             if rec["colour"] and rec["colour"] != "locked" and rec["colour"] not in keys_held:
                 continue                       # a locked door without its key is not a place to go
             usable.append((math.hypot(rec["x"] - x, rec["y"] - y), cell, rec))
+        known_cells = self.known(now) if usable else set()
         for _d, cell, rec in sorted(usable)[:MAX_DOOR_CANDIDATES]:
             goals.append(cell)
             meta[cell] = (KIND_DOOR, 0, rec["colour"], rec["tries"])
             door_cells.add(cell)
+            # Brief 7.3: a door is an opening with a gate, scored on what is behind it like any other way
+            # on. It was a `must` candidate with its own top rubric level, which meant every door in the
+            # list outranked the frontier that actually led onward -- and since a closed door is exactly
+            # where the seen map ends, the thing behind it is measurable in the same way a frontier's is.
+            unseen, depth = self._beyond(cell, known_cells)
+            self._features[cell] = {"opening_units": int(rec.get("width") or 0), "unseen_cells": unseen,
+                                    "open_depth_units": depth * GRID,
+                                    "leads_away": self.frontier_features(cell, 0, unseen, depth, x, y)["leads_away"],
+                                    "gate": rec["colour"] or "a door"}
 
         ex_seen = self.ex.nearest_exit(x, y, now)
         if ex_seen:
@@ -924,8 +950,10 @@ class WorldModel:
             self.empty_reason = {"frontiers": len(self._frontiers), "dead": len(self.dead_frontiers),
                                  "goals": len(goals), "no_route": no_route,
                                  "walkable": len(self.walkable(now))}
-        must = [c for c in out if c.kind in (KIND_EXIT, KIND_KEY, KIND_DOOR)]
-        rest = [c for c in out if c.kind not in (KIND_EXIT, KIND_KEY, KIND_DOOR)]
+        # The exit and a key are still `must`: one ends the level and the other opens a door that is
+        # otherwise closed for good. A door is not, any more -- see the features above.
+        must = [c for c in out if c.kind in (KIND_EXIT, KIND_KEY)]
+        rest = [c for c in out if c.kind not in (KIND_EXIT, KIND_KEY)]
         room = max(0, limit - len(must))
         # Half, measured. Giving the nearest a third of the room instead and the rest to promise sounds
         # like the same trade only bolder, and it is not: mean closest approach across five seeds fell

@@ -87,6 +87,7 @@ class SeenGeometry:
         self.lines = {}          # key -> {"a", "b", "kind"}: admitted, and drawn into the raster
         self.sectors_seen = 0
         self.admitted = 0
+        self.opened = 0
         self._pending = {}       # key -> the same record, classified but not yet drawn on the automap
         self._dirs = self._radii = None   # the visibility fill's ray table, built once
 
@@ -104,6 +105,7 @@ class SeenGeometry:
         if not self._pending and not self.lines:
             self._classify(sectors)
         self._admit(px, py)
+        self._refresh_doors(sectors)
 
     def _classify(self, sectors):
         owners = {}
@@ -117,6 +119,30 @@ class SeenGeometry:
                 continue                       # an open threshold: nothing to draw
             ln = group[0][1]
             self._pending[key] = {"a": (ln.x1, ln.y1), "b": (ln.x2, ln.y2), "kind": kind}
+
+    def _refresh_doors(self, sectors):
+        """A door that has opened stops being a door.
+
+        The classification above is taken once, because a wall does not become a doorway. A door does:
+        its sector's ceiling rises to the room's and the line under it becomes a threshold the player
+        walks through. That matters for sight as much as for walking -- a closed door blocks the view and
+        an open one does not -- so the pixels come out of the raster the moment the ceiling moves.
+
+        Only the flat sectors are looked at, which on a Freedoom level is a dozen of a hundred and eighty.
+        """
+        flat = set()
+        for sec in sectors:
+            if ceiling_of(sec) - floor_of(sec) <= DOOR_FLAT:
+                for ln in sec.lines:
+                    flat.add(line_key(ln))
+        for key, rec in self.lines.items():
+            if rec["kind"] == DOOR and key not in flat:
+                self._erase(rec)
+                rec["kind"] = None
+                self.opened += 1
+            elif rec["kind"] is None and key in flat:
+                rec["kind"] = DOOR          # closed again behind the player
+                self._draw(rec)
 
     @staticmethod
     def _kind(group):
@@ -132,10 +158,25 @@ class SeenGeometry:
             return WALL
         floors = [floor_of(s) for s, _ln in group]
         ceils = [ceiling_of(s) for s, _ln in group]
-        # A closed door sector: its ceiling is at its own floor, so the line between it and the room is
-        # the way through once it opens. Not a wall -- the whole point is that the player can open it.
-        if any(c - f <= DOOR_FLAT for f, c in zip(floors, ceils)):
-            return DOOR
+        # A sector with no headroom is one of two completely different things, and the brief's rule --
+        # ceiling within eight units of the floor -- cannot tell them apart.
+        #
+        #   a closed DOOR    the ceiling has come DOWN to the floor. Open it and you walk through.
+        #   a solid PILLAR   the floor has gone UP to the ceiling. That is how Doom builds a column in
+        #                    the middle of a room, and its bounding lines are two-sided and unflagged
+        #                    exactly like a door's.
+        #
+        # Measured, and it matters: with both called doors the oracle rung routed straight through the
+        # pillars, and 71 of the 250 rubbing reports in one L0 run were the player pressed against one at
+        # seven units with Use pulsing into it. The heights say which is which -- a door's flat is at the
+        # neighbouring FLOOR, a pillar's is at the neighbouring CEILING -- and the heights are already here.
+        flat = [i for i, (f, c) in enumerate(zip(floors, ceils)) if c - f <= DOOR_FLAT]
+        if flat:
+            others = [i for i in range(len(group)) if i not in flat]
+            if not others:
+                return WALL                    # flat on both sides: nothing to walk into
+            reachable = min(floors[i] for i in others) + MAX_STEP
+            return DOOR if min(floors[i] for i in flat) <= reachable else WALL
         if min(ceils) - max(floors) < PLAYER_HEIGHT:
             return WALL
         rise = max(floors) - min(floors)
@@ -206,10 +247,20 @@ class SeenGeometry:
 
     def _draw(self, rec):
         ex, cls = self.ex, rec["kind"]
+        if cls is None:
+            return
         for px, py in self._samples(rec):
             ix, iy = ex.wpx(px, py)
             if 0 <= ix < ex.n and 0 <= iy < ex.n and ex.raster[iy, ix] < cls:
                 ex.raster[iy, ix] = cls
+
+    def _erase(self, rec):
+        """Take a line out of the map, but only where it is the class this line put there."""
+        ex, cls = self.ex, rec["kind"]
+        for px, py in self._samples(rec):
+            ix, iy = ex.wpx(px, py)
+            if 0 <= ix < ex.n and 0 <= iy < ex.n and ex.raster[iy, ix] == cls:
+                ex.raster[iy, ix] = 0
 
     def redraw(self):
         """Re-stamp every admitted line. Called after anything has cleared part of the raster."""
@@ -218,10 +269,11 @@ class SeenGeometry:
 
     # ------------------------------------------------------------------ what downstream asks for
     def doors(self):
-        """Every admitted door line as (x, y, length).
+        """Every admitted door line that is still shut, as (x, y, length).
 
         The world model's door list with no suspects in it: a door here is a sector whose ceiling is at
-        its own floor, not a colour that might be one.
+        its own floor, not a colour that might be one. One that has opened is not on the list, because
+        there is nothing left to open.
         """
         out = []
         for rec in self.lines.values():
@@ -269,7 +321,10 @@ class SeenGeometry:
         np.clip(iy, 0, ex.n - 1, out=iy)
         cls = ex.raster[iy, ix]
         stop = ~inside
-        for b in BLOCKING:
+        # A closed door stops the view as surely as a wall does; that is what a door is for, and it is
+        # why the room behind one stays unknown until it is opened. `_refresh_doors` takes the line out
+        # of the map the moment the ceiling moves, so sight follows the door rather than the memory of it.
+        for b in tuple(BLOCKING) + (DOOR,):
             stop |= (cls == b)
         # the first stop along each ray, and everything before it is floor the player can see
         any_stop = stop.any(axis=1)
@@ -316,6 +371,6 @@ class SeenGeometry:
         unseen = self.admitted_unseen()
         return {"classified": self.admitted + len(self._pending), "admitted": self.admitted,
                 "pending": len(self._pending), "sectors": self.sectors_seen, "reveal": self.reveal,
-                "doors": len(self.doors()), "admitted_unseen": len(unseen),
+                "doors": len(self.doors()), "doors_opened": self.opened, "admitted_unseen": len(unseen),
                 "seen_fraction_of_level": (round(self.admitted / (self.admitted + len(self._pending)), 4)
                                            if (self.admitted + len(self._pending)) else None)}

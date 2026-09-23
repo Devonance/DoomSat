@@ -96,6 +96,20 @@ def threat_word(cand, rules):
     return "a straggler" if danger <= 3 else "dangerous" if danger <= 6 else "deadly"
 
 
+def gate_word(cand, keys_held):
+    """What stands in the way of an opening: nothing, a door, or a locked door and whether its key is held.
+
+    One word for every way on, so that "the corridor" and "the door at the end of the corridor" are the
+    same kind of thing with one field different -- which is what they are.
+    """
+    if cand.get("kind") != "door":
+        return "none"
+    colour = cand.get("colour") or ""
+    if colour in ("red", "blue", "yellow"):
+        return "a %s locked door, %s" % (colour, "the key is held" if colour in keys_held else "no key yet")
+    return "a door, shut"
+
+
 def relative_distance(cand, all_cands):
     """How far it is compared with the other options, which is the comparison a choice actually rests on.
 
@@ -131,11 +145,13 @@ def target_words(cand, need, keys_held, rules=None, all_cands=()):
         "tried_before": tried_word(cand.get("tries", 0)),
         "threat": threat_word(cand, rules or {}),
     }
-    if kind == "frontier":
+    if kind in ("frontier", "door"):
+        # A door is an opening with a gate (brief 7.3), so it is described the same way a frontier is.
         words["the_way_on_is"] = opening_word(cand.get("opening", 0))
         words["unknown_runs"] = depth_word(cand.get("depth", 0))
         words["further_out_than_here"] = "yes" if cand.get("away", True) else "no"
         words["further_from_the_start"] = OUTWARD_WORDS.get(cand.get("outward", 1), "about as far out")
+        words["gate"] = gate_word(cand, keys_held)
     if kind == "door" and cand.get("colour") in ("red", "blue", "yellow"):
         words["locked"] = cand["colour"] + (" (held)" if cand["colour"] in keys_held else " (no key)")
     if kind == "item":
@@ -274,6 +290,9 @@ def rule_score(w, levels=RULE_LEVELS):
     if what == "a key":
         return float(levels - 2)
     if what == "a door":
+        # The rule keeps preferring an untried door, and that is the point: the rubric no longer does, so
+        # the two now disagree about something real and the comparison measures a judgement rather than a
+        # restatement. PROGRAM.md's behavioural test guards this staying simpler than the rubric.
         return float(levels - 3) if tried == "no" else 0.0
     if what == "unexplored edge":
         # Distance only. The rule does not look at how wide the way on is or how far the unknown runs

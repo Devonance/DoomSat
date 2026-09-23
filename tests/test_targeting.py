@@ -94,7 +94,7 @@ class TestTheRubricAsksForJudgement(unittest.TestCase):
         """
         text = " ".join(self.criteria)
         for soft in ("threat", "health", "ammunition", "relative_distance", "needs",
-                     "unknown_runs", "further_out_than_here"):
+                     "unknown_runs", "further_from_the_start", "gate"):
             self.assertIn(soft, text, "the rubric does not ask about %s" % soft)
         # Behavioural, not textual: the rule must be unmoved by the things the rubric is asked to weigh.
         base = cand()
