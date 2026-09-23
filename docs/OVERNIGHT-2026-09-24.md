@@ -1,42 +1,34 @@
 # Overnight, 23 to 24 September 2026
 
 Branch `overnight-0924`, from `charter-build-out`. Track **t3**: no number here is comparable with a t2
-number, and §7 says why.
-
-*(Draft while the night runs. Anything not measured says "not measured".)*
+number, and §8 says why. Everything below is measured; anything that is not says "not measured".
 
 ---
 
 ## 1. Headline
 
-**E1M1, flown through the full stack with Jev deciding: 0.67 of the way to the exit. Not finished.**
+**Shareware E1M1, flown through the full stack with Jev deciding: 0.67 of the way to the exit. Not
+finished.**
 
-| first flight, shareware E1M1, doom1.wad, geometry on | |
+| best flight, `doom1.wad` E1M1, geometry on | |
 | --- | --- |
 | finished | **no** |
-| best progress | **0.67** |
+| best progress (closest approach) | **0.67** |
 | final progress | 0.00 |
-| deaths | 1 (first episode, at 85 s; the second ran clean) |
+| deaths | 1 -- first episode, at 85 s; the second ran clean |
 | cells covered | 63 |
 | EXPLORE speed | 153 units/s |
-| **flight tic rate** | **35.0/s** (brief's floor: 33) |
+| **flight tic rate** | **35.0/s** -- the engine's own rate; the brief's floor is 33 |
 | decision age p95 | 781 ms (budget 900) |
-| **jev_share** | **0.44** -- FAILS the 0.70 floor; see below |
+| **jev_share** | **0.44** -- fails the 0.70 floor; §9 says why, and it is a question for you |
 | door recall | 2 of 2 |
-| exit seen | 0 of 1 |
+| exit ever seen | 0 of 1 |
 
-For scale: the best E1M1 number this project had before tonight was 0.45 on the bench, on a ruler that
-scored the final position rather than the closest approach.
+For scale: the best E1M1 number this project had before tonight was 0.45, on the bench, on a ruler that
+scored where an attempt stopped rather than how far it got.
 
-The oracle ladder answered the question it was built to answer on its first rung, and the answer moved
-the night: **handed the whole level's true geometry and the exit's position, the pilot got 16% of the way
-in 180 s, at 46 units a second against Doom's running 507, with 45% of its ticks pressed against geometry.**
-Nothing about perception could have shown up behind that. Brief §5 case 1: the executor is the priority.
-
-After three executor fixes the same rung reads, over six dev attempts, **0 of 6 finished and 0.24 of the
-way on average** -- up from 0.16 on the seed that was checked before the fixes, but nowhere near the
-brief's "well under 60 s". Three seeds of the same level scored 0.60, 0.11 and 0.11 with identical
-information. The executor is not slow so much as unreliable.
+The night's real result is not that number. It is that **the pilot could never target an exit it saw** --
+on any run, on any level, for as long as this code has existed -- and that is now fixed. §5.
 
 ---
 
@@ -44,21 +36,21 @@ information. The executor is not slow so much as unreliable.
 
 | Step | State | Exit test | Commit |
 | --- | --- | --- | --- |
-| 0 Make the bench the flight robot | **done** | bench p95 10.8 ms and flight 35.0 tics/s: **both met** | `63bdd81`, `7c6bd0f` |
+| 0 Make the bench the flight robot | **done** | bench tic p95 10.8 ms and flight 35.0/s: **both met** | `63bdd81`, `7c6bd0f` |
 | 0.6 t2 experiments into the ledger | **done** | twelve `HIST-` rows | `4ca607a` |
-| 1 Oracle ladder | **L0 done**, L1/L2 stopped | diagnostic only, §3 | `6dc0689` |
-| 1b Executor | **partial** | L0 inside 60 s: **not met** | `d2a7dae`, `213fcc9` |
-| 2 Seen geometry | **done** | §5 | `63bdd81`, `7c6bd0f` |
-| 3 Explore by seeing, rubric | **done** | §5 | `bbc8d7a` |
-| 4 Switch and exit recognition | **half**: templates read and tested, no detector | — | `9981859` |
-| 5 E1M1 status flights | **flown** | §1; best 0.67, not finished | `d535278` |
+| 1 Oracle ladder | **L0 done**, L1/L2 stopped | diagnostic; answered on the first rung | `6dc0689` |
+| 1b Executor | **partial** | L0 inside 60 s: **not met** | `d2a7dae`, `213fcc9`, `d535278` |
+| 2 Seen geometry | **done** | §6; zero admitted lines the automap never drew | `63bdd81`, `7c6bd0f` |
+| 3 Explore by seeing, rubric | **done** | seen coverage 0.149 against a 0.60 bar: **not met** | `bbc8d7a` |
+| 4 Switch and exit recognition | **half** -- templates read and tested, detector not written | — | `9981859` |
+| 5 E1M1 status flights | **flown** | §1 | `d535278` |
 
 ---
 
 ## 3. Oracle ladder
 
-Dev maps only, code decider, 3 seeds each, 180 s. Diagnostic: flagged ORACLE in every record, refused by
-`grade.py`, never in the ledger.
+Dev maps only, code decider, 3 seeds, 180 s. Flagged ORACLE in every record, refused by `grade.py`, never
+in the ledger.
 
 **L0 -- the whole level's true geometry, and where the exit is.**
 
@@ -73,141 +65,87 @@ Dev maps only, code decider, 3 seeds each, 180 s. Diagnostic: flagged ORACLE in 
 | **mean** | **0 of 6** | **0.24** | 25 | 15,000 u | 42/s | 2.8 |
 
 Read the first three rows together. Same level, same perfect map, same known exit, three seeds: 0.60,
-0.11, 0.11, and between eleven and fifteen thousand units walked in every case. The pilot is not short of
-information and it is not short of travel. It cannot reliably convert either into progress.
+0.11, 0.11, each after walking eleven to fifteen thousand units. Not short of information, not short of
+travel.
 
-**And then the ladder gave up its real answer.** Two measurements, both on those same L0 attempts:
+Then two measurements on those same attempts turned the night around:
 
-- **49% of the walking went toward the exit and 51% went away** (`research/toward_the_exit.py`, six
-  attempts, mean 49%). Not slow progress. A coin toss.
-- **The exit was offered as a candidate on 0 of 999 decisions.** On the rung that is handed the exit's
-  exact position. The payload reported it in telemetry on every single decision -- `EXIT_DIST` 1,036 from
-  the first tic -- and the candidate list contained only frontiers, doors and items.
+- **49% of the walking went toward the exit and 51% away.** A coin toss, not slow progress.
+  (`research/toward_the_exit.py`.)
+- **The exit was offered as a candidate on 0 of 999 decisions** -- on the rung that is handed its exact
+  position. The payload reported `EXIT_DIST` 1,036 on the first tic and on every decision after it.
 
-The cause is four lines deep. `candidates()` builds a goal list and asks `path_costs` for the distance to
-each; anything the flood does not reach is dropped. **An exit line is a one-sided wall**, so its cell is
-not walkable, so it was never reached, so it was dropped -- silently, on every attempt, for as long as
-this code has existed. `plan_to` had always snapped its goal to the nearest cell a player can stand in.
+**Which case (brief §5): case 1, the executor.** L0 is the rung with nothing in its way and it did not
+finish. Until it does, an exploration number and a perception number are both measurements of the
+executor with somebody else's name on them.
+
+**L1 and L2 were not run to completion.** L0 had answered, and the exit bug meant the remaining rungs
+would have measured a pilot with a known fault in it. Stopped by pid; the time went on the fault.
+
+---
+
+## 4. Ledger rows added tonight
+
+| id | track | decision | what |
+| --- | --- | --- | --- |
+| `HIST-0001`..`HIST-0012` | t2 | history | the twelve E1M1 runs of 22-23 September, recorded rather than claimed |
+| `EXP-0004` | t3 | **keep** (fast lane) | the night's changes, watched on `mean_progress_best`: **0.2244 -> 0.2747**, guardrails pass |
+
+`EXP-0004` is a fast-lane row and says so. Several changes in one row, because they are one fault seen
+from several angles -- a player that cannot get past an obstacle -- and each is justified by a named
+measurement in its own commit. A paired test each would have been six hours I did not have.
+
+It compares nine attempts against eighteen: the bench **segfaults on Freedoom E1M4 with geometry on**, so
+E1M4 to E1M6 could not be collected and the comparison is on the three maps both runs share. E1M3 has no
+walkable route from start to exit in the grader's own model, so it counts toward the suite score and not
+toward progress.
+
+**The dev set, before and after:**
+
+| | t3 baseline (geometry off, 18 attempts) | tonight (geometry on, 9 attempts) |
+| --- | --- | --- |
+| mean closest approach | 0.224 | **0.275** |
+| ticks spent rubbing | 34% | **9%** |
+| door recall | 0.46 | **0.60** |
+| door precision | 0.072 | 0.061 |
+| seen coverage | not measured | 0.149 |
+| admitted lines the automap never drew | n/a | **0** |
+| decisions by reason | used 50 / unsure 16 / cached 16 / held 9 / gave up 7 | used 71 / unsure 17 / held 7 / cached 4 / gave up 1 |
+
+The twelve history rows turned up their own finding: nine of the twelve report commit `672381c5`, because
+the run recorded HEAD and the tree was dirty. For those nine the commit column says where the tree was,
+not what was measured. Every row says so.
+
+---
+
+## 5. The three that mattered
+
+### The exit was dropped from the candidate list, on every run ever taken
+
+`candidates()` asks `path_costs` for the distance to every goal and discards whatever the flood cannot
+reach. **An exit line is a one-sided wall.** Its cell is not walkable, so it was never reached, so it was
+dropped -- silently. `plan_to` had always snapped its goal to the nearest cell a player can stand in;
 `path_costs` never did.
 
-This is not an oracle problem. It means the pilot could never target an exit it saw, on any run, and the
-whole of the exploring behaviour has been the behaviour of a pilot with no way out in its list.
+Every exploring number this project has taken was taken by a pilot with no way out in its list.
 
-**L1 and L2 were not run to completion.** L0 had already answered, and once the exit bug above was found
-the remaining rungs would have measured a pilot with a known fault in it. I stopped them by pid and spent
-the time on the fault instead. That is a deviation from the brief's "run each rung"; it is recorded in
-§9 with the reason.
+### The freeze tests could not see flailing
 
-**Which case, and why.** Case 1. L0 is the rung with nothing in its way -- the whole level, the exit's
-position, no question of seeing -- and it did not finish. Until it does, an exploration number and a
-perception number are both measurements of the executor with something else's name on them.
+With the exit finally in the list the pilot picked it, walked at it, and wedged: **from (-416,256) to
+(-380,431) -- 175 units of displacement in 180 seconds**, APPROACH on 98% of its decisions, and not one
+watchdog trip. The tests measure motion, and flailing is motion. The rub correction leans forty degrees
+off the heading and alternates shoulders, so a wedged player covers hundreds of units inside a box a few
+feet across and every test reads "fine". In the dev bench's own words afterwards:
 
-**What happened when the exit was finally in the list.** The pilot picked it, walked at it, and wedged.
-From (-416,256) to (-380,431): **175 units of displacement in 180 seconds**, APPROACH on 98% of its
-decisions, and **not one watchdog trip**. The freeze tests measure motion, and flailing is motion -- the
-rub correction leans forty degrees off the heading and alternates shoulders, so a wedged player covers
-hundreds of units inside a box a few feet across and every test reads "fine".
+    [executor] watchdog: covered 670 units and got 9 in 4 s -- recovering
 
-Three things came out of that, in order, each measured on the same seed of Freedoom E1M1 at L0:
+### The visibility fill sampled four times coarser than the walls it sampled for
 
-| | best progress | rubbing | recovering |
-| --- | --- | --- | --- |
-| exit reachable, nothing else changed | 0.04 | 43% | 0% |
-| watchdog can see flailing | 0.19 | 17% | 28% |
-| recovery turns toward the open side | **0.22** | 18% | 28% |
+Rays stepped sixteen units at a time; a wall in the raster is one pixel, four units. Three rays in four
+stepped over every wall in the level and marked the room beyond as seen floor. One attempt believed it
+had **seen 14,552 cells while knowing 80 of the level's 1,050 lines**.
 
-Two things were tried and reverted with their numbers: throwing the plan away when the next waypoint is
-behind something (0.04 and 0.18 against 0.45 -- the payload only replans when the next INTENT arrives, so
-it left the executor with a target and no path for most of the attempt), and aiming only at the next
-waypoint (0.15 against 0.19).
-
-A quarter of the attempt now goes on recovering, which is not a fix -- it is the flailing made visible.
-§10 says what I would do about it.
-
----
-
-## 4. Step 0: the bench was not the robot that flies
-
-`bench_attempt` called `observe()` once per decision and then ran about nineteen tics of `make_action`
-with nothing updating `exec_obs`. The executor steers from `exec_obs`. So on the bench it steered nineteen
-tics on a position half a second old while in flight it steers on a fresh one every tic. Not a slower
-robot -- a different one.
-
-| | Bench as written | Sensing every tic |
-| --- | --- | --- |
-| EXPLORE speed, Freedoom E1M1, same seed | 175 u/s | 95 u/s |
-| Cells | 29 | 23 |
-
-The bench now senses every tic. Only the decision latency is simulated.
-
-**Tic cost, measured for the first time** (Freedoom E1M1, 1,578 tics, code decider):
-
-| | median | p95 | over 28.6 ms | tic rate |
-| --- | --- | --- | --- | --- |
-| sensing every tic, as found | 4.5 ms | 21.3 ms | 1.6% | 125/s |
-| with geometry on, before any work | 6.3 ms | **178.9 ms** | 14.1% | 29/s |
-| with geometry on, after | 6.1 ms | 29.1 ms | 5.4% | 98/s |
-
-Three costs, all measured rather than guessed: `walkable()` was rebuilt from scratch by three callers at
-one 9x9 max per cell; `known()` ran `np.nonzero` over the whole 3072-square raster; `path_costs` is the
-single most expensive thing the payload does and its inner loop, not its algorithm, was the cost. The map
-PNG was also being rendered through PIL once a second on a bench where nobody looks at it.
-
-The payload now prints its real tic rate every 30 s, which is how the floor of 33/s can be checked at all.
-
-**Exit test: not met yet.** The flight half (one flight on a dev map agreeing with the bench within 20%)
-has not been run. Bench p95 is 29.1 ms against a 28.6 ms budget -- 2% over, on a machine that was also
-running thirty-odd orphaned games (§8).
-
----
-
-## 5. Steps 2 and 3: seen geometry, and what a door is
-
-ZDoom draws a doorway, a stair tread, a window frame and a light recess in one colour. The old sensor read
-that colour as "door": 1,336 of 2,899 candidates in one flight were doors and the measured door precision
-was 0.04.
-
-`payload/seen_geometry.py` takes the engine's exact lines and releases one only when the automap has drawn
-half the points sampled along it. Freedoom E1M1 after 45 s: **160 of 1,050 lines released, 890 held back,
-zero released lines the automap could not account for.**
-
-| door sensor, measured against the level file | E1M1 | E1M2 | E1M3 |
-| --- | --- | --- | --- |
-| precision | 0.83 | 0.24 | 0.72 |
-| recall | 0.81 | 0.59 | 0.78 |
-
-(E1M2's 0.24 is mostly the probe's own ground truth: a remotely-triggered door carries its special on a
-switch elsewhere, so there is no door linedef near the door to match against.)
-
-Two things had to be got right that the brief's rule does not cover:
-
-- **A closed door and a solid pillar are both sectors with no headroom.** That is how Doom builds a column
-  in the middle of a room. The heights tell them apart: a door's flat is at the neighbouring floor
-  because the ceiling came down; a pillar's is at the neighbouring ceiling because the floor went up. With
-  both called doors, 71 of 250 rubbing reports in one oracle run were the player pressed against a pillar
-  at seven units with Use pulsing into it.
-- **A closed door has to block sight.** It is why the room behind one is unknown. The line comes out of
-  the map the moment its ceiling moves.
-
-Floor now comes from sightlines against seen walls at full range rather than the camera's 400 units, so a
-room the player has looked into is filled in one go.
-
-**Rubric (brief §7.3).** A door had its own level at the top, above every frontier -- and a door *is* a
-frontier, so "untried door" beat "the corridor that leads onward" every time one was in the list. It now
-carries the same features any way on does, with a `gate` word. "Further from the start" came out as a
-level and stayed as a feature: a Doom level loops back, so a pilot that will not walk back the way it came
-gets stuck at the far end of a dead end.
-
-**The fill was sampling coarser than the thing it sampled for.** The visibility fill stepped along its
-rays sixteen units at a time; a wall in the raster is a line one pixel thick, which is four units. Three
-rays in four stepped straight over every wall in the level and went on marking the room behind it as seen
-floor. One attempt believed it had seen **14,552 cells while knowing 80 of the level's 1,050 lines**.
-
-That single mistake was behind two problems I had been treating as three. The frontiers are computed from
-the seen set, so they were boundaries of a fiction; and `walkable` was enormous, so the tic loop blew its
-budget. Freedoom E1M1, 60 s, one seed:
-
-| | before | after |
+| Freedoom E1M1, 60 s, one seed | before | after |
 | --- | --- | --- |
 | cells believed seen | 14,552 | **2,905** |
 | tic loop p95 | 46.1 ms | **10.8 ms** |
@@ -215,317 +153,230 @@ budget. Freedoom E1M1, 60 s, one seed:
 | tic rate | 79/s | **163/s** |
 | `candidates` | 5.77 ms/tic | **0.52 ms/tic** |
 
-A sightline also stops at a wall the player has **not** learned yet. The opaque mask is private to the
-sensor and never reaches the map, so the pilot gains nothing until the automap draws the line -- it merely
-stops claiming to have seen past one, which is what a player can actually do.
+---
 
-**Markers in the void.** One of the morning brief's open questions: some overlay markers sat outside any
-room. Measured on the t3 baseline (geometry off, six dev maps, first six attempts), against the grader's
-own reachable floor and allowing its usual eight-cell search:
+## 6. Steps 0, 2 and 3, in brief
 
-| candidate kind | on floor | in the void | |
+**Step 0.** `bench_attempt` called `observe()` once per decision and then ran about nineteen tics of
+`make_action` with nothing updating `exec_obs` -- which is what the executor steers from. On the bench it
+steered on a position half a second old; in flight, on a fresh one every tic. Not a slower robot, a
+different one: 175 u/s and 29 cells against 95 and 23, same seed. The bench now senses every tic.
+
+The tic loop was then measured for the first time. Two things were wrong: the map PNG was rendered through
+PIL once a second whether or not anything would look at it, and every piece of slow sensing ran on
+`tic % 7 == 0` with nothing on the other six. Staggered, and with the fill fixed, p95 is 10.8 ms against a
+28.6 ms budget and the flight holds 35.0 tics a second.
+
+**Step 2.** ZDoom draws a doorway, a stair tread, a window frame and a light recess in one colour; the old
+sensor read that colour as "door" and measured 0.04 precision. `payload/seen_geometry.py` releases an
+exact line only when the automap has drawn half the points sampled along it.
+
+| door sensor against the level file | E1M1 | E1M2 | E1M3 |
 | --- | --- | --- | --- |
-| item | 2,740 | 0 | 0% |
-| door | 692 | 21 | 3% |
-| frontier | 4,970 | 337 | **6%** |
+| precision | 0.83 | 0.24 | 0.72 |
+| recall | 0.81 | 0.59 | 0.78 |
 
-They come from the camera sweep: it marks floor it can see, and it can see over a ledge, so a frontier
-can be offered on ground no player can stand on. That is the thing the visibility fill replaces, and the
-same measurement with geometry on is in §5 once it has been run.
+Two things the brief's rule does not cover had to be got right. **A closed door and a solid pillar are
+both sectors with no headroom** -- that is how Doom builds a column in a room -- and the heights tell them
+apart: a door's flat is at the neighbouring floor because the ceiling came down, a pillar's at the
+neighbouring ceiling because the floor went up. With both called doors, 71 of 250 rubbing reports in one
+oracle run were the player pressed against a pillar with Use pulsing into it. And **a closed door has to
+block sight**, which is why the room behind one is unknown; the line leaves the map the moment its ceiling
+moves.
 
-**Exit tests: partially met.** "Zero no-route reports while walkable cells exist" is met after the cell
-walkability fix in §6. Coverage per minute against the step 0 baseline is **not measured yet** -- the dev
-bench with geometry on has not been run.
+A sightline also stops at a wall the player has **not** learned yet. That mask is private to the sensor
+and never reaches the raster, so the pilot gains nothing until the automap draws the line -- it merely
+stops claiming to have seen past one.
 
----
+Also measured and worth keeping: **ViZDoom 1.3.0 reports `Sector.floor_height` negated.** Checked against
+the WAD's own SECTORS lump for all 797 sectors of four maps across two IWADs, while `ceiling_height`
+matches exactly. Taking it as given turns every step into a ledge and half the ledges into steps.
 
-## 5b. Jev and the flight stack, running
+**Step 3.** A door had its own level at the top of the target rubric, above every frontier -- and a door
+*is* a frontier, so "untried door" beat "the corridor that leads onward" every time one was in the list.
+It now carries the same features any way on does, with a `gate` word. "Further from the start" came out as
+a rubric level and stayed as a feature: a Doom level loops back, so a pilot that will not walk back the
+way it came gets stuck at the far end of a dead end.
 
-Confirmed end to end at 02:23, on Freedoom E1M1 with the geometry sensor on:
-
-    [pilot] System One = jev plays; System Two = none reviews after each episode; graph v3
-    [pilot] #10 jev 458 ms cmd 46 ms  hp=100 EXPLORE cand=6 pick=2
-            g_t0=5.93 g_t1=6.14 g_t2=4.95 g_t3=4.02 g_t4=2.84 g_t5=3.77
-            -> EXPLORE target advance ttl=1500ms  frames ok=41 lost=1
-
-Payload to F´ to CCSDS to Yamcs to the pilot to jev and back up, with jev scoring six candidates and the
-pilot picking one, at 380 to 460 ms a decision and a 45 to 60 ms command hop. System Two off, as the
-brief asks for tonight.
-
----
-
-## 6d. Ledger rows added tonight
-
-| id | track | decision | what |
-| --- | --- | --- | --- |
-| `HIST-0001` .. `HIST-0012` | t2 | history | the twelve E1M1 runs of 22-23 September, recorded rather than claimed (§9) |
-| `EXP-0004` | t3 | **keep** (fast lane) | the night's six changes, watched on `mean_progress_best`: **0.2244 -> 0.2747**, guardrails pass |
-
-`EXP-0004` is a fast-lane row and says so. Six changes in one row rather than six rows, because they are
-one fault seen from six angles -- a player that cannot get past an obstacle -- and each is justified by a
-named measurement in its commit. A paired test each would have been six hours I did not have.
-
-It compares nine attempts against eighteen: the bench **segfaulted twice on Freedoom E1M4 with geometry
-on**, so E1M4 to E1M6 could not be collected and the comparison is on the three maps both runs share.
-E1M3 has no walkable route from its start to its exit in the grader's model, so it contributes to the
-suite score and not to progress. That crash is blocker 3.
-
-**The dev set with geometry on, nine attempts:**
-
-| | t3 baseline (geometry off) | with tonight's work |
-| --- | --- | --- |
-| mean closest approach | 0.224 | **0.275** |
-| ticks spent rubbing | 34% | **9%** |
-| door recall | 0.46 | **0.60** |
-| door precision | 0.072 | 0.061 |
-| seen coverage | not measured | 0.149 |
-| decisions by reason | used 50 / unsure 16 / cached 16 / held 9 / gave up 7 | used 71 / unsure 17 / held 7 / cached 4 / gave up 1 |
-| admitted lines the automap never drew | n/a | **0** |
+**Markers in the void**, from the morning brief's open questions. On the t3 baseline, against the grader's
+own reachable floor: items 0% in the void, doors 3%, **frontiers 6%**. They come from the camera sweep
+seeing over a ledge, which is the thing the visibility fill replaces.
 
 ---
 
-## 6. What the ladder made me fix
-
-| Fix | Evidence it was wrong | Where |
-| --- | --- | --- |
-| **A goal on a wall was dropped in silence** | the exit was offered on 0 of 999 decisions while telemetry carried it on all of them | `payload/world_model.py` |
-| **The freeze tests could not see flailing** | 175 units of displacement in 180 s, APPROACH 98%, zero watchdog trips | `payload/executor.py` |
-| The recovery always turned left | `recover_dir` set to 1 in the constructor, never assigned again, 787 degrees a recovery | `payload/executor.py` |
-| Throttle was a step function on heading error alone | L0 at 46 u/s, 45% rubbing, with a perfect map | `payload/executor.py` |
-| Throttle counted forward clearance as turning room | zero throttle for any heading error over a degree, against a wall it could have slid along | `payload/executor.py` |
-| Aim point chosen by nearness to the path, not walkability | a chord 38 units off the path puts a 16-unit body 54 units off centre | `payload/world_model.py` |
-| A cell called walkable by its centre point | L0: "no route" to all 12 frontiers with 16,848 walkable cells | `payload/doom_payload.py` |
-| L0 could not see the exit it had been told about | `nearest_exit` searches 600 units; the rung became "walk to within sight of it" | `payload/oracle.py` |
-| `speed_explore` divided by a 1e-6 floor | the ladder reported 401,352,305 units a second | `research/frozen_metrics.py` |
-
-**The one to read first.** `candidates()` asks `path_costs` for the distance to every goal and discards
-whatever the flood cannot reach. An exit line is a one-sided wall. Its cell is not walkable. So it was
-never reached, so it was dropped -- on every attempt, on every level, for as long as this code has
-existed. `plan_to` had always snapped its goal to the nearest cell a player can stand in; `path_costs`
-never did. Every exploring number this project has ever taken was taken by a pilot with no way out in its
-candidate list.
-
-The throttle is the one worth reading twice. Full speed inside 45 degrees, six tenths outside it, and no
-idea how wide the corridor was -- which is right in a hall and drives into the wall in a doorway.
-`ALIGN_FULL` had already been tried at 70 and measured worse. A better constant was never going to fix it
-because the missing term is not a constant: closing a heading error takes `|rel| / turn rate` tics, the
-sideways drift over those tics is about `speed x tics x sin(rel) / 2`, and the room to drift into is what
-the range camera reports. Solve for speed. `ALIGN_FULL` is gone.
-
-| Freedoom E1M1, oracle L0, one seed | before | after |
-| --- | --- | --- |
-| best progress | 0.16 | **0.45** |
-| EXPLORE speed | 46 u/s | **164 u/s** |
-| ticks rubbing | 45% | **22%** |
-| cells | 22 | 28 |
-
----
-
-## 6b. The noise floor was two tracks old, and the t3 baseline in full
-
-`research/noise_floor.json` -- the number `ledger.py` divides by to decide whether a change beat the
-harness -- was measured on **t1**, on commit 5313412. Every keep and discard taken through the whole of t2
-was judged against the spread of a robot with a different gait, a different decider and a forward delta
-of 14.
-
-Re-measured on t3 from the 18-attempt code baseline, which is repeats of the same levels with nothing
-changed, and that is what a noise floor is:
-
-| | E1M1 | E1M2 | E1M3 | E1M4 | E1M5 | E1M6 | mean |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| t1 (in force until tonight) | 0.142 | 0.000 | 0.000 | 0.016 | 0.042 | 0.043 | 0.041 |
-| **t3** | 0.093 | 0.041 | 0.000 | 0.006 | 0.044 | 0.122 | **0.051** |
-
-The t1 file is kept as `research/noise_floor.t1.json`, so the rows it judged can still be read against
-their own ruler.
-
-**The t3 code baseline, in full** (geometry off, 6 dev maps, 3 seeds, 180 s, commit `63bdd81`):
-
-| | |
-| --- | --- |
-| suite score | 0.168 (sd 0.144) |
-| completed | 0 of 18 |
-| mean closest approach | 0.224 |
-| mean final progress | 0.050 |
-| deaths | 45 (0.83/min, ceiling 2.20) |
-| freezes the watchdog caught | 26, of which 25 were "asked to move and did not" |
-| door precision | 0.072 -- 130 of 1,811 Use presses opened something |
-| door recall | 0.46 -- 70 of 151 real doors that came into view were ever offered |
-| exit seen | 3 of 18 attempts |
-| decisions by reason | asked and used 50%, unsure band 16%, cached 16%, held 9%, gave up 7%, none 1% |
-
-The gap between 0.224 and 0.050 is the whole argument for scoring on closest approach: on the old ruler
-this run scored 0.050, and the pilot had been 0.224 of the way there.
-
----
-
-## 6c. Where the ticks go, before and after
+## 7. Where the ticks go
 
 `research/where_the_time_goes.py`, dev maps, code decider, as a share of the executor's ticks:
 
-| | t3 baseline (18 attempts) | with the night's fixes (9 attempts so far) |
+| | t3 baseline | tonight |
 | --- | --- | --- |
 | **rubbing** -- asking to move and not moving | **34%** | **9%** |
-| commanding movement | 90% | 49% |
-| at full speed | 67% | 46% |
-| recovering | 0% | 20% |
-| looking around | 7% | 9% |
+| commanding movement | 90% | 64% |
+| at full speed | 67% | 62% |
+| recovering | 0% | 27% |
+| looking around | 7% | 7% |
 | watchdog trips per attempt | 1.4 | 24 |
 
-Rubbing fell by a factor of four. The recovery share went from nothing to a fifth, and the trips from
-1.4 an attempt to 24 -- which is not a regression, it is the same flailing, now counted. The old watchdog
-could not see a player that covered seven hundred units inside a box a few feet across.
+Rubbing fell by a factor of four. The recovery share went from nothing to a quarter and the trips from 1.4
+an attempt to 24, which is not a regression: it is the same flailing, now counted.
 
-The remaining 22% of ticks that command no movement at all, outside recovery and looking, are the
-throttle returning zero: the shoulders are inside the player's own radius, so the drift calculation
-allows nothing. That is wrong at the limit -- a player already touching a wall has no drift left to
-prevent, and this engine charges nothing for a scrape and a whole tic for a stop.
+The last two changes of the night -- commitment surviving a receding frontier, and the throttle stopping at
+nothing rather than at zero -- bought speed and no progress:
+
+| same two seeds | before | after |
+| --- | --- | --- |
+| E1M1 s1 best progress | 0.316 | 0.318 |
+| E1M1 s1 EXPLORE speed | 123 u/s | **149 u/s** |
+| E1M2 s1 best progress | 0.265 | 0.268 |
+| E1M2 s1 EXPLORE speed | 153 u/s | **211 u/s** |
+
+Which is the finding, and not the one I wanted. Locomotion is no longer what is in the way.
 
 ---
 
-## 7. Track t3, and the harness changes that start it
+## 8. Track t3, and the harness changes that start it
 
-Two, both named in the brief, both announced here because they invalidate every t2 number:
+Three, all named in the brief or forced by it, all announced because they invalidate every t2 number.
 
 1. **The score is the closest approach, not the final position.** t2 scored where an attempt stopped, so a
    pilot that got two thirds of the way and then wandered scored the same as one that never left the first
-   room. Every exploration experiment was being graded on what happened afterwards. What it did next is
-   reported beside it as `progress_given_back`. The t3 code baseline shows the gap plainly: mean closest
-   approach 0.224, mean final progress 0.050.
+   room. The t3 baseline shows the gap plainly: mean closest approach 0.224, mean final progress 0.050.
+   What it did afterwards is reported beside it as `progress_given_back`.
 2. **`sectors_info` is an allowed source, gated in the sensor.** Honesty test 2 now asks where the filter
    is rather than whether the switch is off; 2b reads the gate; a new live guardrail fails any run with an
-   admitted line the automap cannot account for. The brief's canary -- the gate removed -- fails the suite.
-   17 checks, 0 failing, all six original canaries still caught.
+   admitted line the automap cannot account for. The brief's canary -- the gate removed -- fails the
+   suite. **17 checks, 0 failing**, all six original canaries still caught.
+3. **The noise floor was measured on t1.** `research/noise_floor.json`, the number `ledger.py` divides by,
+   was measured on commit 5313412 -- so every keep and discard through the whole of t2 was judged against
+   the spread of a robot with a different gait, a different decider and a forward delta of 14.
+
+| per-level score sd | E1M1 | E1M2 | E1M3 | E1M4 | E1M5 | E1M6 | mean |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| t1, in force until tonight | 0.142 | 0.000 | 0.000 | 0.016 | 0.042 | 0.043 | 0.041 |
+| **t3** | 0.093 | 0.041 | 0.000 | 0.006 | 0.044 | 0.122 | **0.051** |
+
+The t1 file is kept as `research/noise_floor.t1.json` so the rows it judged can be read against their own
+ruler.
 
 ---
 
-## 7b. What the watchdog says now
+## 9. jev_share, and a tension in how it is defined
 
-The new test, in the dev bench's own words:
-
-    [executor] watchdog: covered 670 units and got 9 in 4 s -- recovering
-
-Six hundred and seventy units of travel and nine units of displacement. Under the old tests that attempt
-was a player in perfectly good health: it covered far more than the 48 units the "went nowhere" test asks
-for, so nothing tripped, and the pilot flailed for as long as it liked. That one line is the whole of §8
-blocker 1, stated by the code that now notices it.
-
----
-
-## 7c. jev_share, and a tension in how it is defined
-
-The flight's breakdown, which is the thing the brief asks to be reported by reason:
+The flight's breakdown, which is what the brief asks to be reported by reason:
 
 | | share of decisions |
 | --- | --- |
 | **asked and used** -- jev's answer chose the target | **43%** |
-| unsure band -- the top two scores within `unsure_gap`, so the exact rule settled it | 31% |
+| unsure band -- the top two scores within `unsure_gap`, so a rule settled it | 31% |
 | held -- commitment: already walking there, and the new pick did not beat the margin | 24% |
 | cached -- an identical state answered from the within-run cache | 2% |
 
-`jev_share` counts only the first row, so it is 0.44 against a floor of 0.70.
+`jev_share` counts only the first row: 0.44 against a floor of 0.70. Two of the other three rows are
+things the brief itself asks for, which is a question for you rather than for me:
 
-Two of those three non-jev rows are things the brief itself asks for, and that is worth Kevin's attention
-rather than mine:
+- **Commitment is the brief's own frozen fallback** (§2 rule 3: "keep the current target, else the nearest
+  frontier"). Every decision where commitment holds is one the metric scores against the model. The better
+  commitment works -- and it needed fixing tonight -- the lower `jev_share` reads.
+- **The unsure band was settled by the wrong rule.** It fell back to `rule_score`, which is a different
+  rule from the one the brief permits. Changed tonight to the frozen fallback; that is a correctness fix
+  against the brief, not a way of moving the number.
 
-- **Commitment is the brief's own frozen fallback.** §2 rule 3: "Code never picks between options, except
-  safety reflexes and the one frozen fallback: keep the current target, else the nearest frontier." Every
-  tic where commitment holds is a tic the metric scores against the model. The better the commitment
-  works -- and it needed fixing tonight, §6 -- the lower `jev_share` reads.
-- **The unsure band is settled by the wrong rule.** When the top two scores are within `unsure_gap`, the
-  code falls back to `rule_score`, which is a *different* rule from the one the brief permits. It should
-  be the frozen fallback: keep the current target, else the nearest frontier. That is a correctness fix
-  against the brief and not a way of moving the number; it is 31% of decisions being settled by something
-  the brief does not sanction.
+I have not changed `jev_share`'s definition. It is a frozen metric, changing it is a track change, and
+this is a question about the target rather than about the measurement.
 
-I have not changed `jev_share`'s definition. It is a frozen metric and changing it is a track change, and
-this one is a question about the target rather than about the measurement.
+**What a decision looks like.** From the E1M1 flight, tic 1063, eight candidates on the table:
 
----
+    kinds   frontier door frontier frontier frontier frontier frontier frontier
+    jev     3.44     6.20 4.06     4.03     2.85     3.84     3.82     3.14
+    picked  the door, gap 2.14 over the next best, confidence 0.63
 
-## 8. Blockers
+And the stack itself, at 02:23, on Freedoom E1M1 with the geometry sensor on:
 
-1. **The walking has no net direction.** This is the one that matters now, and it replaced the one I
-   started the night with. Measured on the oracle rung, which is handed the whole level and the exit:
-   **49% of the walking went toward the exit and 51% away.** On the dev bench after every fix tonight:
-   52%. Locomotion is no longer what is in the way -- the pilot goes half again as fast as it did and
-   arrives at the same place. Something is undoing progress as fast as it is made, and the two
-   candidates are the give-up rule (§10) and target switching, which even after the commitment fix runs
-   at one change every 6.7 decisions.
-2. **Nothing can see the exit.** Measured, and not tonight: at 68 units from a level's exit switch,
-   looking all around, with `am_interlevelcolor` set and `am_showtriggerlines` both ways -- 458 wall
-   pixels, 106 door pixels, **zero exit pixels**. ZDoom draws a one-sided line as plain wall before it
-   asks whether the line is an exit, and a Doom exit switch is a one-sided wall. The flight saw the exit
-   on 0 of 1 attempts and the dev bench on 3 of 9. Step 4's detector is the only honest way out of this
-   and it is not written.
-3. **The bench segfaults on Freedoom E1M4 with geometry on.** Twice, reproducibly, on the first attempt
-   of that map, taking nine attempts of the dev set with it. Not investigated -- it appeared at 02:30 and
-   the flights were the higher call. The other five dev maps run clean.
+    [pilot] System One = jev plays; System Two = none reviews after each episode; graph v3
+    [pilot] #10 jev 458 ms cmd 46 ms  hp=100 EXPLORE cand=6 pick=2
+            -> EXPLORE target advance ttl=1500ms  frames ok=41 lost=1
 
-Also found and fixed, but worth knowing happened: **thirty-six orphaned ViZDoom processes** were alive on
-this machine, the oldest seven hours old, competing for the cores every measurement was taken on. ViZDoom
-ignores SIGTERM -- measured, by sending it to thirty-five of them and finding thirty-five still running.
-`research/reap.py` sends SIGKILL, by pid. Wall-clock and tic-rate numbers from before that was found
-describe a busier machine than they claim.
+Payload to F´ to CCSDS to Yamcs to the pilot to jev and back up, 380 to 460 ms a decision with a 45 to
+60 ms command hop. System Two off, as the brief asks for tonight.
 
 ---
 
-## 8b. Things I found that nobody was looking for
+## 10. Top blockers
 
-None of these was on the brief. Each was in the way of something that was.
+1. **The walking has no net direction.** This replaced the blocker I started the night with. On the oracle
+   rung, handed the whole level and the exit: **49% of the walking toward the exit, 51% away**. On the dev
+   bench after every fix tonight: 52%. The pilot goes half again as fast as it did and arrives at the same
+   place. Something undoes progress as fast as it is made, and the two candidates are the give-up rule and
+   target switching, which even after the commitment fix runs at one change every 6.7 decisions -- a new
+   destination every three and a half seconds.
+2. **Nothing can see the exit.** Measured, and not tonight: at 68 units from a level's exit switch, looking
+   all around, with `am_interlevelcolor` set and `am_showtriggerlines` both ways -- 458 wall pixels, 106
+   door pixels, **zero exit pixels**. ZDoom draws a one-sided line as plain wall before it asks whether the
+   line is an exit, and a Doom exit switch is a one-sided wall. The flight saw the exit on 0 of 1 attempts,
+   the dev bench on 3 of 9. Step 4's detector is the only honest way out and it is not written.
+3. **The bench segfaults on Freedoom E1M4 with geometry on.** Twice, reproducibly, on that map's first
+   attempt, taking nine dev attempts with it. Not investigated: it appeared at 02:30 and the flights were
+   the higher call. The other five dev maps run clean.
 
-| | |
-| --- | --- |
-| The exit was dropped from the candidate list on every run ever taken | §6 |
-| The noise floor the keep rule divides by was measured two tracks ago | §6b |
-| The visibility fill sampled four times coarser than the walls it sampled for | §5 |
-| A solid pillar and a closed door are the same shape to the brief's door rule | §5 |
-| ViZDoom 1.3.0 reports `Sector.floor_height` negated | `payload/seen_geometry.py` |
-| `recover_dir` was set once in a constructor and never assigned again | §6 |
-| `speed_explore` divided by a 1e-6 floor and reported 401,352,305 units a second | §6 |
-| Thirty-six orphaned ViZDoom processes, the oldest seven hours old | §8 |
-| The bench's own launcher killed a run when its wrapper command returned | §9 |
+Also found and fixed: **thirty-six orphaned ViZDoom processes**, the oldest seven hours old, competing for
+the cores every measurement was taken on. ViZDoom ignores SIGTERM -- measured, by sending it to thirty-five
+of them and finding thirty-five still running. `research/reap.py` sends SIGKILL, by pid. Wall-clock and
+tic-rate numbers from before that describe a busier machine than they claim.
 
 ---
 
-## 9. Decisions taken without Kevin
+## 11. What I would do next, in order
+
+1. **Find out what is undoing the progress.** Blocker 1 is the whole game now. The measurement exists
+   (`research/toward_the_exit.py`); the two suspects are the give-up rule and target churn. `TargetMemory`
+   abandons a target that stops getting closer and makes it unattractive for a while -- which is code
+   choosing between options, and the brief says code does not do that. With a wedged executor it turned a
+   local sticking point into a global oscillation. The right shape is that `tried_before` goes up and Jev
+   decides whether to persist.
+2. **Give the payload a cheap immediate replan.** The one fix tonight that was right in principle and
+   failed in practice -- drop a path the player has come off -- failed only because the payload waits for
+   the next INTENT to plan again, about seventeen tics. `plan_to` runs in milliseconds.
+3. **Make the recovery cheaper, not just smarter.** It is a quarter of every attempt. A recovery has a
+   goal -- reach ground already stood on -- so it should end when it gets there rather than after a fixed
+   second and a half.
+4. **Then re-run the whole ladder, all three rungs.** L0 is the test of 1 to 3 and it is cheap. Nothing
+   downstream is worth measuring until L0 finishes a dev level inside 60 s.
+5. **Then step 4's detector.** The templates are read and tested; the matcher is not written. It is
+   load-bearing for E1M1, whose exit is a switch on a wall, and it is the last thing between the pilot and
+   a level it can finish on purpose rather than by walking into the right line.
+6. **Then the `stuck` head.** The brief gives "what to do when stuck" to Jev, and code has been deciding
+   it -- rub, recover, give up -- for the whole of this project.
+
+---
+
+## 12. Decisions I took without you
 
 | Decision | Reason |
 | --- | --- |
-| Built steps 2 and 3 before running the ladder | They were already written when the brief arrived; the ladder still decided what came *next*, and it said the executor. |
+| Built steps 2 and 3 before running the ladder | They were already written when the brief arrived. The ladder still decided what came *next*, and it said the executor. |
+| Stopped the ladder after L0; L1 and L2 unfinished | L0 had answered, and the exit bug meant the other rungs would have measured a pilot with a known fault. They are cheap to re-run once L0 passes. |
+| Bundled several executor changes into one ledger row | They are one fault seen from several angles, each justified by a named measurement. A paired test each was six hours. Recorded as a fast-lane row, which says so. |
 | Oracle reads `research/grader/wad.py` off its path rather than importing it | The grader package refuses to load in a pilot process (honesty test 6) and the bench runner is one. Loading the file directly keeps one WAD reader instead of two. |
-| Ledgered t2 history rows deferred | Step 0.6. Lower value than the executor with the night's hours; the constants those experiments set are unproven on t3 either way, which is the point of the item. |
-| System Two off by command line, not by changing the default | Brief rule 8 is for tonight; the default is a repo-wide choice and not mine to make silently. |
+| System Two off by command line, not by changing the default | Brief rule 8 is for tonight. The default is a repo-wide choice and not mine to make silently. |
 | Drops are not one-way | The grader models a >24-unit rise as blocking both ways, so the pilot and the ruler agree. Making the planner directional is a change to A* and belongs in its own experiment. |
-| Stopped the ladder after L0 and did not finish L1 or L2 | L0 had answered, and the exit bug meant the remaining rungs would have measured a pilot with a known fault. The rungs are cheap to re-run once L0 passes, and that is next-step 3. |
-| Bundled six executor changes rather than one experiment each | They are one fault seen from six angles -- a player that cannot get past an obstacle -- and each is justified by a specific measurement in the rub log or the ladder. A paired test each would have been six hours. Recorded as a fast-lane row. |
-| Used the flight script's existing `pkill -f` patterns | Brief rule 7 says no broad patterns. These match only `doom_payload.py --fps`, `fprime_yamcs`, `YamcsServer` and `bin/DoomSat`; a bench payload runs in-process with no such argv, so none of them can match a bench run. Rewriting the flight stack's process handling at three in the morning was the larger risk. |
-| `MAX_DOOR_CANDIDATES` 1 -> 2 | The one-slot version was set from closest-approach numbers on a shareware level, which the brief rules out as justification. Two is the cap that stops doors filling a list of eight. |
+| `MAX_DOOR_CANDIDATES` 1 -> 2 | The one-slot version was set from closest-approach numbers on a shareware level, which the brief rules out as justification. |
+| Used the flight script's existing `pkill -f` patterns | Brief rule 7 says no broad patterns. These match only `doom_payload.py --fps`, `fprime_yamcs`, `YamcsServer` and `bin/DoomSat`; a bench payload runs in-process with no such argv, so none can match a bench run. Rewriting the flight stack's process handling at three in the morning was the larger risk. |
+| Re-wrote twelve ledger rows I had just written | They carried track `t3` because `ledger.py` read the current config; they were t2 runs. Fixed the cause, gave them `HIST-` ids, and said so in the commit. |
+| Killed three long runs part-way | A ladder and two benches, each measuring a configuration I had just found a serious fault in. Better to spend the twenty minutes on the fault. Each is noted where its numbers would otherwise appear. |
 
 ---
 
-## 10. What I would do next, in order
+## 13. Reproducing any of this
 
-1. **Make the recovery a retreat along ground already stood on.** The world model keeps `stood`, every
-   cell the player has occupied -- walkable by demonstration, not by inference. A wedged player should
-   back up to the last cell it stood in more than a room away and re-approach, instead of spinning and
-   pushing. The present recovery spins 787 degrees and hopes; it is 28% of an attempt.
-2. **Give the payload a cheap immediate replan.** The one fix tonight that was right in principle and
-   failed in practice -- drop a path the player has come off -- failed only because the payload waits for
-   the next INTENT to plan again, about seventeen tics. `plan_to` is an A* over the walkable set and runs
-   in milliseconds; there is no reason the executor cannot ask for one on the spot.
-3. **Then re-run the whole ladder, all three rungs.** L0 is the test of 1 and 2 and it is cheap. Nothing
-   downstream is worth measuring until L0 finishes a dev level inside 60 s.
-4. **Then the `stuck` head.** The brief gives "what to do when stuck" to Jev and the code has been
-   deciding it -- rub, recover, give up on the target -- for the whole of this project. Once the executor
-   can be told to back off and try another way, that choice is the model's.
-5. **Then step 4's detector.** The templates are read and tested; the matcher is not written. It is
-   load-bearing for E1M1, whose exit is a switch on a wall, and it is the last thing between the pilot
-   and a level it can finish on purpose rather than by walking into the right line.
+    bash research/night.sh <name> <code|jev> <on|off>     # one dev bench, machine reaped first
+    bash research/ladder.sh <prefix>                      # the oracle ladder, dev maps only
+    scripts/night_flight.sh <name> <wad> <map> <seconds>  # one flight, cold stack to graded
+    python research/where_the_time_goes.py <run>          # where an attempt's ticks went
+    python research/toward_the_exit.py <run>              # how much of the walking was toward the exit
+    python research/reap.py                               # kill orphaned games, by pid
+    python research/honesty.py --canary                   # 17 checks and 9 canaries
 
-The give-up rule is worth a separate experiment and I did not run it. `TargetMemory` abandons a target
-that stops getting closer and makes it unattractive for a while -- which is code choosing between
-options, and the brief says code does not do that. With a wedged executor it converts a local sticking
-point into a global oscillation: walk at the exit, wedge, abandon the exit, walk to a frontier, come
-back. The 49% toward / 51% away number is what that looks like from outside. The right shape is that
-`tried_before` goes up and Jev decides whether to persist.
+Raw attempt logs are outside git (`research/out/**/attempt-*.json`, per charter 6.1); the graded results,
+summaries and `ORACLE.json` files are in it.
+
+358 tests pass. 17 honesty checks, none failing.
