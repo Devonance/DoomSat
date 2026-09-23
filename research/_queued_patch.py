@@ -89,24 +89,34 @@ EDITS = [
     ("payload/world_model.py",
      """    def outwardness(self, c, x, y):""",
      '''    def _reachable_goals(self, goals, meta, door_cells, now):
-        """Move each goal to the nearest cell a player could stand in, keeping what it stands for."""
+        """Move each goal to the nearest cell a player could stand in, keeping what it stands for.
+
+        Measured on the oracle rung, which is handed the exit's exact position: the payload reported the
+        exit in telemetry on all 334 decisions of an attempt, and the exit appeared in the candidate list
+        on none of them. An exit line is a one-sided wall, so its cell is not walkable, so the flood never
+        reached it and it was dropped without a word. The same is true of a door line and of an item
+        against a pillar -- and it is true on an honest run too, which means the pilot could never target
+        an exit it saw.
+        """
         walk = self.walkable(now)
         out = []
         for cell in goals:
             if cell in walk:
                 out.append(cell)
                 continue
-            near = [c for c in walk
-                    if abs(c[0] - cell[0]) <= 2 and abs(c[1] - cell[1]) <= 2]
+            near = [c for c in walk if abs(c[0] - cell[0]) <= 2 and abs(c[1] - cell[1]) <= 2]
             if not near:
                 out.append(cell)                 # genuinely unreachable; the flood will say so
                 continue
             moved = min(near, key=lambda c: (c[0] - cell[0]) ** 2 + (c[1] - cell[1]) ** 2)
-            if moved not in meta:
+            kind = meta[cell][0]
+            # A cell can be two things at once -- the floor beside an exit line is also a frontier. The
+            # exit and a key win, because one ends the level and the other opens what nothing else will.
+            if moved not in meta or kind in (KIND_EXIT, KIND_KEY):
                 meta[moved] = meta[cell]
-                self._features[moved] = self._features.get(cell, {})
-                if cell in door_cells:
-                    door_cells.add(moved)
+                self._features.setdefault(moved, self._features.get(cell, {}))
+            if cell in door_cells:
+                door_cells.add(moved)
             out.append(moved)
         return out
 

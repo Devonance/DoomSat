@@ -58,6 +58,23 @@ Read the first three rows together. Same level, same perfect map, same known exi
 0.11, 0.11, and between eleven and fifteen thousand units walked in every case. The pilot is not short of
 information and it is not short of travel. It cannot reliably convert either into progress.
 
+**And then the ladder gave up its real answer.** Two measurements, both on those same L0 attempts:
+
+- **49% of the walking went toward the exit and 51% went away** (`research/toward_the_exit.py`, six
+  attempts, mean 49%). Not slow progress. A coin toss.
+- **The exit was offered as a candidate on 0 of 999 decisions.** On the rung that is handed the exit's
+  exact position. The payload reported it in telemetry on every single decision -- `EXIT_DIST` 1,036 from
+  the first tic -- and the candidate list contained only frontiers, doors and items.
+
+The cause is four lines deep. `candidates()` builds a goal list and asks `path_costs` for the distance to
+each; anything the flood does not reach is dropped. **An exit line is a one-sided wall**, so its cell is
+not walkable, so it was never reached, so it was dropped -- silently, on every attempt, for as long as
+this code has existed. `plan_to` had always snapped its goal to the nearest cell a player can stand in.
+`path_costs` never did.
+
+This is not an oracle problem. It means the pilot could never target an exit it saw, on any run, and the
+whole of the exploring behaviour has been the behaviour of a pilot with no way out in its list.
+
 *(L1 and L2 to be filled from `research/out/ladder3-L1` and `-L2`.)*
 
 **Which case, and why.** Case 1. L0 is the rung with nothing in its way -- the whole level, the exit's
