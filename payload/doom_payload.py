@@ -108,6 +108,17 @@ from mapclasses import (NONE, STEP, DOOR, LOCK_RED, LOCK_BLUE, LOCK_YELLOW, LOCK
 
 FOV = 90.0             # ViZDoom default horizontal field of view
 DEPTH_UNITS = 7.16     # map units per depth-buffer step; the buffer holds perpendicular (z) distance (depth_calib_probe*.py)
+# Looking down at the floor, to see the thing the eye-level band cannot. A step up of more than 24 units
+# stops the player dead, and its top is below eye height, so the camera looks straight over it and reports
+# four hundred units of clear floor: the wedges in every flight log read `rel=1 ahead=nothing fwd=400` at
+# full throttle with the player not moving. On level ground a fixed row below the horizon always returns
+# the same distance, whatever the room, because the eye height is fixed -- so the payload can calibrate it
+# from its own camera and needs no geometry it was not given. Shorter than that with the eye-level band
+# still clear means something is raised in front of the feet.
+STEP_BAND = (0.60, 0.74)   # fraction of image height: the floor a short way in front of the player
+STEP_RATIO = 0.65          # this much closer than level ground is a step, not a floor
+STEP_CALIB_MIN = 40        # samples before the calibration is worth believing
+STEP_ACTS = False          # off: the sense is validated, what to do about it is not
 DEPTH_FAR = 56         # depth steps beyond which the range camera is not trusted (~400 units)
 SENSE_EVERY = 7        # tics between automap stamps and the slower sensing (5 Hz)
 UPLINK_TIMEOUT_S = 3.0  # no CONTROL for this long -> release everything (safe mode)
@@ -462,6 +473,8 @@ class Payload:
         self.sense = None            # the slower sensing (rays, novelty, exit) refreshed every SENSE_EVERY tics
         self.door_presses, self.door_at = 0, None
         self.last_move = (0.0, 0.0)   # what actually drove the player last tic, whichever path issued it
+        self.floor_seen = deque(maxlen=400)   # how far the down-looking band reads; level ground dominates
+        self.step_said = 0.0
         self.use_ok = False
         # door_precision: presses that opened something, over presses. A ceiling-change line that is not
         # a door absorbs presses and opens nothing, so this is the number that says whether the senses
@@ -682,6 +695,27 @@ class Payload:
         clear_fwd = self.band_clearance(near_row, -12, 12)
         clear_fl = self.band_clearance(near_row, 20, 45)
         clear_fr = self.band_clearance(near_row, -45, -20)
+        h = depth.shape[0]
+        floor_row = depth[int(h * STEP_BAND[0]):int(h * STEP_BAND[1])].max(axis=0)
+        floor_ahead = self.band_clearance(floor_row, -12, 12)
+        self.floor_seen.append(floor_ahead)
+        step_ahead = False
+        if len(self.floor_seen) >= STEP_CALIB_MIN:
+            level = sorted(self.floor_seen)[int(0.8 * len(self.floor_seen))]
+            step_ahead = floor_ahead < STEP_RATIO * level and clear_fwd > 120
+            if step_ahead and self.game_time - self.step_said > 2.0:
+                self.step_said = self.game_time
+                print("[payload] step ahead at (%.0f,%.0f): floor reads %d where level ground reads %d, "
+                      "eye level clear to %d" % (x, y, floor_ahead, level, clear_fwd), flush=True)
+        # Sensed, not acted on. The detector finds the right thing -- it fires at (1325,-3196) and
+        # (1327,-3227), which is where the rub log had the player wedged at full throttle with its heading
+        # dead on -- but handing it to the executor as an obstacle made that flight worse: clamping the
+        # clearance puts the avoidance guard at its harshest, and a raised floor is not always a wall,
+        # since Doom lets the player climb anything up to 24 units. Which of those it is takes the height,
+        # not just the range, and it takes more than one flight to tell: the same code has reached 0.06
+        # and 0.84 of the way to this exit on different runs. STEP_ACTS is the switch for that experiment.
+        if step_ahead and STEP_ACTS:
+            clear_fwd = min(clear_fwd, 40)
         if slow:
             self.sense = self.slow_sense(x, y, angle, now, clear_fwd, enemies)
         s = self.sense
