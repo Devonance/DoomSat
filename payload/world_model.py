@@ -660,11 +660,18 @@ class WorldModel:
                                  opening=int(f.get("opening_units", 0)),
                                  depth=int(f.get("open_depth_units", 0)),
                                  away=bool(f.get("leads_away", True))))
-        # The exit and keys always make the cut; the rest compete on how far away they are, because a
-        # candidate the ground never sees is a candidate the ground cannot choose.
+        # A candidate the ground never sees is a candidate the ground cannot choose, so what gets pruned
+        # matters as much as what gets offered. Pruning purely by distance was a structural bias toward
+        # going back: after walking out of a room the nearest unexplored corners are all behind you, so
+        # the eight nearest were mostly the way you came, and the model could only pick among those. Half
+        # the list is now the nearest and half the most promising -- how much unknown lies past it -- so
+        # "the corner two steps away" and "the corridor across the room" both reach the judgement.
         must = [c for c in out if c.kind in (KIND_EXIT, KIND_KEY)]
-        rest = sorted((c for c in out if c.kind not in (KIND_EXIT, KIND_KEY)), key=lambda c: c.path_units)
-        return (must + rest)[:limit]
+        rest = [c for c in out if c.kind not in (KIND_EXIT, KIND_KEY)]
+        room = max(0, limit - len(must))
+        near = sorted(rest, key=lambda c: c.path_units)[:max(1, room // 2)]
+        promise = [c for c in sorted(rest, key=lambda c: -(c.novelty + c.depth // GRID)) if c not in near]
+        return (must + near + promise)[:limit]
 
     # ------------------------------------------------------------------ commitment
     def route_to(self, x, y, cand, now, force=False):

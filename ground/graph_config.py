@@ -41,12 +41,13 @@ DEFAULT = {
         "sector_margin": 0.6,         # levels another sector must beat the committed one by to take over
         "commit_bonus": 0.3,          # extra levels asked for while a commitment is still fresh
         "commit_ticks": 6,            # ticks a commitment counts as fresh (a whole level always wins)
-        # Calibrated, not guessed. Replaying 150 logged states three times (tools/replay.py --passes 3)
-        # and sweeping this number gives a cost/benefit curve, not a clean cutoff: at 0.00 jev decides all
-        # 141 judged states and 30 of its commands differ between identical passes; at 0.20 it decides 51
-        # and 2 differ; buying the last two costs another 23 states of its authority. 0.20 is the knee.
-        # Re-run the sweep against the labelled boundary set before moving it.
-        "unsure_gap": 0.20,           # levels between the top two under which the answer is "cannot tell"
+        # Recalibrated on the target head, because the rubric the old 0.20 was tuned against no longer
+        # exists. Swept over 405 flight decisions: the top-two gap has a median of 0.15, so 0.20 threw
+        # away 60% of the model's answers and handed them to a rule whose tie-break is "nearest" -- which
+        # is what walked the pilot back to where it started. At 0.05 the band fires on 16% and jev decides
+        # 84%. The answers it gives are not noise: it separates `unknown_runs` by 1.7 rubric levels
+        # ("a fair way" 5.44 against "a little way" 3.70), which is the judgement the head exists for.
+        "unsure_gap": 0.05,           # levels between the top two under which the answer is "cannot tell"
         "unsure_conf": 0.5,           # confidence under which the answer counts as "cannot tell"
         "goal_bonus": 1.0,            # levels the goal head is worth on the sector it favours
         "tried_penalty": 1.0,         # levels a direction loses after being held without getting anywhere
@@ -128,9 +129,9 @@ DEFAULT = {
             "criteria": [
                 "not reachable in any useful sense: `targets.{t}.locked` names a key the player does not hold, or `targets.{t}.tried_before` is several times and it has not opened",
                 "a bad trade: `targets.{t}.threat` is dangerous or deadly while `here.health` is critical or low, or `here.ammunition` is empty",
-                "not worth the walk: `targets.{t}.unknown_runs` is no depth, or it does not lead away from ground already walked",
+                "back the way it came: `targets.{t}.leads_away_from_walked_ground` is no, or `targets.{t}.unknown_runs` is no depth",
                 "would be worth it nearer: it answers something in `needs`, but `targets.{t}.relative_distance` is the furthest and `targets.{t}.threat` is not none",
-                "a fair next step: a doorway or wider with the unknown running a little way past it, and nothing dangerous near it",
+                "a fair next step: it leads away from walked ground, a doorway or wider, the unknown running a little way past it, nothing dangerous near it",
                 "worth a detour: it answers a need the player has, `targets.{t}.relative_distance` is not the furthest, and `targets.{t}.threat` is none or a straggler",
                 "the obvious move: a wide opening with the unknown running a fair way or more past it, leading away from walked ground, nothing near it worth avoiding",
                 "the way on: an untried door or a key the player is missing, and what `targets.{t}.threat` says is standing there is worth facing with the health and ammunition in `here`",
