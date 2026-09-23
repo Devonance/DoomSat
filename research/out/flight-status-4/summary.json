@@ -1,0 +1,49 @@
+{
+ "attempts": 1,
+ "suite_score": 0.0,
+ "score_sd": 0.0,
+ "completed": 0,
+ "deaths": 0,
+ "episodes": 1,
+ "freezes": 0,
+ "freeze_reasons": {},
+ "model_unavailable": 0,
+ "door_presses": 0,
+ "door_opens": 0,
+ "door_precision": null,
+ "exit_ever_seen": 0,
+ "deaths_by_mode": {},
+ "mode_share": {
+  "EXPLORE": 0.678,
+  "OPERATE": 0.322
+ },
+ "mean_progress": 0.0,
+ "maps_without_a_usable_progress_score": [],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "deaths_per_minute": {
+   "pass": true,
+   "value": "0.00 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": true,
+   "value": "0.79 (floor 0.70)"
+  },
+  "decision_age_p95": {
+   "pass": false,
+   "value": "828 ms (budget 800)"
+  }
+ },
+ "guardrails_pass": false,
+ "per_level": {
+  "E1M1": {
+   "n": 1,
+   "mean": 0.0,
+   "sd": null
+  }
+ },
+ "run_dir": "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/flight-status-4"
+}
