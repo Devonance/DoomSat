@@ -31,8 +31,14 @@ ALIGN_FULL = 25.0       # full speed within this
 # units a tic and a fixed 72-unit guard was five tics of warning; at a run it covers 14.5 and the same 72
 # units is two. A guard that does not scale with speed is a guard that stops working the moment the speed
 # is fixed, which is how the first executor baseline came back with four times the deaths.
-AVOID_SECONDS = 0.35
-AVOID_MIN_UNITS = 72.0
+# 0.12 s, not 0.35. At a run 0.35 s is a 177-unit guard, which is wider than most Doom corridors and
+# taller than most rooms are deep -- so `clear_fwd` sat under it almost permanently and the player crawled
+# everywhere at a third of its speed. Measured across two flights: under 100 units/s on 75 to 80% of
+# samples, at running speed on 1 to 2%. The player has almost no momentum in this engine, so the guard
+# only has to stop it grinding into a wall, and turning away is the path planner's job rather than the
+# throttle's.
+AVOID_SECONDS = 0.12
+AVOID_MIN_UNITS = 48.0
 # The delta is not map units per tic. payload/speed_probe.py measured delta 50 at 507 units/s, and the
 # relation is linear below the engine's cap, so this is the conversion from a button value to a speed.
 UNITS_PER_S_PER_DELTA = 507.0 / 50.0
@@ -228,7 +234,7 @@ class Executor:
             if obs["clear_fwd"] <= guard and obs["ahead_kind"] not in ("door", "exit"):
                 # something solid ahead: keep the heading, step around it, and slow down first
                 cmd["strafe"] = STRAFE_DELTA * self._freer_side(obs)
-                speed *= 0.35 if obs["clear_fwd"] > AVOID_MIN_UNITS else 0.15
+                speed *= 0.5 if obs["clear_fwd"] > AVOID_MIN_UNITS else 0.15
             cmd["move"] = speed
             if it.stance == "advance_strafing" and obs["enemies"]:
                 cmd["strafe"] = STRAFE_DELTA * self._circle_side(now)

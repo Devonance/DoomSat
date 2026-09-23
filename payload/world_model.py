@@ -44,6 +44,7 @@ FRONTIER_MAX = 24          # clusters to consider before pruning to the candidat
 REPLAN_MARGIN = 0.80       # a new path must be this much shorter than the one being walked to replace it
 REPLAN_EVERY_S = 1.0       # never replan faster than this, whatever happens
 PATH_MAX_CELLS = 4000      # A* gives up rather than stall the control loop
+LOOKAHEAD_CELLS = 4        # waypoints ahead to steer at: about 128 units
 ARRIVE_UNITS = 24.0        # close enough to a waypoint to take the next one, and under one cell: at 48
                            # the cursor cleared two waypoints at once and the walk cut every corner
 TARGET_UNITS = 64.0        # close enough to the target to call it reached
@@ -116,9 +117,12 @@ class Plan:
                 break
         if self.i >= len(self.cells):
             return None
-        # Steer at a waypoint a little way ahead rather than the very next one, so the walk does not
-        # zig-zag from cell centre to cell centre.
-        j = min(len(self.cells) - 1, self.i + 1)
+        # Steer well ahead, not at the next cell. A cell is 32 units and the player covers 14.5 of them
+        # a tic, so aiming one cell ahead changes the heading roughly every two tics; on a diagonal the
+        # bearing jitters, the executor is rarely inside its alignment window, and it spends the level at
+        # part throttle. Looking LOOKAHEAD_CELLS along the path smooths the heading without cutting any
+        # corner the planner did not already allow.
+        j = min(len(self.cells) - 1, self.i + LOOKAHEAD_CELLS)
         return cell_centre(self.cells[j])
 
     def better_than(self, other):
