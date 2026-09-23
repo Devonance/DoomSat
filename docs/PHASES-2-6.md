@@ -181,3 +181,26 @@ inside a three-minute attempt. The map ray is not misreading the level; it is re
 history of getting stuck.
 
 That is EXP-0001, and it goes through the ledger rather than into a commit message.
+
+---
+
+## Two open decisions about the ruler, both Kevin's
+
+Each changes what the score means, so each starts a new track and costs a re-measure of the dev set.
+They are listed together because they should be decided together, and before more ledger rows accumulate
+under the current definition.
+
+**1. Score unfinished levels on the closest approach, not the final position.**
+Charter 6.4 scores `progress` where the attempt ended, deliberately, so that walking away from the exit
+costs. For a pilot that holds a target that is right. For one that thrashes it quantises almost everything
+to zero: every seed of one dev level scored 0.000 on final position while the same attempts reached
+between 18% and 25% at their closest. EXP-0002 was decided by that number — every process metric moved
+the right way and the score moved the wrong way by less than one standard error.
+
+**2. Halve the progress credit on an attempt that died.**
+As written, a death and a slow walk score the same, `0.9 x progress`. That is why deaths could go from 34
+to 142 on the dev set while the suite score moved by 0.011. The `deaths_per_minute` guardrail covers it
+for now — a change that trades survival for speed is discarded whatever the score does — but the score
+itself still cannot see it.
+
+Neither is applied. Both are one line in `research/frozen_metrics.attempt_score`.
