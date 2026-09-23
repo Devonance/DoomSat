@@ -40,6 +40,14 @@ DEFAULT = {
     "select": {
         "sector_margin": 0.6,         # levels another sector must beat the committed one by to take over
         "commit_bonus": 0.3,          # extra levels asked for while a commitment is still fresh
+        # The target head gets its own, and they are allowed past a whole rubric level. "A whole level
+        # always wins" is right for sectors -- eight directions from where you stand, all costing the
+        # same to try. It is wrong for a target six hundred units away that you are already four hundred
+        # units into walking to, because taking the better-looking one means paying for the walk twice.
+        # Measured: thirty target switches an attempt, mean jump 520 units, which is fifteen thousand of
+        # the twenty-seven thousand units walked.
+        "target_margin": 1.2,
+        "target_commit_bonus": 0.6,
         "commit_ticks": 6,            # ticks a commitment counts as fresh (a whole level always wins)
         # Recalibrated on the target head, because the rubric the old 0.20 was tuned against no longer
         # exists. Swept over 405 flight decisions: the top-two gap has a median of 0.15, so 0.20 threw
@@ -201,6 +209,7 @@ THRESHOLD_RANGES = {"crosshair_deg": (3, 20), "fire_range": (100, 1200), "threat
                     "tight_units": (40, 220), "health_critical": (10, 60), "health_low": (20, 80),
                     "max_aim_deg": (10, 90), "max_turn_deg": (135, 180), "turn_settle_deg": (2, 30)}
 SELECT_RANGES = {"sector_margin": (0.0, 3.0), "commit_bonus": (0.0, 2.0), "commit_ticks": (1, 30),
+                 "target_margin": (0.0, 4.0), "target_commit_bonus": (0.0, 2.0),
                  "unsure_gap": (0.0, 2.0), "unsure_conf": (0.0, 1.0), "goal_bonus": (0.0, 3.0),
                  "tried_penalty": (0.0, 3.0), "tried_cooldown": (5, 200), "confirm_ticks": (1, 6),
                  "danger_sidestep": (0.0, 9.0), "danger_retreat": (0.0, 9.0), "operate_units": (24, 120),

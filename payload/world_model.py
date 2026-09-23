@@ -24,7 +24,8 @@ import heapq
 import math
 from collections import deque
 
-from mapclasses import BLOCKING, DOOR, EXIT, GRID, LOCK_KEY, LOCKED, WPX, ENEMY_INDEX, NO_ENEMY  # noqa: F401
+from mapclasses import (BLOCKING, DOOR, EXIT, GRID, LOCK_KEY, LOCKED, STEP, WPX,  # noqa: F401
+                        ENEMY_INDEX, NO_ENEMY)
 
 THREAT_NEAR = 384.0        # an enemy this close to a candidate is a reason to think twice about going there
 # What a ceiling change has to look like before it is allowed to be called a door. Doom doorways are a
@@ -46,7 +47,23 @@ MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
 # extra to cross, which puts the route down the middle of a corridor without ever refusing the corridor.
 PLAYER_CLEARANCE_PX = 4      # a cell narrower than this is not walkable at all
 PLAYER_ROOMY_PX = 5          # a cell narrower than this is walkable, and avoided if there is a choice
-TIGHT_COST = 1.6             # extra steps a tight cell costs, in cells
+# A ledge is not a wall and it is not floor. Doom lets the player climb 24 units and no more, and the
+# automap draws every floor-height change in one colour, so the payload cannot tell a stair from a drop --
+# but STEP is not in BLOCKING, so the planner has been routing straight across ledges the player cannot
+# cross. Five seeds all stopped within the same five hundred units of E1M1, at a ledge with exactly one
+# passable gap in it, and none of them found the gap. Costly, not forbidden: stairs still get climbed
+# when they are the way through, and a route with a gap in it wins over a route with a ledge in it.
+# Measured at 6.0 and it did not pay: mean closest approach across five seeds went from 0.42 of the way
+# to 0.37, with three deaths instead of two. The automap draws every floor-height change in one colour,
+# including every stair tread, so charging for all of them charges for almost every cell and the penalty
+# becomes a constant. The ledge is handled where it belongs instead -- in the sweep, by not believing the
+# camera about floor it can see over.
+STEP_COST = 0.0              # extra steps crossing a floor-height change costs, in cells
+TIGHT_COST = 4.0             # extra steps a tight cell costs, in cells. 1.6 was worth 51 units of
+                             # detour, which is not enough to prefer the middle of a room to the wall
+                             # of it: scraping went back from 13% of ticks to 30% as soon as tight cells
+                             # became usable again. Four cells is 128 units of detour -- a corridor is
+                             # still taken when it is the only way through, and never when it is not.
 ARRIVED_UNITS = 96.0        # close enough that the arm's-length probe has the final word. 96 was
                              # the probe's own reach. A suspect inside a wall is settled by having
                              # no route to it, which is a stronger test than standing near it.
@@ -253,6 +270,20 @@ class WorldModel:
         """Walkable, but with the walls close enough that the player will scrape them."""
         ix, iy = self.ex.wpx((cx + 0.5) * GRID, (cy + 0.5) * GRID)
         return self.ex.klass(ix, iy, now, r=PLAYER_ROOMY_PX) in BLOCKING
+
+    def crossing_costs(self, walk, now):
+        """What each cell costs beyond its distance: a squeeze, a ledge, or both."""
+        out = {}
+        near = getattr(self.ex, "near_class", None)
+        for c in walk:
+            extra = TIGHT_COST if self.tight(c[0], c[1], now) else 0.0
+            if near is not None:
+                ix, iy = self.ex.wpx((c[0] + 0.5) * GRID, (c[1] + 0.5) * GRID)
+                if near(ix, iy, STEP, 1):
+                    extra += STEP_COST
+            if extra:
+                out[c] = extra
+        return out
 
     def walkable(self, now):
         return {c for c in self.ex.free if self.passable(c[0], c[1], now)} | self.stood
@@ -603,7 +634,7 @@ class WorldModel:
                 self.planner_failures += 1
                 return None
             goal_cell = min(near, key=lambda c: (c[0] - goal_cell[0]) ** 2 + (c[1] - goal_cell[1]) ** 2)
-        narrow = self.tight_cells(walk, now)
+        narrow = self.crossing_costs(walk, now)
         h = lambda c: math.hypot(c[0] - goal_cell[0], c[1] - goal_cell[1])
         openq = [(h(start), 0.0, start)]
         came, best = {}, {start: 0.0}
@@ -631,7 +662,7 @@ class WorldModel:
                     if dx and dy and ((cur[0] + dx, cur[1]) not in walk or (cur[0], cur[1] + dy) not in walk):
                         continue          # no cutting a corner between two walls
                     step = 1.41421 if dx and dy else 1.0
-                    ng = g + step + (TIGHT_COST if n in narrow else 0.0)
+                    ng = g + step + narrow.get(n, 0.0)
                     if ng < best.get(n, 1e18):
                         best[n], came[n] = ng, cur
                         heapq.heappush(openq, (ng + h(n), ng, n))
@@ -643,7 +674,7 @@ class WorldModel:
         start = self.ex.cell(x, y)
         walk = self.walkable(now)
         walk.add(start)
-        narrow = self.tight_cells(walk, now)
+        narrow = self.crossing_costs(walk, now)
         want = {g for g in goals}
         dist = {start: 0.0}
         openq = [(0.0, start)]
@@ -663,7 +694,7 @@ class WorldModel:
                         continue
                     if dx and dy and ((cur[0] + dx, cur[1]) not in walk or (cur[0], cur[1] + dy) not in walk):
                         continue
-                    ng = g + (1.41421 if dx and dy else 1.0) + (TIGHT_COST if n in narrow else 0.0)
+                    ng = g + (1.41421 if dx and dy else 1.0) + narrow.get(n, 0.0)
                     if ng < dist.get(n, 1e18):
                         dist[n] = ng
                         heapq.heappush(openq, (ng, n))

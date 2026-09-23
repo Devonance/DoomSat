@@ -119,7 +119,7 @@ STEP_BAND = (0.60, 0.74)   # fraction of image height: the floor a short way in 
 STEP_RATIO = 0.65          # this much closer than level ground is a step, not a floor
 STEP_CALIB_MIN = 40        # samples before the calibration is worth believing
 STEP_ACTS = False          # off: clamping the clearance put the avoidance guard at its harshest
-STEP_MARKS_BARRIER = True  # on: tell the planner instead, so it routes round rather than crawls along
+STEP_MARKS_BARRIER = False  # on: tell the planner instead, so it routes round rather than crawls along
 DEPTH_FAR = 56         # depth steps beyond which the range camera is not trusted (~400 units)
 SENSE_EVERY = 7        # tics between automap stamps and the slower sensing (5 Hz)
 UPLINK_TIMEOUT_S = 3.0  # no CONTROL for this long -> release everything (safe mode)
@@ -158,6 +158,9 @@ EXIT_LINE_MAX_UNITS = 512
 AM_W, AM_H, AM_SCALE, AM_CX, AM_CY = 640, 480, 0.5, 320, 240
 WORLD_HALF = 6144      # world raster covers +-6144 units around the level start
 BARRIER_S = 45.0
+# How far out a ray has to be before a floor-height change stops it. The player is usually standing on or
+# beside one -- the lip of the floor it is on -- and stopping at nought units would map nothing at all.
+SEE_OVER_LEDGE_UNITS = 48.0
 CLASS_RGB = {WALL: (255, 255, 255), STEP: (83, 175, 71), DOOR: (115, 115, 255), LOCK_RED: (255, 0, 0), LOCK_BLUE: (0, 0, 255),
              LOCK_YELLOW: (255, 255, 0), LOCKED: (255, 123, 123), EXIT: (255, 127, 27)}
 RENDER_RGB = {**CLASS_RGB, BARRIER: (255, 160, 90)}
@@ -263,8 +266,20 @@ class Explorer:
         self.stamps += 1
 
     def sweep(self, x, y, angle, depth_row):
-        """One range-camera sweep: every cell a ray passes through (farthest surface in the eye-level band) is
-        free floor the player has seen."""
+        """One range-camera sweep: every cell a ray passes through is floor the player has seen -- up to the
+        first floor-height change, because seeing floor is not the same as being able to walk onto it.
+
+        The camera sits at eye height and looks straight over a ledge, so a ray that crosses one keeps
+        reporting floor for hundreds of units past ground the player cannot reach. The planner then routes
+        onto it and the player pushes into the ledge at full throttle with its heading dead on and four
+        hundred units of clear space ahead, which is every wedge in every flight log. On one dev level,
+        five seeds all stopped within the same five hundred units, at a ledge with one passable gap in it,
+        and none of them found the gap.
+
+        The automap draws floor-height changes in their own colour, so this uses nothing but what has
+        already been seen, and it is self-correcting: climb the step and the sweep from up there maps what
+        is beyond. Conservative about ground it has only looked at, not about ground it has stood on.
+        """
         here = self.cell(x, y)
         self.free.add(here)
         self.visited[here] = self.visited.get(here, 0) + 1
@@ -276,7 +291,10 @@ class Explorer:
             ca, sa = math.cos(a), math.sin(a)
             r = GRID / 2
             while r < dist - GRID / 2:
-                self.free.add(self.cell(x + r * ca, y + r * sa))
+                px, py = x + r * ca, y + r * sa
+                if r > SEE_OVER_LEDGE_UNITS and self.near_class(*self.wpx(px, py), STEP, 1):
+                    break     # a floor-height change: seen past, not walked past
+                self.free.add(self.cell(px, py))
                 r += GRID / 2
 
     def remember_items(self, x, y, labels):
@@ -320,6 +338,13 @@ class Explorer:
             ix, iy = self.wpx(bx + k * lx, by + k * ly)
             if 1 <= ix < self.n - 1 and 1 <= iy < self.n - 1:
                 self.barrier_t[iy - 1:iy + 2, ix - 1:ix + 2] = until
+
+    def near_class(self, ix, iy, cls, r=1):
+        """Is any pixel of this class in the window? `klass` takes the maximum, and the merge priority
+        puts STEP below everything, so a floor-height-change line beside a wall is invisible to it."""
+        if not (r <= ix < self.n - r and r <= iy < self.n - r):
+            return False
+        return bool((self.raster[iy - r:iy + r + 1, ix - r:ix + r + 1] == cls).any())
 
     def klass(self, ix, iy, now, r=1):
         """Class of the raster around a pixel ((2r+1)^2 window), barriers included."""

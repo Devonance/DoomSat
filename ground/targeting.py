@@ -393,10 +393,13 @@ def pick(answers, state, candidates, cfg, mem):
     # hold what we are already walking to unless the new choice beats it by a margin
     for i, c in enumerate(candidates):
         if mem.is_committed(c["x"], c["y"]) and i in scored and i != best:
-            margin = float(sel["sector_margin"])
+            margin = float(sel.get("target_margin", sel["sector_margin"]))
             if mem.held < int(sel["commit_ticks"]):
-                margin += float(sel["commit_bonus"])
-            margin = min(margin, 1.0 - 1e-9)      # a whole rubric level always wins
+                margin += float(sel.get("target_commit_bonus", sel["commit_bonus"]))
+            # No 1.0 cap here. That cap belongs to the sector head, where the eight options all cost the
+            # same to try; a target already half walked to is not in that position, and abandoning it for
+            # something one level better means paying for the journey twice.
+            margin = min(margin, 3.0)
             detail["margin"] = round(margin, 3)
             if scored[best] - scored[i] < margin:
                 best, detail["held"] = i, True

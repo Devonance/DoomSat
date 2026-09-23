@@ -73,7 +73,11 @@ SAFE_FIRE_UNITS = 220.0 # in safe mode, only point-blank attackers
 # The panorama. 360 degrees at TURN_PER_TIC is about 1.3 s, comfortably inside the watchdog's four, and
 # LOOK_SPACING is roughly a large room, so a level costs a handful of them rather than one a corridor.
 LOOK_SECONDS = 0.8
-LOOK_SPACING = 512.0
+LOOK_SPACING = 256.0   # measured on five paired seeds of E1M1: at 512 the suite scored 0.069 and
+                       # recalled half the doors it walked up to, at 256 it scored 0.214 and recalled all
+                       # ten, at 160 it scored 0.160 -- looking is what fills the automap, and the automap
+                       # is where the frontiers come from, but a panorama is also seven tenths of a second
+                       # of not travelling
 
 MODES = ("EXPLORE", "APPROACH", "OPERATE", "FIGHT", "RETREAT", "RECOVER")
 STANCES = ("advance", "advance_strafing", "hold", "retreat")
@@ -296,6 +300,14 @@ class Executor:
             # to 13, every point of it taken from behind, and the retreat-returns-fire fix could not
             # help because nothing was ever in the crosshair.
             want = angle + obs["enemies"][0][1]
+        elif (it.use_at_target and it.has_target
+              and math.hypot(it.target_x - x, it.target_y - y) <= USE_UNITS):
+            # Close enough to open it: face it. Use works along the way the player is looking, so being
+            # beside a door is worth nothing. Both of the deepest flights on this level ended at the same
+            # corner, fifty units from a real door, wedged against the wall east of it and pressing Use
+            # into stone -- 143 times in one of them. The plan had delivered the player to the door and
+            # the heading was still whatever the last leg of the walk had left it as.
+            want = math.degrees(math.atan2(it.target_y - y, it.target_x - x))
         else:
             plan = self.world.plan
             if plan is not None and not plan.blocked:
@@ -406,10 +418,22 @@ class Executor:
         return True
 
     def _look(self, obs):
-        """Turn on the spot, seeing. Nothing else: no walking into what has not been looked at yet."""
+        """Turn on the spot, seeing -- and try the walls while turning.
+
+        Doom's exit is a switch on a one-sided wall, and ZDoom's automap draws one-sided lines as plain
+        wall before it ever checks whether the line is an exit. Probed at sixty-eight units from E1M1's
+        exit switch, looking all around, with am_interlevelcolor set and am_showtriggerlines both off and
+        on: 458 wall pixels, 106 door pixels, and zero exit pixels. The pilot has been searching for
+        something it cannot perceive, and no amount of looking will change that.
+
+        What a player does instead is press Use on the wall. Pressing while turning sweeps the whole
+        circle at arm's length, so a switch anywhere around a place the player has stopped gets tried.
+        It uses nothing the player does not have: a wall in front of it, and a button.
+        """
         self.stats["look_ticks"] = self.stats.get("look_ticks", 0) + 1
-        return {"turn": TURN_PER_TIC, "move": 0.0, "strafe": 0.0, "fire": 0, "use": 0,
-                "weapon": WEAPON_KEEP}
+        self.use_phase = (self.use_phase + 1) % 8
+        return {"turn": TURN_PER_TIC, "move": 0.0, "strafe": 0.0, "fire": 0,
+                "use": int(self.use_phase == 1), "weapon": WEAPON_KEEP}
 
     def _rubbing(self, now, x, y):
         """Asking to move, and not moving. Measured over RUB_SECONDS so a doorway pause is not a rub."""
