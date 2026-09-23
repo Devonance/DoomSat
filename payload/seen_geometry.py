@@ -90,6 +90,7 @@ class SeenGeometry:
         self.opened = 0
         self._pending = {}       # key -> the same record, classified but not yet drawn on the automap
         self._dirs = self._radii = None   # the visibility fill's ray table, built once
+        self._opaque = None               # what stops a sightline; private, never reaches the raster
 
     # ------------------------------------------------------------------ classification
     def observe(self, sectors, px=None, py=None):
@@ -108,6 +109,8 @@ class SeenGeometry:
         self._refresh_doors(sectors)
 
     def _classify(self, sectors):
+        import numpy as np
+        self._opaque = np.zeros((self.ex.n, self.ex.n), bool)
         owners = {}
         for s in sectors:
             for ln in s.lines:
@@ -118,7 +121,12 @@ class SeenGeometry:
             if kind is None:
                 continue                       # an open threshold: nothing to draw
             ln = group[0][1]
-            self._pending[key] = {"a": (ln.x1, ln.y1), "b": (ln.x2, ln.y2), "kind": kind}
+            rec = {"a": (ln.x1, ln.y1), "b": (ln.x2, ln.y2), "kind": kind}
+            self._pending[key] = rec
+            if kind in (WALL, DOOR):
+                # What stops a sightline, whether or not the player has noticed it yet. Private to this
+                # module: it never reaches the raster, so nothing can plan a route by it.
+                self._mark_opaque(rec)
 
     def _refresh_doors(self, sectors):
         """A door that has opened stops being a door.
@@ -138,6 +146,7 @@ class SeenGeometry:
         for key, rec in self.lines.items():
             if rec["kind"] == DOOR and key not in flat:
                 self._erase(rec)
+                self._clear_opaque(rec)
                 rec["kind"] = None
                 self.opened += 1
             elif rec["kind"] is None and key in flat:
@@ -245,6 +254,20 @@ class SeenGeometry:
             t = i / n
             yield x1 + t * (x2 - x1), y1 + t * (y2 - y1)
 
+    def _mark_opaque(self, rec):
+        ex = self.ex
+        for px, py in self._samples(rec):
+            ix, iy = ex.wpx(px, py)
+            if 0 <= ix < ex.n and 0 <= iy < ex.n:
+                self._opaque[iy, ix] = True
+
+    def _clear_opaque(self, rec):
+        ex = self.ex
+        for px, py in self._samples(rec):
+            ix, iy = ex.wpx(px, py)
+            if 0 <= ix < ex.n and 0 <= iy < ex.n:
+                self._opaque[iy, ix] = False
+
     def _draw(self, rec):
         ex, cls = self.ex, rec["kind"]
         if cls is None:
@@ -321,11 +344,15 @@ class SeenGeometry:
         np.clip(iy, 0, ex.n - 1, out=iy)
         cls = ex.raster[iy, ix]
         stop = ~inside
-        # A closed door stops the view as surely as a wall does; that is what a door is for, and it is
-        # why the room behind one stays unknown until it is opened. `_refresh_doors` takes the line out
-        # of the map the moment the ceiling moves, so sight follows the door rather than the memory of it.
         for b in tuple(BLOCKING) + (DOOR,):
             stop |= (cls == b)
+        if self._opaque is not None:
+            # And every other wall and shut door in the level, learned or not. A player cannot see
+            # through a wall it has not noticed yet, and the fill claimed 14,997 cells of floor on seven
+            # per cent of a level's walls before this line existed. Nothing here reaches the map: the
+            # raster gains a line only when the automap draws it. This only stops the pilot believing it
+            # has seen past one.
+            stop |= self._opaque[iy, ix]
         # the first stop along each ray, and everything before it is floor the player can see
         any_stop = stop.any(axis=1)
         first = np.where(any_stop, stop.argmax(axis=1), stop.shape[1])

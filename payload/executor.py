@@ -379,9 +379,13 @@ class Executor:
             # at a run as it was at a walk.
             guard = max(AVOID_MIN_UNITS, speed * UNITS_PER_S_PER_DELTA * AVOID_SECONDS)
             if obs["clear_fwd"] <= guard and obs["ahead_kind"] not in ("door", "exit"):
-                # something solid ahead: keep the heading, step around it, and slow down first
+                # Something solid ahead: keep the heading and step around it. It used to slow down as
+                # well, and that was most of being stuck -- 52 of 83 rub ticks in a dev run were the
+                # guard's 15% crawl. This engine gives the player no momentum, so grinding into a wall
+                # costs nothing and crawling at a seventh of a run costs the whole afternoon. How fast
+                # it is safe to go while still turning is the throttle's question, and it is answered
+                # above from the room the camera reports.
                 cmd["strafe"] = STRAFE_DELTA * self._freer_side(obs)
-                speed *= 0.5 if obs["clear_fwd"] > AVOID_MIN_UNITS else 0.15
             if rub and now - self._rub_said > 2.0:
                 # Once every two seconds, not every tic: enough to see where the player is losing its
                 # afternoon without drowning the log.
@@ -578,13 +582,37 @@ class Executor:
         return cmd
 
     def _recover(self, obs):
-        """Always command motion.
+        """Go back the way you came in, because that way is known to work.
 
-        The payload's stuck detector needs the player to push against something to learn it is there, so a
-        recovery that stands still deadlocks it -- 553 decisions in one spot with STUCK false, in September.
-        Back off, turn, and keep pushing.
+        The old recovery turned at the full rate and pushed, which over a second and a half is 787 degrees
+        of spin and leaves the heading to arithmetic. It was 28% of an oracle attempt and it is not how
+        anyone gets out of a corner.
+
+        `stood` is every cell the player has occupied this attempt -- walkable by demonstration, which is
+        the strongest evidence in the world model. Steer at the nearest one that is a watchdog window
+        behind, and run at it. If there is none yet, fall back to the old back-off-and-turn, which is all
+        a player has in its first seconds on a level.
+
+        Still always commands motion: the payload's stuck detector needs the player to push against
+        something to learn it is there, and a recovery that stands still deadlocks it.
         """
         self.world.clear_plan()
+        x, y, angle = obs["x"], obs["y"], obs["angle"]
+        # getattr, because the unit suite drives the executor with a stand-in world that has no map --
+        # and the point of that stand-in is that the executor can be tested without one.
+        way_back = getattr(self.world, "way_back", None)
+        back_to = way_back(x, y, Watchdog.STILL_UNITS) if way_back else None
+        if back_to is not None:
+            want = math.degrees(math.atan2(back_to[1] - y, back_to[0] - x))
+            rel = (want - angle + 180) % 360 - 180
+            self.stats["recover_retreats"] = self.stats.get("recover_retreats", 0) + 1
+            return {"turn": max(-TURN_PER_TIC, min(TURN_PER_TIC, rel)),
+                    # Backwards while the heading comes round, forwards once it has: either way the
+                    # player is moving toward ground it has already stood on.
+                    "move": RUN_DELTA if abs(rel) < 90.0 else -RUN_DELTA * 0.7,
+                    "strafe": STRAFE_DELTA * self._freer_side(obs),
+                    "fire": 0, "use": 1 if obs["ahead_kind"] in ("door", "exit") else 0,
+                    "weapon": WEAPON_KEEP}
         back = obs["clear_back"] > 64
         return {"turn": TURN_PER_TIC * self.recover_dir,
                 "move": -RUN_DELTA * 0.7 if back else RUN_DELTA * 0.5,

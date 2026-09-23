@@ -139,10 +139,10 @@ class TestLocalAvoidance(unittest.TestCase):
         right = self.e.step(obs(clear_fwd=40, clear_fl=50, clear_fr=300), 0.1)
         self.assertLess(right["strafe"], 0.0)
 
-    def test_it_slows_but_does_not_stop_when_something_is_close(self):
+    def test_it_steps_around_something_close_rather_than_crawling_into_it(self):
         cmd = self.e.step(obs(clear_fwd=40), 0.1)
         self.assertGreater(cmd["move"], 0.0, "stopping dead is what the stuck detector cannot see past")
-        self.assertLess(cmd["move"], ex.RUN_DELTA)
+        self.assertNotEqual(cmd["strafe"], 0.0, "and it steps around the thing rather than into it")
 
     def test_it_does_not_sidestep_away_from_a_door_it_is_walking_into(self):
         cmd = self.e.step(obs(clear_fwd=40, ahead_kind="door", ahead_dist=40), 0.1)

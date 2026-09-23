@@ -152,6 +152,7 @@ class Plan:
         self.made_at = made_at
         self.i = 0                          # how far along it the player is
         self.blocked = False
+        self.reacquired = 0                 # times the cursor was moved to a waypoint reachable from here
 
     @property
     def remaining_units(self):
@@ -180,6 +181,7 @@ class Plan:
                 break
         if self.i >= len(self.cells):
             return None
+        self._reacquire(x, y)
         # Steer ahead, but only as far as the path is straight. A cell is 32 units and the player covers
         # 14.5 of them a tic, so aiming at the next cell changes the heading every two tics, the bearing
         # jitters on a diagonal, and the executor is almost never inside its alignment window -- which is
@@ -191,6 +193,28 @@ class Plan:
         # corridor. On a straight run that is the full lookahead; into a corner it shrinks to the next
         # cell by itself.
         return cell_centre(self.cells[self._aim_index(x, y)])
+
+    def _reacquire(self, x, y, span=LOOKAHEAD_CELLS * 2):
+        """If the cursor points somewhere the player cannot walk to, move it to the nearest one it can.
+
+        A path the player has come off is still a good path. `advance` moves the cursor on when the player
+        reaches a waypoint or passes it, and a player pushed sideways does neither -- so it goes on
+        steering at a waypoint behind a wall, with the avoidance guard holding it at 15% of a run against
+        the wall, for as long as the rub correction keeps pushing it sideways. That was the commonest
+        single line in a dev run's rub log.
+
+        Forward first, because going on is the point and going back is what the recovery is for.
+        """
+        here = cell_centre(self.cells[self.i])
+        if self.straight_line_clear(x, y, here[0], here[1]):
+            return
+        for j in list(range(self.i + 1, min(len(self.cells), self.i + span + 1))) + \
+                list(range(self.i - 1, max(-1, self.i - span - 1), -1)):
+            cx, cy = cell_centre(self.cells[j])
+            if self.straight_line_clear(x, y, cx, cy):
+                self.reacquired += 1
+                self.i = j
+                return
 
     def _aim_index(self, x, y):
         best = min(len(self.cells) - 1, self.i + 1)
@@ -1094,6 +1118,24 @@ class WorldModel:
             if blk[jy, jx]:
                 return False
         return True
+
+    def way_back(self, x, y, at_least):
+        """The nearest cell the player has stood in that is at least `at_least` units behind it.
+
+        Ground it has stood on is ground it can stand on -- that is the one claim in this whole world
+        model that rests on demonstration rather than inference, and it is exactly what a player wedged
+        in a corner needs. Nearest, so the retreat is short; at least `at_least` away, so it is not the
+        corner itself.
+        """
+        best, bd = None, None
+        for c in self.stood:
+            cx, cy = cell_centre(c)
+            d = math.hypot(cx - x, cy - y)
+            if d < at_least:
+                continue
+            if bd is None or d < bd:
+                best, bd = (cx, cy), d
+        return best
 
     def times_tried(self, cell):
         """Journeys begun to this place or the cells touching it.
