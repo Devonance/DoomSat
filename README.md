@@ -10,6 +10,41 @@ each open direction is, every half second, and code turns those scores into one 
 (System Two) nudges exploration once a minute and, after each attempt, rewrites the questions jev plays with.
 Code owns the loop and never reads the level file.
 
+## It finished E1M1
+
+On 24 September 2026, on the full stack, **jev finished Doom E1M1 in 104.97 seconds of game time** — the
+charter's budget is 180 — with **no deaths** and **four monsters killed**. Payload to F´ to CCSDS to Yamcs
+to the pilot to jev and back up, at the engine's own 35 tics a second.
+
+![The last 28 seconds: the fourth kill at 33% health, then the run to the exit](docs/video/e1m1-finish.gif)
+
+The clip is the last 28 seconds, downlinked as JPEG frames over the link — it is what the *ground* saw,
+not a screen capture. [The whole run](docs/video/e1m1-finished.mp4) (105 s, 7 MB) and
+[just this clip](docs/video/e1m1-finish-clip.mp4) are in `docs/video/`.
+
+| | |
+|---|---|
+| game time | **104.97 s** (budget 180) |
+| deaths | 0 — health 100 → 40, low of 15 |
+| kills | 4, at 25.0 s, 34.9 s, 55.9 s and 79.9 s |
+| flight tic rate | 35.0/s |
+| decision age p95 | 845 ms (budget 900) |
+| honesty | 17 checks pass, including the canary; `--oracle off` |
+
+**What jev did at the two moments that decided it.** At 92.7 s the exit entered the candidate list for the
+first time and jev scored it 7.02 against a door at 5.49 and frontiers from 1.03 to 5.60 — and took it,
+while the engage head was saying *Retreat*. At 105.0 s it scored the exit 7.94, its highest of the run.
+The [full decision log](docs/results/e1m1-finished-decision-log.md) has every such moment.
+
+It was the **102nd attempt** this project had made at E1M1; none of the previous 101 finished, and the
+best of them reached 0.85 of the way. [Every attempt on one chart](docs/results/e1m1-progress.html):
+
+![Every attempt at E1M1](docs/results/e1m1-progress-light.png)
+
+What changed that night — the exit had never once been offered to jev as a candidate, on any run, because
+`path_costs` silently drops any goal it cannot reach and an exit line is a one-sided wall — is written up
+in the [overnight report](docs/results/2026-09-24-overnight-report.md).
+
 ![Architecture](docs/diagrams/architecture.png)
 
 ## Data flow
