@@ -26,6 +26,7 @@ class FakeExplorer:
         self.walls = dict(walls)          # cell -> class
         self.keys = set(keys)
         self.visited = dict(visited or {})
+        self.block_everything = False     # the harshest thing the raster can say, for the walling-in tests
         import numpy as np
         self.n = 512
         self.ox, self.oy = -1024.0, 1024.0
@@ -39,6 +40,8 @@ class FakeExplorer:
         return int((x - self.ox) / mc.WPX), int((self.oy - y) / mc.WPX)
 
     def klass(self, ix, iy, now, r=1):
+        if self.block_everything:
+            return mc.BARRIER
         x = self.ox + ix * mc.WPX
         y = self.oy - iy * mc.WPX
         return self.walls.get(self.cell(x, y), mc.NONE)
@@ -515,3 +518,32 @@ class TestTheOfferRemembersHavingBeenThere(unittest.TestCase):
                  if c.kind == wm.KIND_FRONTIER}
         self.assertEqual(again.get(first[0].cell), 1,
                          "the frontier just walked to still says it has never been tried")
+
+
+class TestItCannotWallItselfIn(unittest.TestCase):
+    """A barrier must never close the ground the player is standing on.
+
+    The step detector marks a barrier in front of the player's feet. The mark covers the cell it is on,
+    the flood cannot leave that cell, and the candidate list comes back empty -- with eight hundred
+    walkable cells on the map and ten goals, every one reported as having no route. The flight log said
+    exactly that, repeatedly, at the one position where the step detector fires.
+    """
+
+    def setUp(self):
+        self.ex = FakeExplorer(free=room(0, 0, 12, 6))
+        self.w = wm.WorldModel(self.ex)
+        self.w.see_doors = lambda *a, **k: None
+
+    def test_a_barrier_over_the_player_does_not_strand_it(self):
+        self.w.note_here(16.0, 16.0)
+        self.assertTrue(self.w.candidates(16.0, 16.0, 0.0, 0.0), "nothing offered before the barrier")
+        self.ex.block_everything = True                 # the harshest thing the raster can say
+        self.assertTrue(self.w.passable(0, 0, 1.0), "the cell it is standing in stopped being walkable")
+
+    def test_ground_already_walked_stays_walkable(self):
+        for cx in range(0, 6):
+            self.w.note_here((cx + 0.5) * GRID, 16.0)
+        self.ex.block_everything = True
+        walk = self.w.walkable(1.0)
+        for cx in range(0, 6):
+            self.assertIn((cx, 0), walk, "the trail it walked in on is no longer a route out")

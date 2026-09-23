@@ -33,12 +33,20 @@ DOOR_MIN_WIDTH, DOOR_MAX_WIDTH = 40.0, 200.0
 DOOR_CONFIRM_UNITS = 400.0   # close enough for the range camera to have an opinion
 SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means it is not solid
 MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
-PLAYER_CLEARANCE_PX = 5      # raster pixels of room a cell needs: the player has a 16-unit radius, so
-                             # 4 is +-16 and exactly no margin -- a cell whose centre sits sixteen units
-                             # from a wall counts as walkable and the player arrives already touching it.
-                             # The prose below argues for 5 and the constant said 4. The rub log is what
-                             # that costs: clear_fwd 14, one shoulder at 7, and 40% of a flight spent at
-                             # full throttle going nowhere.
+# Clearance is a preference, not a permission. The player has a 16-unit radius, so 4 raster pixels is
+# +-16 and exactly no margin: a cell whose centre sits sixteen units from a wall counts as walkable and
+# the player arrives already touching it, which is what the rub log shows -- clear_fwd 14, one shoulder
+# at 7. Raising the requirement to 5 fixed that and broke something far worse: in a corridor narrow
+# enough that every neighbouring cell failed the test, the flood could not leave the player's own cell
+# and the candidate list came back empty. Seventy per cent of the decisions in two flights had nowhere
+# to go at all, against 19% in the one flight that got closest to the exit, and every one of those
+# reported no route to any goal with five hundred walkable cells on the map.
+#
+# So: 4 decides whether a cell can be used, 5 decides whether the planner likes it. A tight cell costs
+# extra to cross, which puts the route down the middle of a corridor without ever refusing the corridor.
+PLAYER_CLEARANCE_PX = 4      # a cell narrower than this is not walkable at all
+PLAYER_ROOMY_PX = 5          # a cell narrower than this is walkable, and avoided if there is a choice
+TIGHT_COST = 1.6             # extra steps a tight cell costs, in cells
 ARRIVED_UNITS = 96.0        # close enough that the arm's-length probe has the final word. 96 was
                              # the probe's own reach. A suspect inside a wall is settled by having
                              # no route to it, which is a stronger test than standing near it.
@@ -200,6 +208,8 @@ class WorldModel:
         # flight, because frontier tries were hardcoded to zero -- so the one signal that says "you have
         # already been there" was missing from the only head that could have used it.
         self.targeted = {}
+        self.empty_reason = None
+        self.stood = set()           # every cell the player has occupied: passable by demonstration
         self.planner_calls = 0
         self.planner_failures = 0
 
@@ -211,6 +221,13 @@ class WorldModel:
         as passable -- it opens -- unless it is locked and the key is not held, which `Explorer.klass`
         already distinguishes by colour.
         """
+        if (cx, cy) in self.stood:
+            # Standing somewhere is proof it can be stood in, and it outranks every inference. Without
+            # this the player seals itself in: it marks a step barrier in front of its feet, the barrier
+            # covers the ground it is on, the flood cannot leave its own cell, and the candidate list
+            # comes back empty with eight hundred walkable cells on the map -- which is what the log said
+            # at (1328,-3190), over and over, at the exact place the step detector fires.
+            return True
         if (cx, cy) not in self.ex.free:
             return False
         ix, iy = self.ex.wpx((cx + 0.5) * GRID, (cy + 0.5) * GRID)
@@ -227,8 +244,21 @@ class WorldModel:
             return False
         return True
 
+    def note_here(self, x, y):
+        """The player is here, so here can be stood in. Called every tic: at two hundred units a second
+        the decision rate would leave two-cell gaps in the trail, and a gap is where it gets walled in."""
+        self.stood.add(self.ex.cell(x, y))
+
+    def tight(self, cx, cy, now):
+        """Walkable, but with the walls close enough that the player will scrape them."""
+        ix, iy = self.ex.wpx((cx + 0.5) * GRID, (cy + 0.5) * GRID)
+        return self.ex.klass(ix, iy, now, r=PLAYER_ROOMY_PX) in BLOCKING
+
     def walkable(self, now):
-        return {c for c in self.ex.free if self.passable(c[0], c[1], now)}
+        return {c for c in self.ex.free if self.passable(c[0], c[1], now)} | self.stood
+
+    def tight_cells(self, walk, now):
+        return {c for c in walk if self.tight(c[0], c[1], now)}
 
     # ------------------------------------------------------------------ frontiers
     def known(self, now):
@@ -573,6 +603,7 @@ class WorldModel:
                 self.planner_failures += 1
                 return None
             goal_cell = min(near, key=lambda c: (c[0] - goal_cell[0]) ** 2 + (c[1] - goal_cell[1]) ** 2)
+        narrow = self.tight_cells(walk, now)
         h = lambda c: math.hypot(c[0] - goal_cell[0], c[1] - goal_cell[1])
         openq = [(h(start), 0.0, start)]
         came, best = {}, {start: 0.0}
@@ -600,7 +631,7 @@ class WorldModel:
                     if dx and dy and ((cur[0] + dx, cur[1]) not in walk or (cur[0], cur[1] + dy) not in walk):
                         continue          # no cutting a corner between two walls
                     step = 1.41421 if dx and dy else 1.0
-                    ng = g + step
+                    ng = g + step + (TIGHT_COST if n in narrow else 0.0)
                     if ng < best.get(n, 1e18):
                         best[n], came[n] = ng, cur
                         heapq.heappush(openq, (ng + h(n), ng, n))
@@ -612,6 +643,7 @@ class WorldModel:
         start = self.ex.cell(x, y)
         walk = self.walkable(now)
         walk.add(start)
+        narrow = self.tight_cells(walk, now)
         want = {g for g in goals}
         dist = {start: 0.0}
         openq = [(0.0, start)]
@@ -631,7 +663,7 @@ class WorldModel:
                         continue
                     if dx and dy and ((cur[0] + dx, cur[1]) not in walk or (cur[0], cur[1] + dy) not in walk):
                         continue
-                    ng = g + (1.41421 if dx and dy else 1.0)
+                    ng = g + (1.41421 if dx and dy else 1.0) + (TIGHT_COST if n in narrow else 0.0)
                     if ng < dist.get(n, 1e18):
                         dist[n] = ng
                         heapq.heappush(openq, (ng, n))
@@ -659,6 +691,7 @@ class WorldModel:
         the ground is not an optimisation -- the path distances need the map, and the map is onboard.
         """
         self._last_pos = (x, y)
+        self.stood.add(self.ex.cell(x, y))
         if self.start is None:
             self.start = (x, y)
         self.see_doors(now)
@@ -706,9 +739,10 @@ class WorldModel:
         if not goals:
             return []
         costs = self.path_costs(x, y, set(goals), now)
-        out = []
+        out, no_route = [], 0
         for cell in set(goals):
             if cell not in costs:
+                no_route += 1
                 # No route to it at all. For a frontier that is temporary -- the map may open up. For a
                 # door suspect it is close to proof: a door you cannot walk to is not a door you can use,
                 # and one sitting inside a wall would otherwise be approached, abandoned and offered again
@@ -737,6 +771,14 @@ class WorldModel:
         # Doors are gates, not options: they are already capped at two, and letting them compete with
         # frontiers on promise dropped door_recall to a third -- the outward lean scores a door at the
         # start of a corridor below a frontier at the far end of one, and then the corridor stays shut.
+        if not out:
+            # Empty means the player has nowhere to go, and it is not rare: 70% of the decisions in two
+            # flights came back with no candidates at all, against 19% in the one flight that got closest
+            # to the exit. Say which of the three ways it happened -- nothing found, everything already
+            # written off, or nothing with a route -- because they have nothing to do with each other.
+            self.empty_reason = {"frontiers": len(self._frontiers), "dead": len(self.dead_frontiers),
+                                 "goals": len(goals), "no_route": no_route,
+                                 "walkable": len(self.walkable(now))}
         must = [c for c in out if c.kind in (KIND_EXIT, KIND_KEY, KIND_DOOR)]
         rest = [c for c in out if c.kind not in (KIND_EXIT, KIND_KEY, KIND_DOOR)]
         room = max(0, limit - len(must))

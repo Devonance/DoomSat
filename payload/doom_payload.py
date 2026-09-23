@@ -476,6 +476,7 @@ class Payload:
         self.last_move = (0.0, 0.0)   # what actually drove the player last tic, whichever path issued it
         self.floor_seen = deque(maxlen=400)   # how far the down-looking band reads; level ground dominates
         self.step_said = 0.0
+        self.empty_said = 0.0
         self.use_ok = False
         # door_precision: presses that opened something, over presses. A ceiling-change line that is not
         # a door absorbs presses and opens nothing, so this is the number that says whether the senses
@@ -680,6 +681,7 @@ class Payload:
         slow = state.tic % 3 == 0 or self.sense is None
         if state.tic % SENSE_EVERY == 0 or ex.stamps == 0:
             ex.stamp(state.automap_buffer, x, y)
+        self.world.note_here(x, y)
         ex.sweep(x, y, angle, depth_row)
         ex.remember_items(x, y, state.labels)
         for lab in state.labels:
@@ -782,6 +784,11 @@ class Payload:
         # channel for it -- so on a flight this line is the only way to tell a player that is walking from
         # one that is aiming. The bench and the flight run the same executor and came back 209 units per
         # second against 93, which is a difference nobody could explain from the telemetry that exists.
+        if (self.world.empty_reason is not None and self.game_time - self.empty_said > 5.0):
+            self.empty_said = self.game_time
+            print("[payload] nowhere to go at (%.0f,%.0f): %s" % (x, y, self.world.empty_reason),
+                  flush=True)
+            self.world.empty_reason = None
         if state.tic % (TICRATE * 30) == 0 and self.executor is not None:
             st, n = self.executor.stats, max(1, self.executor.stats.get("ticks", 1))
             print("[payload] %4.0fs  move %d%%  full %d%%  turn %d%%  look %d%%  recover %d%%  rub %d%%"
