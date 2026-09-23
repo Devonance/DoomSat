@@ -117,13 +117,41 @@ class Plan:
                 break
         if self.i >= len(self.cells):
             return None
-        # Steer well ahead, not at the next cell. A cell is 32 units and the player covers 14.5 of them
-        # a tic, so aiming one cell ahead changes the heading roughly every two tics; on a diagonal the
-        # bearing jitters, the executor is rarely inside its alignment window, and it spends the level at
-        # part throttle. Looking LOOKAHEAD_CELLS along the path smooths the heading without cutting any
-        # corner the planner did not already allow.
-        j = min(len(self.cells) - 1, self.i + LOOKAHEAD_CELLS)
-        return cell_centre(self.cells[j])
+        # Steer ahead, but only as far as the path is straight. A cell is 32 units and the player covers
+        # 14.5 of them a tic, so aiming at the next cell changes the heading every two tics, the bearing
+        # jitters on a diagonal, and the executor is almost never inside its alignment window -- which is
+        # why it crossed the level at a sixth of its running speed. Aiming a fixed distance ahead fixes
+        # that and introduces a worse bug: on a bend the aim point is through the wall, the player pushes
+        # into it, and the watchdog calls it a freeze. Thirty-six of them in two dev episodes.
+        #
+        # So: take the furthest waypoint whose straight line from here does not leave the path's own
+        # corridor. On a straight run that is the full lookahead; into a corner it shrinks to the next
+        # cell by itself.
+        return cell_centre(self.cells[self._aim_index(x, y)])
+
+    def _aim_index(self, x, y):
+        best = min(len(self.cells) - 1, self.i + 1)
+        for j in range(best, min(len(self.cells), self.i + LOOKAHEAD_CELLS + 1)):
+            if self._chord_clear(x, y, j):
+                best = j
+            else:
+                break
+        return best
+
+    def _chord_clear(self, x, y, j, slack=GRID * 1.2):
+        """Does the straight line from here to waypoint j stay beside the path it is shortcutting?"""
+        tx, ty = cell_centre(self.cells[j])
+        dx, dy = tx - x, ty - y
+        span = math.hypot(dx, dy)
+        if span < 1e-6:
+            return True
+        for k in range(self.i, j + 1):
+            px, py = cell_centre(self.cells[k])
+            # perpendicular distance from the path point to the chord
+            off = abs(dx * (py - y) - dy * (px - x)) / span
+            if off > slack:
+                return False
+        return True
 
     def better_than(self, other):
         if other is None or other.blocked or not other.cells:

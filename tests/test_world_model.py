@@ -406,3 +406,28 @@ class TestASuspectYouCannotReach(unittest.TestCase):
         before = dict(self.w.doors)
         self.w.candidates(16.0, 16.0, 0.0, 0.0)
         self.assertEqual(set(before), set(self.w.doors), "a frontier must not be settled like a door")
+
+
+class TestSteeringAhead(unittest.TestCase):
+    """Aiming at the next cell changes the heading every two tics and costs most of the player's speed.
+    Aiming a fixed distance ahead cuts the corner through the wall instead -- 36 freezes in two dev
+    episodes. The aim point has to stop where the path stops being straight."""
+
+    def test_on_a_straight_run_it_looks_the_full_distance_ahead(self):
+        plan = wm.Plan([(i, 0) for i in range(12)], None, 0.0)
+        plan.advance(16.0, 16.0)
+        self.assertGreaterEqual(plan._aim_index(16.0, 16.0), plan.i + wm.LOOKAHEAD_CELLS - 1)
+
+    def test_into_a_right_angle_it_looks_only_as_far_as_the_bend(self):
+        cells = [(i, 0) for i in range(5)] + [(4, j) for j in range(1, 8)]
+        plan = wm.Plan(cells, None, 0.0)
+        plan.advance(16.0, 16.0)
+        aim = plan._aim_index(16.0, 16.0)
+        self.assertLessEqual(aim, 5, "it aimed around the corner, through the wall: %d" % aim)
+
+    def test_the_aim_point_is_always_ahead_of_the_cursor(self):
+        cells = [(i, 0) for i in range(3)] + [(2, 1), (2, 2)]
+        plan = wm.Plan(cells, None, 0.0)
+        for pos in ((16.0, 16.0), (48.0, 16.0), (80.0, 16.0)):
+            plan.advance(*pos)
+            self.assertGreater(plan._aim_index(*pos), plan.i - 1)

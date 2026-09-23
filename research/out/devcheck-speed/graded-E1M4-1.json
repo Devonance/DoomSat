@@ -1,0 +1,87 @@
+{
+ "map": "E1M4",
+ "seed": 1,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "devcheck-speed",
+ "versions": {
+  "commit": "db67fb9",
+  "pinned": "db67fb9289916dbd02524b67e16248b7f2c469fa",
+  "dirty": false,
+  "branch": "HEAD",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "6ca52161f731",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "051c7540a48f"
+ },
+ "commit": "db67fb9289916dbd02524b67e16248b7f2c469fa",
+ "dirty": false,
+ "score": 0.0033,
+ "completed": false,
+ "level_time": 180.11,
+ "end_reason": "timeout",
+ "deaths": 3,
+ "deaths_per_minute": 0.999,
+ "watchdog_trips": {
+  "no displacement for 4 s": 16
+ },
+ "freezes": 16,
+ "executor_stats": {
+  "ticks": 6304,
+  "safe_ticks": 0,
+  "recover_ticks": 848,
+  "intents": 334,
+  "stale_dropped": 0,
+  "look_ticks": 299
+ },
+ "cache_hit_rate": 0.0369,
+ "model_unavailable": 0,
+ "door_presses": 8,
+ "door_opens": 1,
+ "door_precision": 0.125,
+ "door_recall": {
+  "real_doors": 34,
+  "came_into_view": 9,
+  "offered": 9,
+  "door_recall": 1.0
+ },
+ "exit_ever_seen": false,
+ "progress": 0.0036,
+ "progress_best": 0.0373,
+ "start_distance": 6999.6,
+ "remaining_distance": 6974.2,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": true,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 334,
+  "decisions_per_s": 1.869,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.3529,
+  "fallback_rate": 0.503,
+  "speed_explore": 140.29,
+  "coverage_rate": 9.74,
+  "revisit_fraction": 0.2964,
+  "spin_rate": 0.16789,
+  "idle_fraction": 0.1942,
+  "watchdog_trips": {},
+  "mode_share": {
+   "APPROACH": 0.5,
+   "EXPLORE": 0.4281,
+   "OPERATE": 0.0539,
+   "RETREAT": 0.018
+  },
+  "deaths_by_mode": {
+   "EXPLORE": 1,
+   "APPROACH": 2
+  },
+  "tokens_per_decision": 0.0,
+  "cells": 29,
+  "path_units": 28238.6
+ },
+ "warning": "this map has teleports, which the grader does not model: progress may understate a route that goes through one"
+}
