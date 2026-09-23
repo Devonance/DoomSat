@@ -183,7 +183,9 @@ def next_exp_id():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--parent", required=True, help="the run directory of the commit being improved on")
+    ap.add_argument("--parent", required=False, default=None,
+                    help="the run directory of the commit being improved on. Not needed with "
+                         "--decision history, where there is nothing to compare against.")
     ap.add_argument("--new", required=True, help="the run directory of the change")
     ap.add_argument("--exp", default=None)
     ap.add_argument("--author", default="claude-code",
@@ -192,8 +194,11 @@ def main(argv=None):
                     choices=["executor", "world-model", "graph", "knowledge", "sensing", "planner", "harness"])
     ap.add_argument("--hypothesis", required=True)
     ap.add_argument("--change", required=True)
-    ap.add_argument("--decision", default=None, choices=["keep", "discard", "inconclusive", "crash"],
-                    help="override the keep rule; say why in --notes")
+    ap.add_argument("--decision", default=None,
+                    choices=["keep", "discard", "inconclusive", "crash", "history"],
+                    help="override the keep rule; say why in --notes. `history` is for a run recorded "
+                         "after the fact on a track that no longer exists: the numbers are written down "
+                         "so the change is not invisible, and nothing is claimed for them.")
     ap.add_argument("--jev-usd", type=float, default=0.0)
     ap.add_argument("--sonnet-usd", type=float, default=0.0)
     ap.add_argument("--wall-min", type=float, default=0.0)
@@ -208,8 +213,22 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     conf = yaml.safe_load(open(HERE / "levels.yaml", encoding="utf-8"))
-    p_graded, p_sum = load_run(a.parent)
     c_graded, c_sum = load_run(a.new)
+    if a.decision == "history" and not a.parent:
+        # A run recorded after the fact, on a track that no longer exists. There is nothing to pair it
+        # against and nothing is being claimed for it -- the row exists so the change is not invisible,
+        # and so that "this constant was set by an experiment that has never been repeated on t3" is a
+        # fact anyone can look up rather than a thing you have to remember.
+        p_graded, p_sum = c_graded, {}
+        keys, pairs, skipped = [], [], []
+        v = {"decision": "history", "why": "recorded after the fact; not paired, not compared",
+             "delta": 0.0, "se": float("nan"), "wins": 0, "losses": 0}
+        print("history row for %s: suite %.4f over %d attempts"
+              % (a.new, c_sum.get("suite_score", 0.0), c_sum.get("attempts", 0)))
+        return _write(a, conf, keys, v, p_graded, p_sum, c_graded, c_sum)
+    if not a.parent:
+        raise SystemExit("--parent is required unless --decision history")
+    p_graded, p_sum = load_run(a.parent)
     if a.fast:
         keys, pairs, skipped = [], [], []
         v = fast_verdict(p_sum, c_sum, a.fast, a.direction, conf)
@@ -225,12 +244,16 @@ def main(argv=None):
         print("  parent %.4f -> new %.4f   delta %+.4f   se %.4f   %d wins / %d losses"
               % (p_sum.get("suite_score", 0), c_sum.get("suite_score", 0), v["delta"], v["se"],
                  v["wins"], v["losses"]))
-    decision = a.decision or v["decision"]
     print("  guardrails: %s" % ("pass" if c_sum.get("guardrails_pass") else "FAIL"))
     print("  keep rule says %s -- %s" % (v["decision"], v["why"]))
     if a.decision and a.decision != v["decision"]:
         print("  OVERRIDDEN to %s" % a.decision)
 
+    return _write(a, conf, keys, v, p_graded, p_sum, c_graded, c_sum)
+
+
+def _write(a, conf, keys, v, p_graded, p_sum, c_graded, c_sum):
+    decision = a.decision or v["decision"]
     row = {
         "exp_id": a.exp or next_exp_id(), "date": time.strftime("%Y-%m-%d"), "track": conf["track"],
         "parent_commit": (p_graded[0].get("versions") or {}).get("commit") or "",
