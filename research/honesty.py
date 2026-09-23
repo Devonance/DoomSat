@@ -117,7 +117,7 @@ def test_no_whole_level_info(src):
              if "state.sectors" in ln and not ln.strip().startswith("#")]
     if len(reads) > 1:
         bad.append("%s reads state.sectors in %d places; it may do so in one" % (PAYLOAD, len(reads)))
-    elif reads and "self.geom.observe(state.sectors)" not in reads[0]:
+    elif reads and not re.match(r"self\.geom\.observe\(state\.sectors[,)]", reads[0]):
         bad.append("%s reads state.sectors outside the sensor: %r" % (PAYLOAD, reads[0][:70]))
     for rel, body in src.items():
         if body is None:
@@ -311,7 +311,7 @@ CANARIES = [
      "if True:  # every line, drawn or not",
      "test_geometry_seen_only"),
     ("the pilot reading the sector table for itself", PAYLOAD,
-     "self.geom.observe(state.sectors)", "self.every_line = list(state.sectors)",
+     "self.geom.observe(state.sectors, x, y)", "self.every_line = list(state.sectors)",
      "test_no_whole_level_info"),
     ("the diagnostic ladder left switched on", PAYLOAD,
      'p.add_argument("--oracle", default="off"', 'p.add_argument("--oracle", default="L0"',

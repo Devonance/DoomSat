@@ -87,6 +87,17 @@ ARRIVE_UNITS = 24.0        # close enough to a waypoint to take the next one, an
 TARGET_UNITS = 64.0        # close enough to the target to call it reached
 OUTWARD_UNITS = 128.0      # further from the spawn than here by this much counts as further out
 
+# Where the candidate list's own time goes, accumulated in seconds and reported per attempt. The tic
+# budget is 28.6 ms and this runs once in seven of them, so "candidates are expensive" is not a finding --
+# which part of them is, is.
+COST = {}
+
+
+def _cost(name, t0):
+    import time as _t
+    COST[name] = COST.get(name, 0.0) + (_t.perf_counter() - t0)
+
+
 KIND_FRONTIER, KIND_DOOR, KIND_EXIT, KIND_KEY, KIND_ITEM, KIND_SWITCH, KIND_ENEMY = range(7)
 KIND_NAME = {KIND_FRONTIER: "frontier", KIND_DOOR: "door", KIND_EXIT: "exit", KIND_KEY: "key",
              KIND_ITEM: "item", KIND_SWITCH: "switch", KIND_ENEMY: "enemy"}
@@ -236,6 +247,8 @@ class WorldModel:
         self.stood = set()           # every cell the player has occupied: passable by demonstration
         self.planner_calls = 0
         self.planner_failures = 0
+        self._walk_key, self._walk = None, set()
+        self._known_key, self._known = None, set()
 
     # ------------------------------------------------------------------ the floor
     def passable(self, cx, cy, now):
@@ -286,6 +299,13 @@ class WorldModel:
 
     def crossing_costs(self, walk, now):
         """What each cell costs beyond its distance: a squeeze, a ledge, or both."""
+        if getattr(self.ex, "geom", None) is not None:
+            # Brief 6.5. TIGHT_COST exists because the automap draws a wall as a fuzzy stroke and the
+            # clearance test around it was approximate, so the planner had to be bribed toward the middle
+            # of a corridor. With exact lines the test is exact -- a cell is walkable when its centre is
+            # a player radius from a real line -- and the bribe is a second opinion about a question that
+            # no longer has two answers. It also costs a second max filter per decision.
+            return {}
         out = {}
         near = getattr(self.ex, "near_class", None)
         for c in walk:
@@ -299,7 +319,37 @@ class WorldModel:
         return out
 
     def walkable(self, now):
-        return {c for c in self.ex.free if self.passable(c[0], c[1], now)} | self.stood
+        """Every cell a player could stand in, computed once per decision rather than per caller.
+
+        `frontiers`, `path_costs` and `plan_to` each used to build this from scratch, and each build was
+        one `klass` call per cell. That cost nothing while the floor came from a 400-unit camera sweep;
+        with the visibility fill a look around one hall adds two thousand cells and the three rebuilds
+        became 160 ms a decision. The mask does the geometry once for everybody and this caches the
+        answer for the tic it was asked on.
+        """
+        key = round(now, 3)
+        if self._walk_key == key:
+            return set(self._walk)
+        # getattr, not a hard call: the unit suite drives this with a stand-in Explorer that has no
+        # raster to filter, and the point of that stand-in is that the world model can be tested without
+        # ViZDoom. Falling back to the per-cell test keeps both honest -- same answer, slower.
+        mask_of = getattr(self.ex, "blocked_mask", None)
+        mask = mask_of(now, PLAYER_CLEARANCE_PX) if mask_of else None
+        if mask is None:
+            out = {c for c in self.ex.free if self.passable(c[0], c[1], now)} | self.stood
+        else:
+            blk, ix0, iy0 = mask
+            out = set(self.stood)
+            for c in self.ex.free:
+                if c in self.stood:
+                    out.add(c)
+                    continue
+                ix, iy = self.ex.wpx((c[0] + 0.5) * GRID, (c[1] + 0.5) * GRID)
+                jx, jy = ix - ix0, iy - iy0
+                if 0 <= jy < blk.shape[0] and 0 <= jx < blk.shape[1] and not blk[jy, jx]:
+                    out.add(c)
+        self._walk_key, self._walk = key, out
+        return set(out)
 
     def tight_cells(self, walk, now):
         return {c for c in walk if self.tight(c[0], c[1], now)}
@@ -317,17 +367,32 @@ class WorldModel:
         camera never swept, so using it as well tells the difference between "not looked at" and "not
         there".
         """
+        key = round(now, 3)
+        if self._known_key == key:
+            return set(self._known)
         out = set(self.ex.free)
         ex = self.ex
         import numpy as np
-        ys, xs = np.nonzero(ex.raster)
+        # Over the window the player has seen, not the whole 3072-square raster: np.nonzero on nine
+        # million pixels to find a few thousand is most of a tic, every time a frontier is asked for.
+        mask_of = getattr(ex, "blocked_mask", None)
+        box = mask_of(now, 1) if mask_of else None
+        if box is not None:
+            _blk, ix0, iy0 = box
+            sub = ex.raster[iy0:iy0 + _blk.shape[0], ix0:ix0 + _blk.shape[1]]
+            ys, xs = np.nonzero(sub)
+            xs = xs + ix0
+            ys = ys + iy0
+        else:
+            ys, xs = np.nonzero(ex.raster)
         if len(xs):
             step = max(1, len(xs) // 6000)
             for k in range(0, len(xs), step):
                 wx = ex.ox + int(xs[k]) * WPX
                 wy = ex.oy - int(ys[k]) * WPX
                 out.add((int(math.floor(wx / GRID)), int(math.floor(wy / GRID))))
-        return out
+        self._known_key, self._known = key, out
+        return set(out)
 
     def frontiers(self, x, y, now, force=False):
         """Ways on: walkable floor that borders on ground this attempt knows nothing about.
@@ -340,9 +405,10 @@ class WorldModel:
         """
         if not force and now - self.last_frontier_t < 0.5:
             return self._frontiers
+        import time as _t
         self.last_frontier_t = now
-        walk = self.walkable(now)
-        known = self.known(now)
+        t0 = _t.perf_counter(); walk = self.walkable(now); _cost("walkable", t0)
+        t0 = _t.perf_counter(); known = self.known(now); _cost("known", t0)
         edge = []
         for (cx, cy) in walk:
             if (cx, cy) in self.dead_frontiers:
@@ -352,11 +418,16 @@ class WorldModel:
                     edge.append((cx, cy))
                     break
         self._frontiers = []
-        for cell, size in self._cluster(set(edge)):
+        t0 = _t.perf_counter()
+        clusters = self._cluster(set(edge))
+        _cost("cluster", t0)
+        t0 = _t.perf_counter()
+        for cell, size in clusters:
             unseen, depth = self._beyond(cell, known)
             if unseen < MIN_UNSEEN_CELLS:
                 continue          # a pinhole in the sweep, not a way on
             self._frontiers.append((cell, size, unseen, depth))
+        _cost("beyond", t0)
         # biggest promise first; the ground still gets to disagree
         self._frontiers.sort(key=lambda f: -(f[2] + f[3]))
         return self._frontiers[:FRONTIER_MAX]
@@ -704,25 +775,37 @@ class WorldModel:
         dist = {start: 0.0}
         openq = [(0.0, start)]
         out = {}
+        # Written out rather than looped over. This is the single most expensive thing the payload does
+        # -- measured at 3.9 ms of every tic, which is 27 ms of the one tic in seven it runs on, against
+        # a 28.6 ms budget for the whole loop -- and the cost is entirely the inner loop's dictionary and
+        # attribute lookups, not the algorithm. Binding them once and unrolling the eight neighbours is
+        # the same Dijkstra with the interpreter taken out of it.
+        push, pop = heapq.heappush, heapq.heappop
+        straight, diag = ((1, 0), (-1, 0), (0, 1), (0, -1)), ((1, 1), (1, -1), (-1, 1), (-1, -1))
+        get = dist.get
         while openq and len(out) < len(want):
-            g, cur = heapq.heappop(openq)
-            if g > dist.get(cur, 1e18):
+            g, cur = pop(openq)
+            if g > get(cur, 1e18):
                 continue
             if cur in want:
                 out[cur] = g * GRID
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    if not dx and not dy:
-                        continue
-                    n = (cur[0] + dx, cur[1] + dy)
-                    if n not in walk:
-                        continue
-                    if dx and dy and ((cur[0] + dx, cur[1]) not in walk or (cur[0], cur[1] + dy) not in walk):
-                        continue
-                    ng = g + (1.41421 if dx and dy else 1.0) + narrow.get(n, 0.0)
-                    if ng < dist.get(n, 1e18):
-                        dist[n] = ng
-                        heapq.heappush(openq, (ng, n))
+            cx, cy = cur
+            for dx, dy in straight:
+                n = (cx + dx, cy + dy)
+                if n not in walk:
+                    continue
+                ng = g + 1.0 + narrow.get(n, 0.0) if narrow else g + 1.0
+                if ng < get(n, 1e18):
+                    dist[n] = ng
+                    push(openq, (ng, n))
+            for dx, dy in diag:
+                n = (cx + dx, cy + dy)
+                if n not in walk or (cx + dx, cy) not in walk or (cx, cy + dy) not in walk:
+                    continue          # no cutting a corner between two walls
+                ng = g + 1.41421 + narrow.get(n, 0.0) if narrow else g + 1.41421
+                if ng < get(n, 1e18):
+                    dist[n] = ng
+                    push(openq, (ng, n))
         return out
 
     # ------------------------------------------------------------------ the candidate list
@@ -746,11 +829,13 @@ class WorldModel:
         Charter 3.3: code builds the list, the model scores it, code picks. Building it here rather than on
         the ground is not an optimisation -- the path distances need the map, and the map is onboard.
         """
+        import time as _t
         self._last_pos = (x, y)
         self.stood.add(self.ex.cell(x, y))
         if self.start is None:
             self.start = (x, y)
-        self.see_doors(now)
+        t0 = _t.perf_counter(); self.see_doors(now); _cost("see_doors", t0)
+        t0 = _t.perf_counter()
         goals, meta, door_cells = [], {}, set()
 
         for cell, size, unseen, depth in self.frontiers(x, y, now):
@@ -758,6 +843,7 @@ class WorldModel:
             meta[cell] = (KIND_FRONTIER, size, "", self.times_tried(cell))
             self._features[cell] = self.frontier_features(cell, size, unseen, depth, x, y)
 
+        _cost("frontiers", t0)
         # Doors, and only the ones that have earned the name. Capped, so that a level full of ceiling
         # changes cannot crowd the frontiers out of a list of eight.
         usable = []
@@ -794,7 +880,10 @@ class WorldModel:
                 meta[cell] = (KIND_ENEMY, 0, rec["name"], 0)
         if not goals:
             return []
+        import time as _t
+        t0 = _t.perf_counter()
         costs = self.path_costs(x, y, set(goals), now)
+        _cost("path_costs", t0)
         out, no_route = [], 0
         for cell in set(goals):
             if cell not in costs:

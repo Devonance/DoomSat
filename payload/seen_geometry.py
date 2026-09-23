@@ -30,7 +30,9 @@ Two engine facts worth writing down, both measured rather than assumed (payload/
 """
 import math
 
-from mapclasses import DOOR, GRID, STEP, WALL, WPX  # noqa: F401
+import numpy as np
+
+from mapclasses import BLOCKING, DOOR, GRID, STEP, WALL, WPX  # noqa: F401
 
 MAX_STEP = 24.0          # the engine's own rule: a player climbs 24 units and no more
 PLAYER_HEIGHT = 56.0     # and fits through an opening this tall
@@ -38,6 +40,17 @@ SAMPLE_UNITS = 2.0       # how finely a line is walked when it is drawn into the
 SEEN_FRACTION = 0.5      # half the points sampled along a line must carry automap pixels (brief 6.2)
 SEEN_RADIUS_PX = 2       # how far from the line an automap pixel counts as being on it
 DOOR_FLAT = 8.0          # a ceiling within this of its own floor is a closed door, not a room (brief 6.4)
+# The visibility fill. Brief 6.3: cast against seen blocking lines at FULL range, not the camera's 400
+# units -- a room is explored once it has been seen, and the range camera could only ever see a fifth of
+# a Doom hall. These two numbers are a compute bound and nothing else: 240 rays is 1.5 degrees apart,
+# which at 2,000 units is a 52-unit gap, and 2,048 units is longer than any sightline in the shareware
+# episode. In practice a ray is stopped by a wall the automap has drawn long before either matters.
+# The corner of the automap window the payload stamps: AM_W/2 / AM_SCALE by AM_H/2 / AM_SCALE, which is
+# 640 by 480 units. A line outside it cannot have been drawn since the last stamp.
+AUTOMAP_REACH_UNITS = 800.0
+FILL_RAYS = 240
+FILL_RANGE = 2048.0
+FILL_STEP = GRID / 2.0
 
 
 def floor_of(sector):
@@ -75,17 +88,22 @@ class SeenGeometry:
         self.sectors_seen = 0
         self.admitted = 0
         self._pending = {}       # key -> the same record, classified but not yet drawn on the automap
+        self._dirs = self._radii = None   # the visibility fill's ray table, built once
 
     # ------------------------------------------------------------------ classification
-    def observe(self, sectors):
+    def observe(self, sectors, px=None, py=None):
         """Classify what the engine reports, then admit only what the automap has drawn.
 
         Classification is pure and idempotent, so it happens once; admission is re-tested every call,
-        because the automap grows as the player looks around.
+        because the automap grows as the player looks around -- but only for lines it could possibly have
+        grown over. The automap window the payload stamps is +-640 by +-480 units around the player, so a
+        line further away than its corner cannot have gained a pixel since the last look. That is an
+        exact statement about the instrument, not a guess: without it every call re-measured all 865
+        undrawn lines of a Freedoom level and the sensor cost 15 ms a decision.
         """
         if not self._pending and not self.lines:
             self._classify(sectors)
-        self._admit()
+        self._admit(px, py)
 
     def _classify(self, sectors):
         owners = {}
@@ -128,10 +146,15 @@ class SeenGeometry:
         return None
 
     # ------------------------------------------------------------------ the knowledge boundary
-    def _admit(self):
+    def _admit(self, px=None, py=None):
         """Release the lines the automap has drawn, and only those."""
         for key in list(self._pending):
             rec = self._pending[key]
+            if px is not None and self.reveal != "all":
+                (x1, y1), (x2, y2) = rec["a"], rec["b"]
+                reach = AUTOMAP_REACH_UNITS + math.hypot(x2 - x1, y2 - y1) / 2.0
+                if math.hypot((x1 + x2) / 2.0 - px, (y1 + y2) / 2.0 - py) > reach:
+                    continue
             if self.reveal == "all" or self.drawn_fraction(rec) >= SEEN_FRACTION:
                 del self._pending[key]
                 self.lines[key] = rec
@@ -215,6 +238,46 @@ class SeenGeometry:
             for px, py in self._samples(rec, step=GRID / 2.0):
                 out.add((int(math.floor(px / GRID)), int(math.floor(py / GRID))))
         return out
+
+    # ------------------------------------------------------------------ what has been SEEN, not walked
+    def visible_cells(self, px, py, now):
+        """Every cell the player can see from here, given the lines it has already seen.
+
+        This is what replaces the range camera as the source of "where is the floor". The camera is
+        trusted to 400 units and samples forty columns a tic, so the floor it swept was sparse and full of
+        holes, and a cell beside one of those holes looked exactly like a cell beside the edge of the map:
+        that is why every frontier came out "right here" and they all looked alike. Sightlines against
+        seen walls have neither problem -- a room the player has looked into is filled in one go, and a
+        room it has not is not touched.
+
+        It cannot reveal anything: a ray is stopped by the admitted lines and by nothing else, so the
+        furthest it can reach is the furthest the player has already seen a wall.
+        """
+        ex = self.ex
+        if self._dirs is None:
+            a = np.linspace(0.0, 2.0 * math.pi, FILL_RAYS, endpoint=False)
+            self._dirs = (np.cos(a), np.sin(a))
+            self._radii = np.arange(FILL_STEP, FILL_RANGE, FILL_STEP)
+        ca, sa = self._dirs
+        r = self._radii
+        xs = px + r[None, :] * ca[:, None]
+        ys = py + r[None, :] * sa[:, None]
+        ix = ((xs - ex.ox) / WPX).astype(np.intp)
+        iy = ((ex.oy - ys) / WPX).astype(np.intp)
+        inside = (ix >= 0) & (ix < ex.n) & (iy >= 0) & (iy < ex.n)
+        np.clip(ix, 0, ex.n - 1, out=ix)
+        np.clip(iy, 0, ex.n - 1, out=iy)
+        cls = ex.raster[iy, ix]
+        stop = ~inside
+        for b in BLOCKING:
+            stop |= (cls == b)
+        # the first stop along each ray, and everything before it is floor the player can see
+        any_stop = stop.any(axis=1)
+        first = np.where(any_stop, stop.argmax(axis=1), stop.shape[1])
+        keep = np.arange(stop.shape[1])[None, :] < first[:, None]
+        cx = np.floor(xs[keep] / GRID).astype(np.intp)
+        cy = np.floor(ys[keep] / GRID).astype(np.intp)
+        return set(zip(cx.tolist(), cy.tolist()))
 
     def flood_open(self, start_cell, now, limit=40000):
         """Every cell reachable from `start_cell` without crossing something blocking.

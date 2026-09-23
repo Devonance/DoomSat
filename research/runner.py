@@ -204,6 +204,9 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
     """One level attempt, in process. Returns the attempt record the grader eats."""
     sys.path.insert(0, str(ROOT / "payload"))
     import doom_payload as dp
+    import world_model as wm
+    wm.COST.clear()
+    wm_cost = wm.COST
 
     import argparse as _ap
     p = dp.Payload(_ap.Namespace(port=0, wad=wad_path, map=map_name, skill=skill, seed=seed,
@@ -322,7 +325,9 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
                  "p95_ms": round(tic_ms[int(0.95 * (len(tic_ms) - 1))], 2),
                  "over_28_6_ms": round(sum(1 for v in tic_ms if v > 28.6) / len(tic_ms), 4),
                  "phases": {k: round(v * 1000.0 / max(1, len(tic_ms)), 3)
-                            for k, v in sorted(p.phase_s.items(), key=lambda kv: -kv[1])}}
+                            for k, v in sorted(p.phase_s.items(), key=lambda kv: -kv[1])},
+                 "candidate_phases": {k: round(v * 1000.0 / max(1, len(tic_ms)), 3)
+                                      for k, v in sorted(wm_cost.items(), key=lambda kv: -kv[1])}}
                 if tic_ms else None)
     return {"tier": "bench", "wad_path": wad_path, "map": map_name, "seed": seed, "skill": skill,
             # ORACLE runs carry the rung they were flown on, and grade.py refuses to summarise them.

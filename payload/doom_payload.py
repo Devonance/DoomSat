@@ -249,6 +249,7 @@ class Explorer:
         self.hint = None       # (absolute bearing, expiry)
         self.stamps = 0
         self.geom = None       # set by the payload when the geometry sensor owns the raster
+        self._mask_key, self._mask = None, None
 
     @staticmethod
     def cell(x, y):
@@ -381,6 +382,50 @@ class Explorer:
         if not (r <= ix < self.n - r and r <= iy < self.n - r):
             return False
         return bool((self.raster[iy - r:iy + r + 1, ix - r:ix + r + 1] == cls).any())
+
+    def blocked_mask(self, now, r):
+        """Which raster pixels a player of radius `r` pixels cannot stand on, over the explored window.
+
+        `klass` answers that one pixel at a time with a (2r+1)^2 max and a barrier check, and the world
+        model asks it once per candidate cell, three or four times per decision. That was fine while the
+        floor came from a 400-unit camera sweep and there were a few hundred cells; with the visibility
+        fill a single look around a hall adds two thousand, and the same loop went to 160 ms a call --
+        five times the whole tic budget.
+
+        A max filter is the same question asked once for everybody. Separable, and only over the box the
+        player has actually seen, so it costs a few milliseconds rather than a hundred.
+        """
+        key = (round(now, 3), r, len(self.free))
+        if self._mask_key == key:
+            return self._mask
+        if not self.free:
+            self._mask_key, self._mask = key, None
+            return None
+        xs = [c[0] for c in self.free]
+        ys = [c[1] for c in self.free]
+        pad = 3 * r + 4
+        ix0 = max(0, int((min(xs) * GRID - self.ox) / WPX) - pad)
+        ix1 = min(self.n, int((max(xs) * GRID + GRID - self.ox) / WPX) + pad)
+        iy0 = max(0, int((self.oy - (max(ys) * GRID + GRID)) / WPX) - pad)
+        iy1 = min(self.n, int((self.oy - min(ys) * GRID) / WPX) + pad)
+        if ix1 <= ix0 or iy1 <= iy0:
+            self._mask_key, self._mask = key, None
+            return None
+        win = self.raster[iy0:iy1, ix0:ix1]
+        blk = np.zeros(win.shape, bool)
+        for cls in BLOCKING:
+            blk |= (win == cls)
+        blk |= (now - self.barrier_t[iy0:iy1, ix0:ix1]) < BARRIER_S
+        out = blk.copy()
+        for d in range(1, r + 1):                       # separable dilation by r pixels
+            out[:, d:] |= blk[:, :-d]
+            out[:, :-d] |= blk[:, d:]
+        col = out.copy()
+        for d in range(1, r + 1):
+            out[d:, :] |= col[:-d, :]
+            out[:-d, :] |= col[d:, :]
+        self._mask_key, self._mask = key, (out, ix0, iy0)
+        return self._mask
 
     def klass(self, ix, iy, now, r=1):
         """Class of the raster around a pixel ((2r+1)^2 window), barriers included."""
@@ -790,7 +835,8 @@ class Payload:
             # The only read of state.sectors in the payload. Everything downstream sees `ex.raster`,
             # which holds the lines this has released, and nothing else (payload/seen_geometry.py).
             with Phase(self.phase_s, "geometry"):
-                self.geom.observe(state.sectors)
+                self.geom.observe(state.sectors, x, y)
+                ex.free.update(self.geom.visible_cells(x, y, now))
             if self.geom.reveal == "all" and not self.oracle_flooded:
                 # ORACLE L0 only. With every line released the flood is the level's exact walkable map,
                 # which is what this rung is for: the executor is asked to walk to a known exit across
@@ -799,8 +845,15 @@ class Payload:
                 self.oracle_flooded = True
                 print("[payload] ORACLE L0: %d cells of true walkable floor" % len(ex.free), flush=True)
             self.reveal_oracle_exit(x, y)
-        with Phase(self.phase_s, "camera sweep"):
-            ex.sweep(x, y, angle, depth_row)
+        if self.geom is None:
+            with Phase(self.phase_s, "camera sweep"):
+                ex.sweep(x, y, angle, depth_row)
+        else:
+            # Brief 6.5: the sweep and the visibility fill do the same job, so only one of them runs.
+            # The camera still drives local avoidance in the executor -- that is a reflex about the next
+            # half second, not a claim about where the floor is.
+            ex.visited[ex.cell(x, y)] = ex.visited.get(ex.cell(x, y), 0) + 1
+            ex.free.add(ex.cell(x, y))
         ex.remember_items(x, y, state.labels)
         for lab in state.labels:
             if lab.object_name in SOLID_THINGS and 24 < math.hypot(lab.object_position_x - x, lab.object_position_y - y) < 400:
@@ -821,7 +874,11 @@ class Payload:
         floor_ahead = self.band_clearance(floor_row, -12, 12)
         self.floor_seen.append(floor_ahead)
         step_ahead = False
-        if len(self.floor_seen) >= STEP_CALIB_MIN:
+        # Brief 6.5: the step detector, the barrier learner and the clearance workaround are all ways of
+        # guessing at a floor height from a camera that cannot see one. With the heights themselves in
+        # hand they are not a second opinion, they are noise -- and a barrier mark the geometry disagrees
+        # with is a hole punched in a map that was right.
+        if self.geom is None and len(self.floor_seen) >= STEP_CALIB_MIN:
             level = sorted(self.floor_seen)[int(0.8 * len(self.floor_seen))]
             step_ahead = floor_ahead < STEP_RATIO * level and clear_fwd > 120
             if step_ahead and STEP_MARKS_BARRIER and self.last_move[0] > 0:
@@ -866,7 +923,7 @@ class Payload:
                    and sum(1 for m in self.motions if m != (0, 0)) >= 8)
         was_stuck = self.stuck
         self.stuck = bool(pushing and math.hypot(x - self.positions[0][0], y - self.positions[0][1]) < 12)
-        if self.stuck and not was_stuck and LEARN_BARRIERS_BY_PUSHING:
+        if self.stuck and not was_stuck and LEARN_BARRIERS_BY_PUSHING and self.geom is None:
             mv, st = self.control["move"], self.control["strafe"]
             push = math.degrees(math.atan2(-st, mv)) if (mv or st) else 0.0
             if s["ahead_kind"] not in ("door", "exit") or abs(push) > 45:
@@ -883,7 +940,10 @@ class Payload:
                 self.press_opened += 1
             self.press_watch = None
         # A suspect the player is standing in front of, with nothing to open, is settled here and now.
-        self.doors_settled += self.world.settle_by_arrival(x, y, angle, s["ahead_kind"], s["ahead_dist"])
+        # Only while there are suspects: with exact geometry a door is a sector whose ceiling is at its
+        # own floor, and there is nothing to disprove.
+        if self.geom is None:
+            self.doors_settled += self.world.settle_by_arrival(x, y, angle, s["ahead_kind"], s["ahead_dist"])
         if state.tic % SENSE_EVERY == 6:
             self.frontiers_dropped += self.world.note_frontier_reached(x, y, now)
         # doors: presses are counted while something usable is at arm's length; a door that never opens becomes a wall for a while
@@ -942,7 +1002,7 @@ class Payload:
         self.world.see_objects(x, y, state.labels, int(state.tic))
         # Ask the camera about every door suspect in view. A closed door is solid; a window, a ledge or a
         # step in the ceiling is not, and the camera sees straight past it.
-        if state.tic % SENSE_EVERY == 5:
+        if state.tic % SENSE_EVERY == 5 and self.geom is None:
             self.world.confirm_doors(x, y, angle, lambda rel: self.depth_at(near_row, rel), now)
         if state.tic % SENSE_EVERY == 4:
             with Phase(self.phase_s, "candidates"):
