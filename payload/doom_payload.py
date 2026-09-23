@@ -442,6 +442,7 @@ class Payload:
         self.map_png_bytes, self.map_seq = None, 0
         self.sense = None            # the slower sensing (rays, novelty, exit) refreshed every SENSE_EVERY tics
         self.door_presses, self.door_at = 0, None
+        self.last_move = (0.0, 0.0)   # what actually drove the player last tic, whichever path issued it
         self.use_ok = False
         # door_precision: presses that opened something, over presses. A ceiling-change line that is not
         # a door absorbs presses and opens nothing, so this is the number that says whether the senses
@@ -543,6 +544,7 @@ class Payload:
         self.goal = "EXPLORE"
         self.control = dict(move=0, strafe=0, turn=0.0, fire=0, use=0, weapon=0)
         self.sense, self.door_presses, self.door_at = None, 0, None
+        self.last_move = (0.0, 0.0)
         self.use_ok = False
         self.press_total, self.press_opened, self.press_watch = 0, 0, None
         self.doors_settled, self.frontiers_dropped = 0, 0
@@ -666,7 +668,13 @@ class Payload:
         s = self.sense
         # stuck: a motion command has been held for a while and the player did not get anywhere
         self.positions.append((x, y))
-        self.motions.append((self.control["move"], self.control["strafe"]))
+        # Whatever actually drove the player this tic. This read self.control, which is the legacy CONTROL
+        # command -- never populated when the executor is flying, so `pushing` was always false and the
+        # barrier learner has been dead for the whole executor era. That is why a flight could spend 41%
+        # of its ticks at full throttle with rel=1 and four hundred units of clear floor ahead, grinding
+        # on a step the depth camera cannot see, and never once remember a barrier there: the mechanism
+        # for learning "something is in the way that I cannot see" was watching a variable nobody wrote.
+        self.motions.append(self.last_move)
         pushing = len(self.motions) == self.motions.maxlen and sum(1 for m in self.motions if m != (0, 0)) >= 8
         was_stuck = self.stuck
         self.stuck = bool(pushing and math.hypot(x - self.positions[0][0], y - self.positions[0][1]) < 12)
@@ -940,6 +948,7 @@ class Payload:
         self.game_time += 1.0 / TICRATE
         if self.executor is not None and self.executor.intent is not None and self.exec_obs is not None:
             cmd = self.executor.step(self.exec_obs, self.game_time)
+            self.last_move = (cmd["move"], cmd["strafe"])
             if cmd["use"] and self.use_ok:
                 self.door_presses += 1
                 self.press_total += 1
@@ -959,6 +968,7 @@ class Payload:
         c = self.control
         if time.time() - self.last_control_time > UPLINK_TIMEOUT_S:
             return [0.0] * len(BUTTONS)  # safe mode: no uplink, hold still
+        self.last_move = (RUN_FORWARD * c["move"], RUN_STRAFE * c["strafe"])
         use = int(c["use"]) and int(tic % 8 == 0)  # Doom triggers USE on the press edge: pulse a held use
         if use and self.use_ok:
             self.door_presses += 1

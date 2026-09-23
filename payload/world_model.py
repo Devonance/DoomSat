@@ -33,7 +33,12 @@ DOOR_MIN_WIDTH, DOOR_MAX_WIDTH = 40.0, 200.0
 DOOR_CONFIRM_UNITS = 400.0   # close enough for the range camera to have an opinion
 SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means it is not solid
 MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
-PLAYER_CLEARANCE_PX = 4      # raster pixels of room a cell needs: the player has a 16-unit radius
+PLAYER_CLEARANCE_PX = 5      # raster pixels of room a cell needs: the player has a 16-unit radius, so
+                             # 4 is +-16 and exactly no margin -- a cell whose centre sits sixteen units
+                             # from a wall counts as walkable and the player arrives already touching it.
+                             # The prose below argues for 5 and the constant said 4. The rub log is what
+                             # that costs: clear_fwd 14, one shoulder at 7, and 40% of a flight spent at
+                             # full throttle going nowhere.
 ARRIVED_UNITS = 96.0        # close enough that the arm's-length probe has the final word. 96 was
                              # the probe's own reach. A suspect inside a wall is settled by having
                              # no route to it, which is a stronger test than standing near it.

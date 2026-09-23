@@ -206,12 +206,26 @@ class Executor:
         self.stats = {"ticks": 0, "safe_ticks": 0, "recover_ticks": 0, "intents": 0, "stale_dropped": 0}
         self._trail = []        # (game time, x, y) for about a second, to notice rubbing
         self._rub_since = None
+        self._rub_said = 0.0
 
     # ---------------------------------------------------------------- uplink
+    # A tic counter that has gone backwards by more than this did not arrive out of order; it restarted.
+    RESYNC_TICS = 200            # about six seconds
+
     def set_intent(self, intent, now=None):
         if self.intent is not None and intent.based_on_tic < self.applied_tic:
-            self.stats["stale_dropped"] += 1
-            return False
+            if self.applied_tic - intent.based_on_tic < self.RESYNC_TICS:
+                self.stats["stale_dropped"] += 1
+                return False
+            # The payload restarts its tic counter at every episode, so after a death or the level budget
+            # firing, every intent the ground sends looks older than the last one applied and is thrown
+            # away -- for the rest of the run. One flight dropped 222 of 423 and stood still in _safe for
+            # a third of its ticks, with the ground commanding normally the whole time and nothing in any
+            # log to say the orders were being binned.
+            self.stats["resyncs"] = self.stats.get("resyncs", 0) + 1
+            print("[executor] tic counter restarted (%d -> %d): resyncing to the ground"
+                  % (self.applied_tic, intent.based_on_tic), flush=True)
+            self.applied_tic = -1
         intent.received = time.time() if now is None else now
         self.intent = intent
         self.applied_tic = max(self.applied_tic, intent.based_on_tic)
@@ -333,6 +347,15 @@ class Executor:
                 # something solid ahead: keep the heading, step around it, and slow down first
                 cmd["strafe"] = STRAFE_DELTA * self._freer_side(obs)
                 speed *= 0.5 if obs["clear_fwd"] > AVOID_MIN_UNITS else 0.15
+            if rub and now - self._rub_said > 2.0:
+                # Once every two seconds, not every tic: enough to see where the player is losing its
+                # afternoon without drowning the log.
+                self._rub_said = now
+                print("[executor] rubbing at (%.0f,%.0f) rel=%.0f ahead=%s@%.0f fwd=%.0f fl=%.0f fr=%.0f "
+                      "plan_left=%d" % (x, y, rel, obs["ahead_kind"], obs["ahead_dist"], obs["clear_fwd"],
+                                        obs["clear_fl"], obs["clear_fr"],
+                                        (len(self.world.plan.cells) - self.world.plan.i)
+                                        if self.world.plan else -1), flush=True)
             if rub:
                 # Override the guard rather than obey it: the guard is what put us here.
                 side = 1.0 if int((now - self._rub_since) / RUB_FLIP_S) % 2 == 0 else -1.0
@@ -428,7 +451,13 @@ class Executor:
         """Use is a press, not a hold: Doom triggers it on the edge, so it has to be pulsed."""
         near_target = it.has_target and math.hypot(it.target_x - x, it.target_y - y) <= USE_UNITS
         usable = obs["ahead_kind"] in ("door", "exit") and obs["ahead_dist"] <= 80
-        if not ((it.use_at_target and (near_target or usable)) or (it.mode == "OPERATE" and usable)):
+        # A door at arm's length gets pressed, whatever the intent says. The best flight so far ended
+        # seven units from the door above the exit room, in EXPLORE with no candidates left, and never
+        # pressed Use once -- the press was gated on the ground having named a door to operate, and the
+        # ground had named nothing. Nobody walks up to a door, stands on it, and walks away because
+        # opening it was not the plan. The evidence is the payload's own arm's-length probe; there is no
+        # knowledge here the player does not have.
+        if not (usable or (it.use_at_target and near_target)):
             self.use_phase = 0
             return False
         self.use_phase = (self.use_phase + 1) % 8
