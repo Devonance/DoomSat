@@ -1,0 +1,134 @@
+{
+ "version": 2,
+ "model": "jev-1.13.0",
+ "standing_order": "Find the level exit alive: walk into ground not yet walked, open every door, press the exit switch.",
+ "goal_every": 10,
+ "thresholds": {
+  "crosshair_deg": 8,
+  "fire_range": 450,
+  "blocked_units": 48,
+  "tight_units": 90,
+  "threat_dist": 400,
+  "health_critical": 35,
+  "health_low": 50,
+  "max_aim_deg": 60,
+  "max_turn_deg": 180,
+  "turn_settle_deg": 8
+ },
+ "select": {
+  "sector_margin": 0.6,
+  "commit_bonus": 0.3,
+  "commit_ticks": 6,
+  "unsure_gap": 0.2,
+  "unsure_conf": 0.5,
+  "goal_bonus": 1.0,
+  "tried_penalty": 1.0,
+  "tried_cooldown": 40,
+  "confirm_ticks": 3,
+  "danger_sidestep": 1.5,
+  "danger_retreat": 2.5,
+  "operate_units": 80,
+  "approach_ticks": 16,
+  "door_tries": 4,
+  "door_retry_ticks": 80,
+  "idle_ticks": 8,
+  "recover_ticks": 12,
+  "fight_linger_ticks": 6,
+  "intent_ttl_ms": 1500,
+  "target_give_up_ticks": 60
+ },
+ "questions": {
+  "sector": {
+   "type": "score",
+   "instructions": {
+    "question": "How promising is the {dir} sector for reaching the level exit?",
+    "inspect": "`sectors.{dir}`"
+   },
+   "criteria": [
+    "dead end: `sectors.{dir}.space` blocked or tight and `sectors.{dir}.ground` walked before",
+    "walked before, but `sectors.{dir}.space` is open or long, so it leads on",
+    "`sectors.{dir}.ground` partly walked with `sectors.{dir}.space` open or long",
+    "`sectors.{dir}.hint_here` is yes: the ground crew pushed exploration this way",
+    "`sectors.{dir}.ground` is new",
+    "`sectors.{dir}.ground` is never explored but `sectors.{dir}.space` is tight",
+    "`sectors.{dir}.door` is close or point blank: a door that leads somewhere unwalked",
+    "`sectors.{dir}.ground` is never explored and `sectors.{dir}.space` is open or long",
+    "`sectors.{dir}.exit_here` is yes, or `sectors.{dir}.key_here` is yes: the way out"
+   ]
+  },
+  "danger": {
+   "type": "score",
+   "instructions": {
+    "question": "How dangerous is the scene around the player right now?",
+    "inspect": "`combat`, `player.health`, `player.ammunition`, `sectors`"
+   },
+   "criteria": [
+    "no danger: `combat.enemy_visible` is no, or the one in view is far off and `player.health` is fine or full",
+    "a fight to win: one enemy at mid-range, `player.health` fine or better, `player.ammunition` ready",
+    "under fire: an enemy close or point blank, or `combat.enemies_in_view` above one, or `player.health` low",
+    "get out: `player.health` critical, or several enemies with `player.ammunition` empty or scarce"
+   ]
+  },
+  "target": {
+   "type": "score",
+   "instructions": {
+    "question": "How well does going to {t} serve finding the level exit alive?",
+    "inspect": "`targets.{t}`, `here`, `needs`"
+   },
+   "criteria": [
+    "`targets.{t}.what` is a door and `targets.{t}.tried_before` is several times: it did not open",
+    "`targets.{t}.what` is a pickup and `targets.{t}.needed_now` is no",
+    "`targets.{t}.what` is an unexplored edge and `targets.{t}.how_far` is a long way",
+    "`targets.{t}.what` is a pickup and `targets.{t}.needed_now` is yes",
+    "`targets.{t}.what` is an unexplored edge at mid-range or nearer",
+    "`targets.{t}.what` is an unexplored edge, close or right here, with a lot of unseen ground behind it",
+    "`targets.{t}.what` is a door and `targets.{t}.tried_before` is no",
+    "`targets.{t}.what` is a key: a locked door somewhere needs it",
+    "`targets.{t}.what` is the level exit"
+   ]
+  },
+  "need": {
+   "type": "score",
+   "instructions": {
+    "question": "How badly does the player need {need} right now?",
+    "inspect": "`needs.{need}`, `here`, `combat`"
+   },
+   "criteria": [
+    "`needs.{need}` is none: no reason to spend a step on it",
+    "`needs.{need}` is nice to have: worth taking if it is on the way",
+    "`needs.{need}` is wanted: worth a short detour",
+    "`needs.{need}` is urgent: worth turning away from the exit for"
+   ]
+  },
+  "goal": {
+   "type": "choice",
+   "instructions": {
+    "question": "What is the immediate priority?",
+    "inspect": "`player`, `combat`, `seen`, `here`"
+   },
+   "criteria": {
+    "Kill enemies": {
+     "what": "`combat.enemy_visible` yes at close or mid range, `player.health` not critical, `player.ammunition` ready"
+    },
+    "Restore health": {
+     "what": "`player.health` critical, or low while `seen.health_pickup` is seen and no enemy is close"
+    },
+    "Stock ammo": {
+     "what": "`player.ammunition` empty or scarce and `seen.ammo_pickup` is seen"
+    },
+    "Add armor": {
+     "what": "`player.armor` none, `seen.armor_pickup` seen, `player.health` fine, no enemy, `seen.exit` not seen"
+    },
+    "Scout": {
+     "what": "`seen.exit`, `seen.key` and every pickup read not seen, and `seen.ground_hint` is none: push for a different part of the level"
+    },
+    "Explore": {
+     "what": "otherwise: keep walking into ground not yet walked, toward the exit",
+     "examples": [
+      "no enemy, health fine, exit not seen"
+     ]
+    }
+   }
+  }
+ }
+}

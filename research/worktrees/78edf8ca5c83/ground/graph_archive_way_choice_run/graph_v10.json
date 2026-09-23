@@ -1,0 +1,217 @@
+{
+ "version": 10,
+ "standing_order": "Find the level exit alive, fast: keep moving into ground not yet walked, open every door, press the exit switch. After turning away from a wall, keep committing to that side only while it keeps opening into new or unexplored ground; once it hits a wall again or its ground is already walked, pick a different offered direction instead of doubling back. If ahead is blocked and the remaining offered directions are all already-walked ground, do not alternate between them tick to tick \u2014 keep the same heading you just committed to for a few more steps before trying yet another direction, since switch",
+ "goal_every": 10,
+ "thresholds": {
+  "aligned_deg": 35.0,
+  "crosshair_deg": 8.0,
+  "fire_range": 450.0,
+  "danger_dist": 180.0,
+  "blocked_units": 48.0,
+  "tight_units": 90.0,
+  "health_critical": 35.0,
+  "health_low": 50.0
+ },
+ "turn_deg": {
+  "Hard left": 70.0,
+  "Left": 35.0,
+  "Fine left": 8.0,
+  "Hold": 0.0,
+  "Fine right": -8.0,
+  "Right": -35.0,
+  "Hard right": -70.0,
+  "Turn around": 150.0
+ },
+ "way_margin": 0.5,
+ "questions": {
+  "way": {
+   "type": "choice",
+   "instructions": {
+    "question": "Which of the offered directions should the player go now? Each option is a direction around the player, with what the map says there under `now`.",
+    "inspect": "surroundings, seen.exit, seen.key, seen.ground_hint, stuck",
+    "focus": "Prefer the exit direction first, then ground marked unexplored (never seen) \u2014 strictly over ground merely marked new \u2014 then a door in that direction at arm's length or on the way/close (doors reliably lead to new territory, so treat a close door as high priority, not a last resort), then long or open space with new ground. Avoid picking 'behind' unless every other offered direction is blocked or already walked: behind is always ground the player just came from, and picking it repeatedly causes backtracking loops. When every offered direction is already-walked ground (no unexplored, new ground, or door on offer), do not just alternate between the two least-bad options tick after tick \u2014 pick o"
+   },
+   "criteria": {
+    "direction": {
+     "what": "go {dir}: best when the exit, key or ground_hint lies {dir}, or its ground is unexplored (never seen), or a door (at arm's length or on the way/close) lies {dir}, or its space is long or open with new ground",
+     "not_for": "its ground was already walked while another offered direction is unexplored, new, or has a door; repeating the side just turned away from once that side is now blocked or its ground has become walked; a small tight offshoot of merely 'new' ground when a door lies in another offered direction; and choosing 'behind' unless ahead, left and right are all blocked or already fully walked \u2014 behind is always ground you just came from, so it should be a last resort, not a default.",
+     "examples": [
+      "{dir}: ground unexplored (never seen)",
+      "{dir}: a door on the way, close",
+      "{dir}: space long, ground new",
+      "exit {dir}",
+      "a door at arm's length {dir}"
+     ]
+    }
+   }
+  },
+  "advance": {
+   "type": "noul",
+   "instructions": {
+    "question": "Should the player walk forward right now?",
+    "inspect": "surroundings.ahead, stuck"
+   },
+   "criteria": {
+    "true": {
+     "what": "surroundings.ahead.space is open or tight, or a door or the exit switch is at arm's length ahead (walk up to it)",
+     "examples": [
+      "ahead open",
+      "ahead tight",
+      "a door at arm's length"
+     ]
+    },
+    "false": {
+     "what": "surroundings.ahead.space is blocked by a wall, bars, a barrier, a barrel or a monster at point blank, or the player is stuck",
+     "examples": [
+      "ahead blocked, a wall at arm's length",
+      "ahead blocked, a barrier at arm's length",
+      "stuck yes"
+     ]
+    }
+   }
+  },
+  "use": {
+   "type": "noul",
+   "instructions": {
+    "question": "Is there something to operate at arm's length ahead?",
+    "inspect": "surroundings.ahead.at_arms_length, stuck"
+   },
+   "criteria": {
+    "true": {
+     "what": "a door, the exit switch or a locked door is at arm's length ahead, or the player is stuck (try the wall)",
+     "examples": [
+      "a door at arm's length",
+      "the exit switch at arm's length"
+     ]
+    },
+    "false": {
+     "what": "nothing near, or a plain wall, bars, a barrier or a monster ahead",
+     "examples": [
+      "nothing near",
+      "a wall"
+     ]
+    }
+   }
+  },
+  "fire": {
+   "type": "noul",
+   "instructions": {
+    "question": "Should the trigger be pulled?",
+    "inspect": "combat, player.equipped_ammo"
+   },
+   "criteria": {
+    "true": {
+     "what": "combat.enemy_in_crosshair is yes and player.equipped_ammo is more than zero"
+    },
+    "false": {
+     "what": "no enemy in the crosshair, or equipped ammunition is zero"
+    }
+   }
+  },
+  "dodge": {
+   "type": "choice",
+   "instructions": {
+    "question": "Sidestep to avoid the enemy?",
+    "inspect": "combat, surroundings"
+   },
+   "criteria": {
+    "Carry on": {
+     "what": "combat.threat is safe",
+     "not_for": "a close enemy attacking"
+    },
+    "Dodge left": {
+     "what": "combat.threat is danger and surroundings.left is open"
+    },
+    "Dodge right": {
+     "what": "combat.threat is danger, left not open, surroundings.right open"
+    },
+    "Dodge back": {
+     "what": "combat.threat is danger, sides not open, surroundings.behind open"
+    }
+   }
+  },
+  "turn": {
+   "type": "choice",
+   "instructions": {
+    "question": "Turn to put the enemy in the crosshair. Where is it now?",
+    "inspect": "combat.enemy_where"
+   },
+   "criteria": {
+    "Hard left": {
+     "what": "far left"
+    },
+    "Left": {
+     "what": "left"
+    },
+    "Fine left": {
+     "what": "slightly left or just left of the crosshair"
+    },
+    "Hold": {
+     "what": "centered"
+    },
+    "Fine right": {
+     "what": "slightly right or just right of the crosshair"
+    },
+    "Right": {
+     "what": "right"
+    },
+    "Hard right": {
+     "what": "far right"
+    },
+    "Turn around": {
+     "what": "behind"
+    }
+   }
+  },
+  "weapon": {
+   "type": "choice",
+   "instructions": {
+    "question": "Which weapon?",
+    "inspect": "player, player.equipped_weapon"
+   },
+   "criteria": {
+    "Keep": {
+     "what": "whatever weapon is currently equipped (check player.equipped_weapon) still has ammunition left for it \u2014 stay on it regardless of which weapon it is",
+     "examples": [
+      "equipped_weapon is shotgun, shells > 0",
+      "equipped_weapon is pistol, bullets > 0"
+     ]
+    },
+    "Pistol": {
+     "what": "shotgun shells are zero and pistol bullets remain"
+    },
+    "Shotgun": {
+     "what": "owns a shotgun with shells and the pistol is currently equipped"
+    }
+   }
+  },
+  "goal": {
+   "type": "choice",
+   "instructions": {
+    "question": "What is the immediate priority?",
+    "inspect": "player, combat, seen"
+   },
+   "criteria": {
+    "Kill enemies": {
+     "what": "an enemy visible at close or mid range, health not critical, ammunition ready"
+    },
+    "Restore health": {
+     "what": "health critical, or low with a health pickup seen close and no close enemy"
+    },
+    "Stock ammo": {
+     "what": "ammunition empty or scarce and an ammo pickup seen close"
+    },
+    "Add armor": {
+     "what": "armor none, an armor pickup seen close and reachable straight ahead or to a side by a clear, open or tight path with no wall in between, health fine, no close enemy, exit not seen yet",
+     "not_for": "the armor pickup sits behind a wall or otherwise requires backtracking through already-walked ground to reach; the path ahead toward it is currently blocked by a wall at point-blank range (treat it as unreachable for now, not worth pursuing); or a pickup already circled toward repeatedly without getting closer \u2014 prefer Explore instead in all of these cases"
+    },
+    "Explore": {
+     "what": "otherwise: keep exploring toward new ground and the exit, favoring ground never seen over ground already walked, to avoid re-treading the same loop",
+     "examples": [
+      "no enemy, health fine, exit not seen"
+     ]
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,37 @@
+// Architecture flow chart: who runs where and who talks to whom. Never more than two boxes wide so it reads on a
+// portrait page. Render: dot -Tpng -Gdpi=200 architecture.dot -o architecture.png
+digraph architecture {
+  rankdir=TB;
+  graph [fontname="Helvetica", fontsize=14, pad=0.2, nodesep=0.35, ranksep=0.45, bgcolor="white", newrank=true];
+  node  [fontname="Helvetica", fontsize=15, shape=box, style="rounded,filled", color="#444444", penwidth=1.3, margin="0.16,0.10"];
+  edge  [fontname="Helvetica", fontsize=12, color="#555555", arrowsize=0.8];
+
+  subgraph cluster_flight {
+    label="Flight side (WSL / Linux)"; style="rounded,filled"; fillcolor="#eef3fb"; color="#7a8fb5"; fontsize=15;
+    doom    [label="Doom payload (ViZDoom)\npayload/doom_payload.py\n35 Hz game; depth + labels + automap;\nlocal sensing, map memory", fillcolor="#fde9d9"];
+    fprime  [label="F´ v4.3 flight software\nDoomSat deployment, Doom component\ncommands, 56 telemetry channels,\nevents, FrameChunk downlink", fillcolor="#dbe8f7"];
+    ccsds   [label="F´ ComCcsds stack\nSpace Packets + 1024 B TM frames,\nTC deframing", fillcolor="#dbe8f7"];
+    doom -> fprime [label=" STATUS 112 B at 12 Hz,\n JPEG at 10 fps, map PNG /\n CONTROL, SET_GOAL, hints", dir=both];
+    fprime -> ccsds [dir=both];
+  }
+
+  subgraph cluster_ground {
+    label="Ground side"; style="rounded,filled"; fillcolor="#f2f7ee"; color="#8fb57a"; fontsize=15;
+    yamcs   [label="Yamcs 5.12 (fprime-yamcs)\nXTCE generated from the F´ dictionary\nTM/TC, archive, buckets, web UI", fillcolor="#e2efd9"];
+    disp    [label="Displays\nYamcs web, Open MCT (openmct-yamcs),\nmission dashboard", fillcolor="#e2efd9"];
+    pilot   [label="Ground pilot (ground/pilot.py)\ntelemetry -> words -> commands,\nframe reassembly, decision log", fillcolor="#fff2cc"];
+    ccsds -> yamcs [label=" TM / TC, UDP 50000 / 50001", dir=both];
+    yamcs -> disp [label=" WebSocket / HTTP"];
+    yamcs -> pilot [label=" parameters (WebSocket),\n commands (HTTP)", dir=both];
+    {rank=same; disp; pilot;}
+  }
+
+  subgraph cluster_models {
+    label="Models"; style="rounded,filled"; fillcolor="#f8eef8"; color="#b57ab5"; fontsize=15;
+    jev     [label="System One: jev (TypeSafe)\nlive play, ~0.5 s per decision\n7 control heads + goal head", fillcolor="#ead1ea"];
+    sonnet  [label="System Two: Claude Sonnet 5\nbump every 60 s, after-action review,\nrewrites the decision graph", fillcolor="#ead1ea"];
+    {rank=same; jev; sonnet;}
+    pilot -> jev [label=" typed questions", dir=both];
+    pilot -> sonnet [label=" progress check,\n after-action report", dir=both];
+  }
+}

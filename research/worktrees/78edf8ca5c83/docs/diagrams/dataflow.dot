@@ -1,0 +1,39 @@
+// Data flow: every message, its type and rate, from the game to the models and back. Laid out for a portrait page:
+// a vertical spine, never more than two boxes wide, short edge labels. Render: dot -Tpng -Gdpi=200 dataflow.dot -o dataflow.png
+digraph dataflow {
+  rankdir=TB;
+  graph [fontname="Helvetica", fontsize=14, pad=0.2, nodesep=0.3, ranksep=0.4, bgcolor="white", splines=spline];
+  node  [fontname="Helvetica", fontsize=15, shape=box, style="rounded,filled", color="#444444", penwidth=1.3, margin="0.16,0.10"];
+  edge  [fontname="Helvetica", fontsize=12, color="#555555", arrowsize=0.8];
+
+  game   [label="Doom engine\nViZDoom 1.3, shareware E1M1, 35 Hz", fillcolor="#fde9d9"];
+  sense  [label="Payload sensing (code, no planner)\nscreen 640x480, depth buffer, labels,\nautomap (seen lines only), HUD variables;\nmap memory; 8 directions x (space, ground)", fillcolor="#fde9d9"];
+  prod   [label="Downlink products\nSTATUS: 112-byte struct, 56 fields, 12 Hz\nJPEG 320x240 q45, ~8 KB, 10 fps\nmap PNG every 5 s", fillcolor="#fff7e6"];
+  comp   [label="F´ v4.3 Doom component\nSTATUS -> 56 telemetry channels\nimages -> FrameChunk records (960 B)", fillcolor="#dbe8f7"];
+  tm     [label="F´ ComCcsds\nSpace Packets (APID 1 telemetry,\n2 events, 3 file) in 1024 B TM frames", fillcolor="#dbe8f7"];
+  yamcs  [label="Yamcs 5.12 (fprime-yamcs)\nXTCE from the F´ dictionary:\n156 parameters, 54 commands\narchive, realtime processor,\nWebSocket, HTTP command API, buckets", fillcolor="#e2efd9"];
+  disp   [label="Displays (read Yamcs only)\nYamcs web, Open MCT\n(plots, DoomFrame imagery),\nmission dashboard", fillcolor="#e2efd9"];
+  pilot  [label="Ground pilot (pilot.py)\n56 parameters at 12 Hz,\nFrameChunk reassembly (10 fps),\nnumbers -> words", fillcolor="#fff2cc"];
+  sonnet [label="Claude Sonnet 5 (System Two)\nevery 60 s: bearing + hold\n-> EXPLORE_HINT\nper episode: report + graph\n-> revised graph_v<N>.json", fillcolor="#ead1ea"];
+  jev    [label="jev (TypeSafe System One)\nPOST /v1/systemone: state document\n+ 5-8 typed questions\nChoice + probabilities, Noul; ~450 ms", fillcolor="#ead1ea"];
+  log    [label="Decision log\nruns/<date>/decisions.jsonl\nwords, answers, probabilities,\nrequest id, latency, telemetry", fillcolor="#fff2cc"];
+  rules  [label="control_args(): answers -> CONTROL\nhysteresis on the probabilities,\naim override, big turns finish first", fillcolor="#fff2cc"];
+  tc     [label="Uplink: F´ commands (opcodes 0-4)\nCONTROL, SET_GOAL, RESET_GAME,\nFRAME_RATE, EXPLORE_HINT\nCCSDS TC, UDP 50001, ~45 ms to issue", fillcolor="#dbe8f7"];
+
+  game -> sense [label=" every tic"];
+  sense -> prod;
+  prod -> comp [label=" TCP :4242"];
+  comp -> tm;
+  tm -> yamcs [label=" UDP 50000"];
+  yamcs -> disp [label=" WebSocket / HTTP"];
+  yamcs -> pilot [label=" WebSocket"];
+  {rank=same; disp; pilot;}
+  pilot -> sonnet [dir=both, label=" JSON"];
+  pilot -> jev [label=" HTTPS, ~3 KB"];
+  {rank=same; jev; sonnet;}
+  jev -> log;
+  jev -> rules [label=" probabilities"];
+  {rank=same; rules; log;}
+  rules -> tc [label=" via Yamcs HTTP"];
+  tc -> comp [label=" CmdDispatcher\n -> payload", color="#3A7BC0", constraint=false];
+}

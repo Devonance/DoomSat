@@ -110,11 +110,6 @@ SENSE_EVERY = 7        # tics between automap stamps and the slower sensing (5 H
 UPLINK_TIMEOUT_S = 3.0  # no CONTROL for this long -> release everything (safe mode)
 DOOR_TRIES = 10        # use presses at a door before it counts as "does not open for me now"
 DOOR_RETRY_S = 120.0   # a door that did not open is treated as a wall for this long
-# How long a barrier learned by bumping into something is believed. It used to be an hour, which inside a
-# three-minute attempt is forever: payload/ray_class_probe.py found that 92% of the map rays that came
-# back short were stopped by one of these rather than by anything in the level, so one bump against a door
-# frame walled off a corridor for the rest of the attempt and the planner believed it. EXP-0001.
-STUCK_BARRIER_S = 25.0
 RAY_MAX = 400          # how far the map rays look (units)
 # Charter 2.3, the one borderline call that adds information rather than hiding it. ZDoom colours an exit
 # line on the automap from its special type, so the colour is readable from across a level the moment the
@@ -620,7 +615,7 @@ class Payload:
             mv, st = self.control["move"], self.control["strafe"]
             push = math.degrees(math.atan2(-st, mv)) if (mv or st) else 0.0
             if s["ahead_kind"] not in ("door", "exit") or abs(push) > 45:
-                ex.mark_barrier(x, y, angle + push, STUCK_BARRIER_S)
+                ex.mark_barrier(x, y, angle + push, 3600.0)
                 print(f"[payload] stuck pushing at ({x:.0f},{y:.0f}) toward {(angle + push) % 360:.0f} deg: barrier remembered", flush=True)
                 self.sense = None
         # doors: presses are counted while something usable is at arm's length; a door that never opens becomes a wall for a while

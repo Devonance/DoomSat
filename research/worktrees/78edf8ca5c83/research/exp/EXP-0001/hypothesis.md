@@ -3,10 +3,9 @@
 Written before the change, per `research/PROGRAM.md` step 2.
 
 - **track** t2
-- **parent** `research/out/m1-base` (pinned at 78edf8c)
 - **area** sensing
 - **author** claude-code
-- **tier** bench, dev set, seeds 1-5, paired against `research/out/m1-base`
+- **tier** bench, dev set, seeds 1-5, paired against `research/out/t2-baseline-code`
 
 ## What the evidence says
 
@@ -39,10 +38,8 @@ more marks than a real run would. That inflates the *rate*, not the *ratio*, and
 inside a three-minute attempt. One bump against a door frame walls off a corridor for the rest of the
 level, and `passable()` — which the planner and the candidate list now rest on — believes it.
 
-Make that expiry 25 seconds. One value: the `3600.0` in `Payload.observe`'s stuck branch becomes
-`STUCK_BARRIER_S`. 25 is long enough to stop the pilot re-bumping the same frame in the moment and
-short enough that a corridor closed by one bad push is open again well inside a three-minute
-attempt.
+Make that expiry a minute. One value: the `3600.0` in `Payload.observe`'s stuck branch becomes
+`STUCK_BARRIER_S`, default 60.
 
 ## What should move, and by how much
 

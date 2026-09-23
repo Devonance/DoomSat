@@ -1,0 +1,15 @@
+digraph F {
+  graph [bgcolor="#0f1116", rankdir=TB, fontname="DejaVu Sans Mono", fontcolor="#d8dde6", labelloc=t, labeljust=l, nodesep=0.3, ranksep=0.35, pad=0.4,
+         label="DOOMSAT . ONE DECISION END TO END (graph v1, jev-1.13.0, 22 Sep 2026)\l"];
+  node [shape=box, style="rounded,filled", fillcolor="#161a22", fontname="DejaVu Sans Mono", fontsize=11, fontcolor="#d8dde6", penwidth=1.4, margin="0.2,0.12"];
+  edge [color="#8b93a1", fontname="DejaVu Sans Mono", fontsize=10, fontcolor="#8b93a1", penwidth=1.2];
+  b0 [label="Yamcs parameters (12 Hz), this tick\lCLEAR ahead 143, ahead-left 192, left 348, behind-left 400,\lbehind 400, behind-right 400, right 284, ahead-right 328\l(units)\lNEW ahead 100, ahead-left 255, left 100, behind-left 100,\lbehind 100, behind-right 88, right 100, ahead-right 238\lDOOR all 0 except ahead-right (a door on that ray); AHEAD_KIND\lNOTHING, EXIT_DIST 0, STUCK false, ENEMY_COUNT 0\lPOS 1056,-3034, ANGLE 90, EXPLORED_CELLS 19, LEVEL 1, KEYS 0\l", color="#4a5160"];
+  b1 [label="State document (code, no model). Only `sectors` is sent:\lnothing else is inspected this tick\lahead: space open, ground new\lahead-left: space open, ground never explored\lleft / behind-left / behind / behind-right / right: space\llong, ground new\lahead-right: space long, ground unknown, door mid-range\levery sector also carries exit_here, key_here, item_here,\lhint_here, tried_recently (all no here)\l", color="#4a5160"];
+  b2 [label="jev, one request, 330 ms, 2452 input tokens\l(req_01a0ca7e70fd7c8289c901853c0bd2d7)\ls_ahead-left  2.98 (confidence 0.98)   <- the only never-\lexplored direction\ls_behind 2.06, s_left 2.04, s_behind-right 2.04, s_behind-left\l2.03\ls_right 2.02, s_ahead 2.01, s_ahead-right 1.97\lthe goal head was not asked this tick (every 10th); the danger\lhead only when an enemy is in view\l", color="#d9a441"];
+  b3 [label="Code rules\ltop two 2.98 vs 2.06: a gap of 0.92 levels, well clear of\lunsure_gap (0.20), so jev's ranking stands\lno commitment yet this episode, so no hysteresis to apply;\lcommit the WORLD bearing 90+45 = 135 degrees\lahead-left is not straight on: turn 45 degrees and do not walk\lthis tick\lreflex: ammunition is zero so fire stays off; the turn is\linside max_turn_deg; no turn is in flight\l", color="#3fae6a"];
+  b4 [label="CONTROL(move=0, strafe=0, turn=+45, fire=0, use=0, weapon=FIST\lmeaning keep)\lYamcs HTTP -> CCSDS TC -> UDP -> F Prime CmdDispatcher -> Doom\lcomponent -> payload turn setpoint (6 deg per tic)\lthe next tick will not be judged until that turn has landed,\lso the sectors are never read mid-swing\l", color="#4f8fd6"];
+  b0 -> b1 [label=" telemetry -> words: bands, novelty, one door field, one direction vocabulary; no number reaches jev"];
+  b1 -> b2 [label=" HTTPS POST /v1/systemone: the state plus one Score question per open direction, same rubric"];
+  b2 -> b3 [label=" eight scores on a four-level rubric, and a confidence each"];
+  b3 -> b4 [label=" one command per decision"];
+}

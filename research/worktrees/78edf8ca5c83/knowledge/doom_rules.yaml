@@ -1,0 +1,148 @@
+# How Doom works. Charter section 2.1, "game rules": knowledge a player has before ever loading a level.
+#
+# RULE: nothing in this file may name a level, a coordinate, a sector, a tag, or anything that is true of
+# one map and not another. Honesty test 4 greps this file for level identifiers and fails the run if it
+# finds one. Everything here is published game data (Doom Wiki, the Doom source release) and applies to
+# every map ever made for the engine.
+#
+# HP values are exact. Damage is given as the range a single hit can do, rounded from the engine's dice;
+# it is used for ranking danger, not for simulating fights, so a decision must never depend on the third
+# significant figure of a number in here.
+#
+# `danger` is this project's own 1 to 10 ranking of "how much I should care that this thing is looking at
+# me at its effective range", and it is a tunable of the mutable surface: experiments may change it.
+# Everything else in this file is a fact about the game and is not tunable.
+
+version: 1
+source: "Doom Wiki (monster, weapon and item pages) and the 1997 Doom source release"
+
+monsters:
+  # in_episode1: appears somewhere in shareware Doom Episode 1, so the test set can meet it
+  Zombieman:      {hp: 20,   danger: 2,  attack: hitscan,    damage: [1, 15],   range: far,   melee: false, in_episode1: true,  drops: Clip}
+  ShotgunGuy:     {hp: 30,   danger: 4,  attack: hitscan,    damage: [3, 45],   range: far,   melee: false, in_episode1: true,  drops: Shotgun}
+  DoomImp:        {hp: 60,   danger: 3,  attack: projectile, damage: [3, 9],    range: far,   melee: true,  in_episode1: true,  drops: null}
+  Demon:          {hp: 150,  danger: 5,  attack: melee,      damage: [4, 40],   range: melee, melee: true,  in_episode1: true,  drops: null, fast: true}
+  Spectre:        {hp: 150,  danger: 6,  attack: melee,      damage: [4, 40],   range: melee, melee: true,  in_episode1: true,  drops: null, fast: true,
+                   note: "a Demon that is hard to see; the labels buffer still names it, which is a perception advantage over a human"}
+  LostSoul:       {hp: 100,  danger: 4,  attack: charge,     damage: [3, 24],   range: far,   melee: true,  in_episode1: true,  drops: null, flies: true}
+  Cacodemon:      {hp: 400,  danger: 7,  attack: projectile, damage: [5, 40],   range: far,   melee: true,  in_episode1: true,  drops: null, flies: true}
+  BaronOfHell:    {hp: 1000, danger: 9,  attack: projectile, damage: [8, 64],   range: far,   melee: true,  in_episode1: true,  drops: null, boss: true}
+  # Doom II classes. Not reachable in shareware Episode 1, but Freedoom Phase 1 and other dev WADs can
+  # place the Doom 1 compatible subset, and the labels buffer will name them, so they are ranked here too.
+  ChaingunGuy:    {hp: 70,   danger: 6,  attack: hitscan,    damage: [1, 45],   range: far,   melee: false, in_episode1: false, drops: Chaingun}
+  HellKnight:     {hp: 500,  danger: 7,  attack: projectile, damage: [8, 64],   range: far,   melee: true,  in_episode1: false, drops: null}
+  Revenant:       {hp: 300,  danger: 8,  attack: projectile, damage: [10, 80],  range: far,   melee: true,  in_episode1: false, drops: null,
+                   note: "its missile homes; breaking line of sight is worth more against this one than against anything else"}
+  Arachnotron:    {hp: 500,  danger: 7,  attack: projectile, damage: [5, 40],   range: far,   melee: false, in_episode1: false, drops: null}
+  Fatso:          {hp: 600,  danger: 8,  attack: projectile, damage: [8, 64],   range: far,   melee: false, in_episode1: false, drops: null}
+  PainElemental:  {hp: 400,  danger: 8,  attack: spawner,    damage: [0, 0],    range: far,   melee: false, in_episode1: false, drops: null,
+                   note: "does no direct damage; it makes LostSouls, so the cost of ignoring it grows"}
+  Archvile:       {hp: 700,  danger: 10, attack: fire,       damage: [20, 70],  range: far,   melee: false, in_episode1: false, drops: null,
+                   note: "attacks through line of sight only and revives corpses; breaking sight stops it"}
+  WolfensteinSS:  {hp: 50,   danger: 3,  attack: hitscan,    damage: [1, 45],   range: far,   melee: false, in_episode1: false, drops: Clip}
+
+boss_classes: [BaronOfHell, Cyberdemon, SpiderMastermind]
+
+weapons:
+  # slot: the number key. ammo: null means it never runs out.
+  Fist:           {slot: 1, ammo: null,    damage: [2, 20],   best_range: melee,  splash: false, owned_at_start: true}
+  Chainsaw:       {slot: 1, ammo: null,    damage: [2, 20],   best_range: melee,  splash: false, owned_at_start: false}
+  Pistol:         {slot: 2, ammo: bullets, damage: [5, 15],   best_range: far,    splash: false, owned_at_start: true}
+  Shotgun:        {slot: 3, ammo: shells,  damage: [35, 105], best_range: near,   splash: false, owned_at_start: false,
+                   note: "7 pellets spread; damage falls off with distance because pellets miss, not because each is weaker"}
+  Chaingun:       {slot: 4, ammo: bullets, damage: [5, 15],   best_range: far,    splash: false, owned_at_start: false,
+                   note: "two shots per press; it also staggers most things, which is worth more than its damage"}
+  RocketLauncher: {slot: 5, ammo: rockets, damage: [20, 160], best_range: far,    splash: true,  owned_at_start: false,
+                   splash_radius: 128}
+  PlasmaRifle:    {slot: 6, ammo: cells,   damage: [5, 40],   best_range: far,    splash: false, owned_at_start: false}
+  BFG9000:        {slot: 7, ammo: cells,   damage: [100, 800], best_range: far,   splash: true,  owned_at_start: false,
+                   splash_radius: 128}
+
+ammo:
+  bullets: {max: 200, max_with_backpack: 400}
+  shells:  {max: 50,  max_with_backpack: 100}
+  rockets: {max: 50,  max_with_backpack: 100}
+  cells:   {max: 300, max_with_backpack: 600}
+
+pickups:
+  # kind is what the need head reasons about; amount is what the pickup gives.
+  Clip:           {kind: ammo,   ammo: bullets, amount: 10}
+  ClipBox:        {kind: ammo,   ammo: bullets, amount: 50}
+  Shell:          {kind: ammo,   ammo: shells,  amount: 4}
+  ShellBox:       {kind: ammo,   ammo: shells,  amount: 20}
+  RocketAmmo:     {kind: ammo,   ammo: rockets, amount: 1}
+  RocketBox:      {kind: ammo,   ammo: rockets, amount: 5}
+  Cell:           {kind: ammo,   ammo: cells,   amount: 20}
+  CellPack:       {kind: ammo,   ammo: cells,   amount: 100}
+  Stimpack:       {kind: health, amount: 10,  cap: 100}
+  Medikit:        {kind: health, amount: 25,  cap: 100}
+  HealthBonus:    {kind: health, amount: 1,   cap: 200}
+  Soulsphere:     {kind: health, amount: 100, cap: 200}
+  GreenArmor:     {kind: armor,  amount: 100, absorb: 0.333}
+  BlueArmor:      {kind: armor,  amount: 200, absorb: 0.5}
+  ArmorBonus:     {kind: armor,  amount: 1,   cap: 200, absorb: 0.333}
+  Backpack:       {kind: ammo,   amount: 0,   note: "doubles every ammo maximum and gives one clip of each"}
+  Berserk:        {kind: power,  note: "heals to 100 and multiplies fist damage by ten for the rest of the level"}
+  Invulnerability: {kind: power, note: "no damage for 30 seconds"}
+  RadSuit:        {kind: power,  note: "no damage from a damaging floor for 60 seconds"}
+  Shotgun:        {kind: weapon, weapon: Shotgun}
+  Chaingun:       {kind: weapon, weapon: Chaingun}
+  Chainsaw:       {kind: weapon, weapon: Chainsaw}
+  RocketLauncher: {kind: weapon, weapon: RocketLauncher}
+  PlasmaRifle:    {kind: weapon, weapon: PlasmaRifle}
+  BFG9000:        {kind: weapon, weapon: BFG9000}
+
+keys:
+  colours: [red, blue, yellow]
+  things:
+    RedCard:     red
+    RedSkull:    red
+    BlueCard:    blue
+    BlueSkull:   blue
+    YellowCard:  yellow
+    YellowSkull: yellow
+  note: >
+    A locked door needs a key of its colour. Card and skull are the same colour for the purpose of
+    opening a door in Doom 1. Keys do not carry between levels.
+
+structures:
+  door:         "opens on Use, or on walking over a trigger line. Some close again on their own."
+  locked_door:  "a door that does nothing on Use without the key of its colour. The automap draws it in that colour once seen."
+  lift:         "a floor that lowers on Use or on a trigger, then rises again. Standing on it while it rises is how you get up."
+  switch:       "a wall that changes something elsewhere when Used. There is no way to know what it changed except by looking."
+  exit_switch:  "a switch that ends the level. The automap colours its line once the line has been seen."
+  exit_line:    "a line that ends the level when walked over."
+  damaging_floor: "nukage, slime or lava. It takes health every second you stand in it; a RadSuit stops that."
+  crusher:      "a ceiling that comes down. Standing under one is fatal."
+
+damaging_floors:
+  # health per second, at the rates the engine applies them
+  nukage: 5
+  slime:  5
+  lava:   20
+  super:  20
+
+behaviour:
+  # Thresholds the `need` head and the code backstops read. These are the mutable surface: an experiment
+  # may change any of them and the ledger will say whether it helped.
+  health_critical: 30
+  health_low: 50
+  health_comfortable: 80
+  armor_low: 25
+  ammo_low:
+    bullets: 20
+    shells: 6
+    rockets: 2
+    cells: 40
+  # Never fire a splash weapon at something closer than this.
+  splash_min_distance: 200
+  # A thing is "close" when it is nearer than this; the danger head is only worth asking inside it.
+  threat_distance: 400
+  boss_rule: >
+    If a boss-class enemy is present and the frontiers are exhausted without an exit being found, killing
+    the bosses becomes a candidate goal: on some maps the way out only opens when they die. This is a rule
+    about how the engine works, not about any particular map.
+  detour_rule: >
+    A detour for health, armor or ammo is worth it when the need is at or below its threshold and the
+    detour is short next to the distance still to walk. The target head weighs that; these numbers only
+    say when the need is real.

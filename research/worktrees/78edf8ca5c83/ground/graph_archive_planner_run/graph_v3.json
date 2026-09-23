@@ -1,0 +1,109 @@
+{
+ "version": 3,
+ "standing_order": "Find the level exit alive; fight what blocks the way; pick up supplies when they are needed.",
+ "goal_every": 8,
+ "thresholds": {
+  "aligned_deg": 50.0,
+  "crosshair_deg": 8.0,
+  "fire_range": 450.0,
+  "danger_dist": 180.0,
+  "blocked_units": 45.0,
+  "tight_units": 70.0,
+  "health_critical": 35.0,
+  "health_low": 50.0
+ },
+ "turn_deg": {
+  "Hard left": 60.0,
+  "Left": 25.0,
+  "Fine left": 8.0,
+  "Hold": 0.0,
+  "Fine right": -8.0,
+  "Right": -25.0,
+  "Hard right": -60.0,
+  "Turn around": 150.0
+ },
+ "questions": {
+  "steer": {
+   "question": "Which way now? The map's route goes {route_where}. Space ahead: {ahead}, left: {left}, right: {right}, behind: {behind}. Stuck: {stuck}.",
+   "criteria": {
+    "Follow route": "Stuck is no and the space in the route's direction is clear or tight: keep following the route.",
+    "Left": "The route's way is blocked or stuck is yes, and space left is clear or unknown (not blocked): turn left and go look that way.",
+    "Right": "The route's way is blocked or stuck is yes, left is blocked, and space right is clear or unknown: turn right and go look that way.",
+    "Back": "The route's way is blocked or stuck is yes, both sides are blocked, and space behind is clear or unknown: back out.",
+    "Turn around": "Blocked or stuck and every side is blocked: turn around and look."
+   }
+  },
+  "dodge": {
+   "question": "Sidestep away from an enemy? Threat: {threat} ({enemy_where}). Space left: {left}, right: {right}, behind: {behind}.",
+   "criteria": {
+    "Carry on": "Threat is safe. Do not dodge just because an enemy exists.",
+    "Dodge left": "Threat is danger and space left is clear.",
+    "Dodge right": "Threat is danger, left is not clear, space right is clear.",
+    "Dodge back": "Threat is danger, sides not clear, space behind is clear."
+   }
+  },
+  "move": {
+   "question": "Advance now? Route aligned ahead: {aligned}. Space ahead: {ahead}. Stuck: {stuck}. Space behind: {behind}. Navigator: {mode}.",
+   "criteria": {
+    "Forward": "Route aligned ahead is yes and space ahead is clear or tight. Also forward to close on a distant enemy, and forward when at a door (walk up to it while it opens).",
+    "Hold": "Route aligned ahead is no (turn first), or space ahead is blocked and not at a door, or the destination is here, or stuck with nothing known clear around (turn instead).",
+    "Backward": "Stuck is yes and space behind is clear."
+   }
+  },
+  "strafe": {
+   "question": "Recovery sidestep? Stuck: yes. Space left: {left}, right: {right}.",
+   "criteria": {
+    "Hold": "Neither side is known clear: turn instead.",
+    "Strafe left": "Space left is clear.",
+    "Strafe right": "Left is blocked, space right is clear."
+   }
+  },
+  "turn": {
+   "question": "Turn to put {aim_target} in the crosshair. It is now: {aim}.",
+   "criteria": {
+    "Hard left": "It is far left.",
+    "Left": "It is left.",
+    "Fine left": "It is slightly left or just left of the crosshair.",
+    "Hold": "It is centered.",
+    "Fine right": "It is slightly right or just right of the crosshair.",
+    "Right": "It is right.",
+    "Hard right": "It is far right.",
+    "Turn around": "It is behind."
+   }
+  },
+  "fire": {
+   "question": "Pull the trigger? Living enemy in the crosshair: {in_crosshair} ({enemy_where}). Equipped ammunition: {equipped_ammo}. Never shoot at the route waypoint.",
+   "criteria": {
+    "Fire": "Enemy in the crosshair is yes and equipped ammunition is more than zero.",
+    "Hold fire": "Enemy in the crosshair is no, or equipped ammunition is zero."
+   }
+  },
+  "weapon": {
+   "question": "Which weapon? Equipped: {equipped}. Shotgun shells: {shells}. Pistol bullets: {bullets}. Owns shotgun: {owns_shotgun}.",
+   "criteria": {
+    "Keep": "The equipped weapon still has ammunition.",
+    "Pistol": "Shotgun shells are zero and pistol bullets remain.",
+    "Shotgun": "Owns a shotgun with shells and the pistol is equipped."
+   }
+  },
+  "use": {
+   "question": "Press use (open a door, flip a switch, try a wall)? Navigator: {mode}. Route blocked at arm length: {blocked_route}. Stuck: {stuck}.",
+   "criteria": {
+    "Use": "Route blocked at arm length is yes, or stuck is yes, or the navigator is at a door, at the exit line, or trying walls: press it.",
+    "Wait": "Nothing within reach to operate."
+   }
+  },
+  "goal": {
+   "question": "Immediate priority? Level {level}. Health: {health}. Threat: {threat} ({enemy_where}). Ammunition: {ammo}. Armor: {armor}. Nearby pickups: health {health_pickup}, ammo {ammo_pickup}, armor {armor_pickup}. Unexplored frontiers: {frontiers}. Navigator: {mode}.",
+   "criteria": {
+    "Kill enemies": "An enemy is visible at close or mid range, health is not critical and ammunition is ready.",
+    "Restore health": "Health is critical, or low with a health pickup seen and no close enemy.",
+    "Stock ammo": "Ammunition is empty or scarce and an ammo pickup was seen.",
+    "Add armor": "Armor is none, an armor pickup was seen close by (small dest_dist), health fine, no close enemy. If the armor sits far off or across unclear terrain, keep exploring instead of chasing it.",
+    "Explore": "No close enemy, health fine, ammunition ready: keep exploring toward the nearest frontier to find the exit. Also Explore whenever the navigator is at a door, fetching a key, heading for the exit or trying walls: let it finish.",
+    "Scout": "The nearest frontier is exhausted or the player keeps getting stuck: head for a far unexplored part of the map.",
+    "Upgrade weapon": "No shotgun owned, a weapon was seen, no close enemy."
+   }
+  }
+ }
+}
