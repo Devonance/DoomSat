@@ -415,4 +415,11 @@ tic-rate numbers from before that describe a busier machine than they claim.
 Raw attempt logs are outside git (`research/out/**/attempt-*.json`, per charter 6.1); the graded results,
 summaries and `ORACLE.json` files are in it.
 
-358 tests pass. 17 honesty checks, none failing.
+359 tests pass. 17 honesty checks and 9 canaries, none failing -- including one that caught a comment I
+wrote in `ground/graph_config.py` naming a shareware level to cite a measurement. That is the rule doing
+its job: a level name in ground code is one step from a constant tuned on that level.
+
+One thing here is probably worth sending upstream rather than only writing down: **ViZDoom 1.3.0 reports
+`Sector.floor_height` negated** while `ceiling_height` is correct. Checked against the WAD's own SECTORS
+lump for all 797 sectors of four maps across two IWADs. Anyone building on `sectors_info` will get every
+step and every ledge backwards and have no reason to suspect it.
