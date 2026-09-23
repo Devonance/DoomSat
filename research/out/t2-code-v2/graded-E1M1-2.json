@@ -1,0 +1,63 @@
+{
+ "map": "E1M1",
+ "seed": 2,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "t2-code-v2",
+ "versions": {
+  "commit": "50da602",
+  "dirty": true,
+  "branch": "charter-build-out",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "dee1db53edf1",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "e7d6203ae6a8"
+ },
+ "commit": null,
+ "dirty": null,
+ "score": 0.1326,
+ "completed": false,
+ "level_time": 180.09,
+ "end_reason": "timeout",
+ "deaths": 1,
+ "deaths_per_minute": 0.333,
+ "watchdog_trips": {
+  "no displacement for 4 s": 1
+ },
+ "freezes": 1,
+ "executor_stats": {
+  "ticks": 3419,
+  "safe_ticks": 0,
+  "recover_ticks": 523,
+  "intents": 181,
+  "stale_dropped": 0
+ },
+ "cache_hit_rate": 0.0938,
+ "progress": 0.1473,
+ "progress_best": 0.5152,
+ "start_distance": 3231.3,
+ "remaining_distance": 2755.1,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": false,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 333,
+  "decisions_per_s": 1.859,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.0,
+  "fallback_rate": 0.961,
+  "speed_explore": 199.03,
+  "coverage_rate": 12.39,
+  "revisit_fraction": 0.3994,
+  "spin_rate": 0.51906,
+  "idle_fraction": 0.2222,
+  "watchdog_trips": {},
+  "tokens_per_decision": 0.0,
+  "cells": 37,
+  "path_units": 26590.5
+ }
+}

@@ -174,18 +174,84 @@ class TestTheCodeBaseline(unittest.TestCase):
 
 
 class TestLatencyPlayback(unittest.TestCase):
-    def test_a_missing_log_falls_back_to_the_built_in_default(self):
+    """The pool the bench makes the game wait for. Part of the ruler: a run that waited a different
+    length of time for its answers is not comparable, which is why it is frozen rather than looked up.
+
+    Pinning found this. A run inside a git worktree has no out/decisions.jsonl, so the lookup fell back
+    to a single built-in sample and the player waited 450 ms instead of the 529 the flight log measured.
+    """
+
+    def setUp(self):
+        self.frozen = runner.FROZEN_LATENCY
+        self.saved = self.frozen.read_text(encoding="utf-8") if self.frozen.is_file() else None
+
+    def tearDown(self):
+        if self.saved is None:
+            if self.frozen.is_file():
+                self.frozen.unlink()
+        else:
+            self.frozen.write_text(self.saved, encoding="utf-8")
+
+    def test_the_frozen_pool_is_used_in_preference_to_any_log(self):
+        self.assertTrue(self.frozen.is_file(), "research/latency.json is missing")
+        import json
+        pool = runner.latencies("no/such/log.jsonl")
+        self.assertGreater(len(pool), 100, "the frozen pool should be a real sample, not a default")
+        self.assertEqual(pool, json.loads(self.saved)["samples"])
+
+    def test_the_frozen_pool_is_what_flight_measured_and_not_a_guess(self):
+        import json
+        import statistics
+        pool = sorted(json.loads(self.saved)["samples"])
+        median = statistics.median(pool)
+        self.assertTrue(400 < median < 800,
+                        "a median of %.0f ms is not what the flight log measured" % median)
+
+    def test_without_it_a_missing_log_falls_back_to_the_built_in_default(self):
+        self.frozen.unlink()
         self.assertEqual(runner.latencies("no/such/log.jsonl"), list(runner.DEFAULT_LATENCY_MS))
 
-    def test_it_reads_a_real_log_and_adds_the_command_hop(self):
+    def test_without_it_a_real_log_is_read_and_the_command_hop_added(self):
         import json
         import tempfile
-        p = os.path.join(tempfile.mkdtemp(), "d.jsonl")
-        with open(p, "w", encoding="utf-8") as f:
-            f.write(json.dumps({"kind": "control", "latency_ms": 400, "cmd_ms": 45}) + "\n")
-            f.write(json.dumps({"kind": "after_action"}) + "\n")
-            f.write("\n")
-        self.assertEqual(runner.latencies(p), [445.0])
+        self.frozen.unlink()
+        path = os.path.join(tempfile.mkdtemp(), "d.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"kind": "control", "latency_ms": 400, "cmd_ms": 45}) + chr(10))
+            f.write(json.dumps({"kind": "after_action"}) + chr(10))
+            f.write(chr(10))
+        self.assertEqual(runner.latencies(path), [445.0])
+
+
+class TestPinning(unittest.TestCase):
+    """A measurement taken from a dirty tree cannot be re-run, and the bench starts a fresh payload per
+    attempt, so an edit made mid-run lands in the later attempts only."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.join(ROOT, "research"))
+        import pinned
+        self.pinned = pinned
+
+    def test_it_ignores_churn_outside_the_code(self):
+        self.assertNotIn("research/out/", " ".join(self.pinned.dirty_paths(ROOT)))
+
+    def test_the_code_directories_are_the_ones_that_change_a_run(self):
+        for d in ("ground", "payload", "research", "knowledge"):
+            self.assertIn(d, self.pinned.CODE_DIRS)
+
+    def test_the_runner_offers_pinning_and_refuses_a_dirty_tree_without_it(self):
+        src = open(os.path.join(ROOT, "research", "runner.py"), encoding="utf-8").read()
+        self.assertIn("--pin", src)
+        self.assertIn("--allow-dirty", src)
+        self.assertIn("pinned.prepare", src)
+
+    def test_every_attempt_records_the_commit_it_ran_from(self):
+        src = open(os.path.join(ROOT, "research", "runner.py"), encoding="utf-8").read()
+        self.assertIn('"commit": vers.get("pinned") or vers.get("commit")', src)
+
+    def test_the_ledger_refuses_a_run_that_spans_two_commits(self):
+        src = open(os.path.join(ROOT, "research", "ledger.py"), encoding="utf-8").read()
+        self.assertIn("spans %d commits", src)
 
 
 if __name__ == "__main__":

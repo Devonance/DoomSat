@@ -1,0 +1,68 @@
+{
+ "attempts": 30,
+ "suite_score": 0.0435,
+ "score_sd": 0.0491,
+ "completed": 0,
+ "deaths": 171,
+ "episodes": 30,
+ "freezes": 13,
+ "freeze_reasons": {
+  "no displacement for 4 s": 13
+ },
+ "mean_progress": 0.058,
+ "maps_without_a_usable_progress_score": [
+  "E1M3",
+  "E1M3",
+  "E1M3",
+  "E1M3",
+  "E1M3"
+ ],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "deaths_per_minute": {
+   "pass": true,
+   "value": "1.90 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": true,
+   "value": "n/a: code baseline, no model in the loop"
+  }
+ },
+ "guardrails_pass": true,
+ "per_level": {
+  "E1M1": {
+   "n": 5,
+   "mean": 0.0901,
+   "sd": 0.0518
+  },
+  "E1M2": {
+   "n": 5,
+   "mean": 0.0352,
+   "sd": 0.0556
+  },
+  "E1M3": {
+   "n": 5,
+   "mean": 0.0,
+   "sd": 0.0
+  },
+  "E1M4": {
+   "n": 5,
+   "mean": 0.0335,
+   "sd": 0.032
+  },
+  "E1M5": {
+   "n": 5,
+   "mean": 0.0217,
+   "sd": 0.0199
+  },
+  "E1M6": {
+   "n": 5,
+   "mean": 0.0803,
+   "sd": 0.0521
+  }
+ },
+ "run_dir": "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/t2-code-v2"
+}
