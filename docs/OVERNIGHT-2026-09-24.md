@@ -117,6 +117,20 @@ carries the same features any way on does, with a `gate` word. "Further from the
 level and stayed as a feature: a Doom level loops back, so a pilot that will not walk back the way it came
 gets stuck at the far end of a dead end.
 
+**Markers in the void.** One of the morning brief's open questions: some overlay markers sat outside any
+room. Measured on the t3 baseline (geometry off, six dev maps, first six attempts), against the grader's
+own reachable floor and allowing its usual eight-cell search:
+
+| candidate kind | on floor | in the void | |
+| --- | --- | --- | --- |
+| item | 2,740 | 0 | 0% |
+| door | 692 | 21 | 3% |
+| frontier | 4,970 | 337 | **6%** |
+
+They come from the camera sweep: it marks floor it can see, and it can see over a ledge, so a frontier
+can be offered on ground no player can stand on. That is the thing the visibility fill replaces, and the
+same measurement with geometry on is in §5 once it has been run.
+
 **Exit tests: partially met.** "Zero no-route reports while walkable cells exist" is met after the cell
 walkability fix in §6. Coverage per minute against the step 0 baseline is **not measured yet** -- the dev
 bench with geometry on has not been run.
