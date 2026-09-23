@@ -9,7 +9,24 @@ number, and §7 says why.
 
 ## 1. Headline
 
-Not yet. E1M1 has not been flown tonight.
+**E1M1, flown through the full stack with Jev deciding: 0.67 of the way to the exit. Not finished.**
+
+| first flight, shareware E1M1, doom1.wad, geometry on | |
+| --- | --- |
+| finished | **no** |
+| best progress | **0.67** |
+| final progress | 0.00 |
+| deaths | 1 (first episode, at 85 s; the second ran clean) |
+| cells covered | 63 |
+| EXPLORE speed | 153 units/s |
+| **flight tic rate** | **35.0/s** (brief's floor: 33) |
+| decision age p95 | 781 ms (budget 900) |
+| **jev_share** | **0.44** -- FAILS the 0.70 floor; see below |
+| door recall | 2 of 2 |
+| exit seen | 0 of 1 |
+
+For scale: the best E1M1 number this project had before tonight was 0.45 on the bench, on a ruler that
+scored the final position rather than the closest approach.
 
 The oracle ladder answered the question it was built to answer on its first rung, and the answer moved
 the night: **handed the whole level's true geometry and the exit's position, the pilot got 16% of the way
