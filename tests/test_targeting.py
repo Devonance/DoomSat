@@ -167,16 +167,27 @@ class TestPickingAndCommitment(unittest.TestCase):
         i, _d = tg.pick(self.answers(2.0, 7.0), self.state, self.cands, self.cfg, self.mem)
         self.assertEqual(i, 1)
 
-    def test_a_near_tie_falls_back_to_the_rule_rather_than_dithering(self):
+    def test_a_near_tie_falls_back_to_the_frozen_fallback_rather_than_dithering(self):
+        """The brief allows code one fallback: keep the current target, else the nearest way on.
+
+        It used to fall back to `rule_score`, which is a second rule and not that one. On an E1M1 flight
+        it settled 31% of the decisions, and on another 49%.
+        """
         i, d = tg.pick(self.answers(5.0, 5.05), self.state, self.cands, self.cfg, self.mem)
-        self.assertIn("fallback", d)
-        self.assertEqual(i, 0, "the rule prefers the nearer frontier")
+        self.assertEqual(d.get("fallback"), "unsure: nearest way on")
+        self.assertEqual(i, 0, "nothing is held yet, so it takes the nearest way on")
+
+    def test_a_near_tie_keeps_what_it_is_already_walking_to(self):
+        tg.pick(self.answers(9.0, 1.0), self.state, self.cands, self.cfg, self.mem)   # commit to t0
+        i, d = tg.pick(self.answers(5.0, 5.05), self.state, self.cands, self.cfg, self.mem)
+        self.assertEqual(d.get("fallback"), "unsure: held")
+        self.assertEqual(i, 0)
 
     def test_a_low_confidence_answer_is_treated_as_cannot_tell(self):
         a = self.answers(2.0, 8.0)
         a["g_t1"]["confidence"] = 0.1
         _i, d = tg.pick(a, self.state, self.cands, self.cfg, self.mem)
-        self.assertEqual(d.get("fallback"), "unsure answer")
+        self.assertTrue(str(d.get("fallback", "")).startswith("unsure"), d)
 
     def test_it_holds_what_it_is_already_walking_to(self):
         tg.pick(self.answers(9.0, 1.0), self.state, self.cands, self.cfg, self.mem)

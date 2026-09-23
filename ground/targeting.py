@@ -428,10 +428,20 @@ def pick(answers, state, candidates, cfg, mem):
     detail = {"gap": round(gap, 3), "confidence": round(conf, 2), "n": len(scored)}
 
     if gap < float(sel["unsure_gap"]) or conf < float(sel["unsure_conf"]):
-        # a near tie is not a reason to dither: fall back to the exact rule, which always has an opinion
-        rule = {i: rule_score(state["targets"]["t%d" % i]) for i in scored}
-        best = max(rule, key=lambda i: (rule[i], -candidates[i]["path_units"]))
-        detail["fallback"] = "unsure gap" if gap < float(sel["unsure_gap"]) else "unsure answer"
+        # A near tie is not a reason to dither, and it is not a reason for a second rule either. Charter
+        # 3.3 gives the choice to the model; the brief allows code exactly one fallback when the model
+        # cannot be used -- keep the current target, else the nearest frontier -- and this is it. It used
+        # to fall back to `rule_score`, which settled 31% of the decisions of an E1M1 flight by a rule
+        # the brief does not sanction.
+        held = [i for i, c in enumerate(candidates)
+                if i in scored and mem.is_committed(c["x"], c["y"])]
+        if held:
+            best = held[0]
+            detail["fallback"] = "unsure: held"
+        else:
+            ways_on = [i for i in scored if candidates[i]["kind"] in ("frontier", "door")]
+            best = min(ways_on or list(scored), key=lambda i: candidates[i]["path_units"])
+            detail["fallback"] = "unsure: nearest way on"
         mem.fallbacks += 1
 
     # hold what we are already walking to unless the new choice beats it by a margin
