@@ -547,3 +547,33 @@ class TestItCannotWallItselfIn(unittest.TestCase):
         walk = self.w.walkable(1.0)
         for cx in range(0, 6):
             self.assertIn((cx, 0), walk, "the trail it walked in on is no longer a route out")
+
+class TestDoorsDoNotCrowdOutTheWayOn(unittest.TestCase):
+    """Doors are `must` candidates and the rubric's top level is "an untried door".
+
+    At the closest approach of three separate attempts on the same level, the frontier that actually led
+    onward was offered every time, with the lowest true distance to the exit of anything in the list --
+    and every time two doors behind the player sat alongside it and won. Two of eight slots is a quarter
+    of the list spent on the way the player came in.
+
+    Settling a door by standing in it was tried instead and measured worse: mean closest approach across
+    five seeds fell from 0.42 of the way to the exit to 0.29, and door recall from ten of ten to six of
+    eight, because too many suspects are ceiling-height lines the player walks over constantly.
+    """
+
+    def setUp(self):
+        self.ex = FakeExplorer(free=room(0, 0, 12, 6))
+        self.w = wm.WorldModel(self.ex)
+        self.w.see_doors = lambda *a, **k: None
+        for i, cy in enumerate((1, 2, 3)):
+            self.w.doors[(5, cy)] = {"x": 5.5 * GRID, "y": (cy + 0.5) * GRID, "colour": "", "tries": 0,
+                                     "opened": False, "last_try": 0.0, "not_a_door": False,
+                                     "see_through": False, "width": 64.0, "why": ""}
+
+    def test_at_most_one_door_is_offered(self):
+        kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)]
+        self.assertEqual(kinds.count(wm.KIND_DOOR), 1)
+
+    def test_a_door_is_still_offered_at_all(self):
+        self.assertIn(wm.KIND_DOOR, [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)],
+                      "doors are gates; capping them must not remove them")

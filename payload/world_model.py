@@ -33,7 +33,13 @@ THREAT_NEAR = 384.0        # an enemy this close to a candidate is a reason to t
 DOOR_MIN_WIDTH, DOOR_MAX_WIDTH = 40.0, 200.0
 DOOR_CONFIRM_UNITS = 400.0   # close enough for the range camera to have an opinion
 SEE_PAST_UNITS = 96.0        # seeing this much further than the suspect means it is not solid
-MAX_DOOR_CANDIDATES = 2      # so frontiers always get offered
+# One, not two. Doors are `must` candidates -- always in the list of eight, never pruned -- and the
+# rubric's top level is "the way on: an untried door", so every door in the list outranks the frontier
+# that leads onward. At the closest approach of three separate attempts the right way on was offered
+# every time, with the lowest true distance to the exit of anything in the list, and every time two doors
+# behind the player sat alongside it and won. Two of eight slots is a quarter of the list spent on the
+# way the player came in.
+MAX_DOOR_CANDIDATES = 1
 # Clearance is a preference, not a permission. The player has a 16-unit radius, so 4 raster pixels is
 # +-16 and exactly no margin: a cell whose centre sits sixteen units from a wall counts as walkable and
 # the player arrives already touching it, which is what the rub log shows -- clear_fwd 14, one shoulder
@@ -263,7 +269,13 @@ class WorldModel:
 
     def note_here(self, x, y):
         """The player is here, so here can be stood in. Called every tic: at two hundred units a second
-        the decision rate would leave two-cell gaps in the trail, and a gap is where it gets walled in."""
+        the decision rate would leave two-cell gaps in the trail, and a gap is where it gets walled in.
+
+        Settling a door by standing in it was tried here and measured worse -- mean closest approach
+        across five seeds fell from 0.42 of the way to the exit to 0.29, and door recall from all ten to
+        six of eight. Too many of the suspects the payload raises are ceiling-height lines the player
+        walks over constantly, so "I have been inside it" retires real doors along with the phantoms.
+        """
         self.stood.add(self.ex.cell(x, y))
 
     def tight(self, cx, cy, now):
