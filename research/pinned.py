@@ -42,7 +42,9 @@ def dirty_paths(root):
     out = []
     for line in git("status", "--porcelain", cwd=root).splitlines():
         path = line[3:].strip().strip('"')
-        if path.startswith("research/out/"):
+        # Scratch, both of them: results, and the pinned checkouts this module creates. Without the
+        # second, one pinned run leaves the tree permanently "dirty" and every later run refuses.
+        if path.startswith("research/out/") or path.startswith("research/worktrees/"):
             continue
         if any(path.startswith(d + "/") for d in CODE_DIRS):
             out.append(line.strip())

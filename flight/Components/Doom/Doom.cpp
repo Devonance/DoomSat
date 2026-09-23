@@ -344,14 +344,14 @@ void Doom ::handleStatus(const U8* body, U16 length) {
     for (U8 i = 0; i < MAX_CANDIDATES; i++) {
         const U8 kind = rdU8(p);
         DoomMission::Candidate c;
-        c.setkind(DoomMission::CandKind(static_cast<DoomMission::CandKind::T>(kind > 6 ? 0 : kind)));
-        c.setx(rdF32(p));
-        c.sety(rdF32(p));
-        c.setpathUnits(rdU16(p));
-        c.setnovelty(rdU8(p));
-        c.setflags(rdU8(p));
-        c.setthreatClass(rdU8(p));
-        c.setthreatCount(rdU8(p));
+        c.set_kind(DoomMission::CandKind(static_cast<DoomMission::CandKind::T>(kind > 6 ? 0 : kind)));
+        c.set_x(rdF32(p));
+        c.set_y(rdF32(p));
+        c.set_pathUnits(rdU16(p));
+        c.set_novelty(rdU8(p));
+        c.set_flags(rdU8(p));
+        c.set_threatClass(rdU8(p));
+        c.set_threatCount(rdU8(p));
         switch (i) {
             case 0: this->tlmWrite_CAND0(c); break;
             case 1: this->tlmWrite_CAND1(c); break;

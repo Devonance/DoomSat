@@ -60,6 +60,22 @@ def guardrails(graded, conf):
     return out
 
 
+def _sum_dicts(graded, key):
+    out = {}
+    for r in graded:
+        for k, v in (r["metrics"].get(key) or {}).items():
+            out[k] = out.get(k, 0) + v
+    return dict(sorted(out.items(), key=lambda kv: -kv[1]))
+
+
+def _mean_dicts(graded, key):
+    out, n = {}, max(1, len(graded))
+    for r in graded:
+        for k, v in (r["metrics"].get(key) or {}).items():
+            out[k] = out.get(k, 0.0) + v
+    return {k: round(v / n, 4) for k, v in sorted(out.items(), key=lambda kv: -kv[1])}
+
+
 def _freeze_reasons(graded):
     out = {}
     for r in graded:
@@ -80,6 +96,8 @@ def summarise(graded, conf):
         "episodes": len(graded),
         "freezes": sum(r.get("freezes", 0) for r in graded),
         "freeze_reasons": _freeze_reasons(graded),
+        "deaths_by_mode": _sum_dicts(graded, "deaths_by_mode"),
+        "mode_share": _mean_dicts(graded, "mode_share"),
         "mean_progress": round(statistics.fmean([r["progress"] for r in usable]), 4) if usable else None,
         "maps_without_a_usable_progress_score": [r["map"] for r in graded if not r["exit_reachable_from_start"]],
         "guardrails": {k: {"pass": v[0], "value": v[1]} for k, v in guardrails(graded, conf).items()},
@@ -135,6 +153,8 @@ def main(argv=None):
           % (summary["freezes"], summary["episodes"],
              "  (" + ", ".join("%s x%d" % kv for kv in summary["freeze_reasons"].items()) + ")"
              if summary["freeze_reasons"] else ""))
+    if summary.get("deaths_by_mode"):
+        print("  died in: %s" % ", ".join("%s x%d" % kv for kv in summary["deaths_by_mode"].items()))
     for name, v in summary["guardrails"].items():
         print("  guardrail %-18s %-4s %s" % (name, "pass" if v["pass"] else "FAIL", v["value"]))
     sds = [v["sd"] for v in summary["per_level"].values() if v["sd"] is not None]

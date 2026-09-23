@@ -130,6 +130,8 @@ def metrics_of(rows):
         "spin_rate": round(fm.spin_rate(fm.samples(ctl)), 5),
         "idle_fraction": round(fm.idle_fraction(ctl), 4),
         "watchdog_trips": fm.watchdog_trips(ctl),
+        "mode_share": fm.mode_share(rows),
+        "deaths_by_mode": fm.deaths_by_mode(rows),
         "tokens_per_decision": round(fm.tokens_per_decision(ctl), 1),
         "cells": len(fm.cells(fm.samples(ctl))),
         "path_units": round(fm.path_units(fm.samples(ctl)), 1),

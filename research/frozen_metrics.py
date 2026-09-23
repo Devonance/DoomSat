@@ -292,3 +292,27 @@ def deaths_per_minute(n_deaths, game_seconds):
     """
     minutes = (game_seconds or 0.0) / 60.0
     return (n_deaths / minutes) if minutes > 0 else 0.0
+
+
+def mode_share(rows):
+    """Share of decisions spent in each mode. Context for every other number."""
+    ctl = [r for r in rows if r.get("kind") == "control"]
+    c = Counter(r.get("mode") or "?" for r in ctl)
+    return {k: round(v / len(ctl), 4) for k, v in c.most_common()} if ctl else {}
+
+
+def deaths_by_mode(rows):
+    """Which mode the player was in when it died.
+
+    A suite score cannot tell "died exploring" from "died fighting", and the two call for opposite
+    changes: the first is an executor safety problem and belongs to code, the second is a fight-or-avoid
+    judgement and belongs to the model. Reading a jev-versus-code row without this split is how a loss on
+    navigation gets mistaken for a loss on combat.
+    """
+    out, last = Counter(), None
+    for r in rows:
+        if r.get("kind") == "control":
+            last = r.get("mode") or "?"
+        elif r.get("kind") == "episode" and r.get("reason") == "died":
+            out[last or "?"] += 1
+    return dict(out)

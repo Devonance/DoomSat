@@ -16,3 +16,6 @@ research/out/**/RUN.lock
 # ViZDoom drops a config file wherever it is started from
 _vizdoom.ini
 _vizdoom/
+
+# Pinned experiment worktrees: scratch checkouts of a commit, created by research/pinned.py
+research/worktrees/
