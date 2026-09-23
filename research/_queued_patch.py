@@ -111,6 +111,35 @@ EDITS = [
         return out
 
     def outwardness(self, c, x, y):'''),
+    # ------------------------------------------- 6. the throttle's room is sideways room, not forward room
+    ("payload/executor.py",
+     """        # The narrowest of the three forward bands, because which way the body drifts depends on the
+        # strafe as well as the turn and the honest answer is "whichever is tightest".
+        room = min(obs["clear_fl"], obs["clear_fr"], obs["clear_fwd"])""",
+     """        # The narrower SHOULDER, and not the forward band. The question this answers is how far the
+        # body will drift sideways while the heading comes round, so the room that matters is sideways
+        # room. Including `clear_fwd` made it a handbrake: a wall seven units ahead is a wall the player
+        # slides along for free in this engine, and folding it in here took the throttle to zero for any
+        # heading error over a degree -- so the player stopped dead exactly where it most needed to be
+        # moving. What to do about something straight ahead is the avoidance guard's job, below.
+        room = min(obs["clear_fl"], obs["clear_fr"])"""),
+
+    # ------------------------------------------- 7. lean toward the side that is open
+    ("payload/executor.py",
+     """            if rub:
+                # Override the guard rather than obey it: the guard is what put us here.
+                side = 1.0 if int((now - self._rub_since) / RUB_FLIP_S) % 2 == 0 else -1.0""",
+     """            if rub:
+                # Override the guard rather than obey it: the guard is what put us here.
+                #
+                # Toward the side the camera says is open, and alternate only when it cannot tell. The
+                # side used to be chosen by a clock alone, which meant that half the time the player
+                # leaned into the wall it was already pressed against: the ladder log is full of
+                # `fl=7 fr=428` with the lean going left. `_freer_side` is a measurement and was sitting
+                # right there, used by the avoidance guard two lines up.
+                side = self._freer_side(obs)
+                if abs(obs["clear_fl"] - obs["clear_fr"]) < PLAYER_RADIUS:
+                    side = 1.0 if int((now - self._rub_since) / RUB_FLIP_S) % 2 == 0 else -1.0"""),
 ]
 
 
