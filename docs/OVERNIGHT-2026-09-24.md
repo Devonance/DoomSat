@@ -32,6 +32,7 @@ mistake, and the script now gives each flight its own log:
 | 1 | **0.67** | 63 | 153 u/s | 1 | 0.44 | 781 ms | no |
 | 2 | *log lost* | | | | | | |
 | 3 | 0.34 | 47 | 117 u/s | 0 | 0.38 | 755 ms | no |
+| 4 | 0.56 | 60 | 141 u/s | 0 | 0.45 | 762 ms | no |
 
 For scale, and stated carefully because the honest comparison is not flattering: the best five-seed mean
 this project had on E1M1 before tonight was **0.448**, on the bench, on a ruler that scored where an
@@ -277,15 +278,34 @@ ruler.
 
 The flight's breakdown, which is what the brief asks to be reported by reason:
 
-| | flight 1 | flight 3 |
-| --- | --- | --- |
-| **asked and used** -- jev's answer chose the target | **43%** | **34%** |
-| unsure band -- the top two scores within `unsure_gap`, so a rule settled it | 31% | **49%** |
-| held -- commitment: already walking there, and the new pick did not beat the margin | 24% | 14% |
-| cached -- an identical state answered from the within-run cache | 2% | 3% |
+| | flight 1 | flight 3 | flight 4 |
+| --- | --- | --- | --- |
+| **asked and used** -- jev's answer chose the target | **43%** | **34%** | **31%** |
+| unsure band -- the model's answer declined as "cannot tell" | 31% | 49% | **53%** |
+| held -- commitment: already walking there, and the new pick did not beat the margin | 24% | 14% | 13% |
+| cached -- an identical state answered from the within-run cache | 2% | 3% | 1% |
 
-`jev_share` counts only the first row: 0.44 and 0.38 against a floor of 0.70. On the second of those
-flights the unsure band settled more decisions than jev did. Two of the other three rows are
+`jev_share` counts only the first row: 0.44, 0.38, 0.45 against a floor of 0.70. On two of the three, the
+unsure band settled more decisions than jev did.
+
+**And then I measured why, which is the part worth reading.** Flight 4, 358 decisions:
+
+| | |
+| --- | --- |
+| median gap between the top two answers | **0.51 rubric levels**, against an `unsure_gap` of 0.05 |
+| so the gap test fired on | almost nothing |
+| confidence p50 / p25 / p10 | 0.64 / 0.44 / 0.27 |
+| `unsure_conf` | **0.5** |
+| so the confidence test fired on | **191 of 358 decisions** |
+
+`unsure_conf` of a half is the right floor for a **choice** head, where the options are two or four and a
+maximum probability under a half means the model is guessing. The target head is a **score over nine
+rubric levels**, where chance is one in nine and a maximum probability of 0.44 is a firm opinion. The
+code was discarding jev's answer about half the time by construction, on a head whose answers were
+separating the candidates by half a rubric level.
+
+It is now 1/9: "cannot tell" means no better than picking a rubric level out of a hat. Derived from the
+rubric rather than chosen. Flight 5 measures it. Two of the other three rows are
 things the brief itself asks for, which is a question for you rather than for me:
 
 - **Commitment is the brief's own frozen fallback** (§2 rule 3: "keep the current target, else the nearest
