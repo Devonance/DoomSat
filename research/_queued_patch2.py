@@ -76,6 +76,14 @@ GRADE = ('research/grade.py',
          '                                                 if r.get("seen_coverage") is not None]), 4)\n'
          '                          if any(r.get("seen_coverage") is not None for r in graded) else None),')
 
+
+# NOT queued as a patch, because nesting triple-quoted Python inside this file is more trouble than
+# it is worth: apply by hand after the ladder. frozen_metrics.speed_explore divides by
+# max(1e-6, elapsed(s)), and `elapsed` skips gaps over five seconds -- so when a mode's samples are
+# mostly separated by such gaps the denominator collapses to the floor while the numerator keeps the
+# whole distance. That is how the L0 ladder reported 401,352,305 units a second. Return 0.0 when the
+# window is shorter than a tic, rather than dividing by nothing.
+
 EDITS = [RUNNER_A, RUNNER_B, SCORE_A, SCORE_B, WAD, GRADE]
 
 

@@ -1,0 +1,219 @@
+{
+ "ORACLE": [
+  "L0"
+ ],
+ "run_dir": "research/out/ladder3-L0",
+ "attempts": 6,
+ "not_scored": "charter 2.2 and the 23 September brief: diagnostic only",
+ "per_attempt": [
+  {
+   "map": "E1M1",
+   "seed": 1,
+   "end_reason": "timeout",
+   "level_time": 180.09,
+   "completed": false,
+   "progress_best": 0.5992,
+   "progress": 0.0615,
+   "tic_rate": 43.8,
+   "geometry_stats": {
+    "classified": 1050,
+    "admitted": 1050,
+    "pending": 0,
+    "sectors": 182,
+    "reveal": "all",
+    "doors": 30,
+    "doors_opened": 0,
+    "admitted_unseen": 979,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 2,
+   "freezes": 5,
+   "cells": 27,
+   "path_units": 14988.1,
+   "speed_explore": 135.34,
+   "jev_share": 0.8235,
+   "decision_reasons": {
+    "asked and used": 0.5778,
+    "held": 0.2036,
+    "unsure band": 0.1407,
+    "cached": 0.0479,
+    "gave up": 0.0269,
+    "no answers": 0.003
+   }
+  },
+  {
+   "map": "E1M1",
+   "seed": 2,
+   "end_reason": "timeout",
+   "level_time": 180.46,
+   "completed": false,
+   "progress_best": 0.1123,
+   "progress": 0.0,
+   "tic_rate": 39.7,
+   "geometry_stats": {
+    "classified": 1050,
+    "admitted": 1050,
+    "pending": 0,
+    "sectors": 182,
+    "reveal": "all",
+    "doors": 30,
+    "doors_opened": 12,
+    "admitted_unseen": 825,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 0,
+   "freezes": 4,
+   "cells": 23,
+   "path_units": 11422.5,
+   "speed_explore": 57.18,
+   "jev_share": 0.5714,
+   "decision_reasons": {
+    "unsure band": 0.5165,
+    "asked and used": 0.3303,
+    "held": 0.1081,
+    "cached": 0.024,
+    "gave up": 0.018,
+    "no answers": 0.003
+   }
+  },
+  {
+   "map": "E1M1",
+   "seed": 3,
+   "end_reason": "timeout",
+   "level_time": 180.43,
+   "completed": false,
+   "progress_best": 0.1135,
+   "progress": 0.0,
+   "tic_rate": 40.1,
+   "geometry_stats": {
+    "classified": 1050,
+    "admitted": 1050,
+    "pending": 0,
+    "sectors": 182,
+    "reveal": "all",
+    "doors": 30,
+    "doors_opened": 0,
+    "admitted_unseen": 902,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 0,
+   "freezes": 0,
+   "cells": 16,
+   "path_units": 12763.0,
+   "speed_explore": 58.39,
+   "jev_share": 0.7308,
+   "decision_reasons": {
+    "held": 0.4247,
+    "asked and used": 0.4187,
+    "cached": 0.0813,
+    "unsure band": 0.0512,
+    "gave up": 0.0211,
+    "no answers": 0.003
+   }
+  },
+  {
+   "map": "E1M2",
+   "seed": 1,
+   "end_reason": "timeout",
+   "level_time": 180.51,
+   "completed": false,
+   "progress_best": 0.0613,
+   "progress": 0.0,
+   "tic_rate": 40.1,
+   "geometry_stats": {
+    "classified": 1835,
+    "admitted": 1835,
+    "pending": 0,
+    "sectors": 380,
+    "reveal": "all",
+    "doors": 72,
+    "doors_opened": 0,
+    "admitted_unseen": 1491,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 1,
+   "freezes": 5,
+   "cells": 21,
+   "path_units": 9994.9,
+   "speed_explore": 35.13,
+   "jev_share": 0.5833,
+   "decision_reasons": {
+    "unsure band": 0.4333,
+    "asked and used": 0.3121,
+    "held": 0.1576,
+    "cached": 0.0818,
+    "gave up": 0.0121,
+    "no answers": 0.003
+   }
+  },
+  {
+   "map": "E1M2",
+   "seed": 2,
+   "end_reason": "timeout",
+   "level_time": 180.43,
+   "completed": false,
+   "progress_best": 0.2678,
+   "progress": 0.0,
+   "tic_rate": 44.8,
+   "geometry_stats": {
+    "classified": 1835,
+    "admitted": 1835,
+    "pending": 0,
+    "sectors": 380,
+    "reveal": "all",
+    "doors": 72,
+    "doors_opened": 0,
+    "admitted_unseen": 1793,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 11,
+   "freezes": 0,
+   "cells": 31,
+   "path_units": 25180.0,
+   "speed_explore": 147.11,
+   "jev_share": 0.4423,
+   "decision_reasons": {
+    "unsure band": 0.5073,
+    "asked and used": 0.4399,
+    "cached": 0.0411,
+    "gave up": 0.0088,
+    "no answers": 0.0029
+   }
+  },
+  {
+   "map": "E1M2",
+   "seed": 3,
+   "end_reason": "timeout",
+   "level_time": 180.46,
+   "completed": false,
+   "progress_best": 0.2678,
+   "progress": 0.2678,
+   "tic_rate": 43.9,
+   "geometry_stats": {
+    "classified": 1835,
+    "admitted": 1835,
+    "pending": 0,
+    "sectors": 380,
+    "reveal": "all",
+    "doors": 72,
+    "doors_opened": 0,
+    "admitted_unseen": 1622,
+    "seen_fraction_of_level": 1.0
+   },
+   "deaths": 3,
+   "freezes": 1,
+   "cells": 30,
+   "path_units": 15632.9,
+   "speed_explore": 401352304.69,
+   "jev_share": 0.5932,
+   "decision_reasons": {
+    "asked and used": 0.5642,
+    "unsure band": 0.2239,
+    "held": 0.1194,
+    "cached": 0.0627,
+    "gave up": 0.0269,
+    "no answers": 0.003
+   }
+  }
+ ]
+}

@@ -16,8 +16,10 @@ the night: **handed the whole level's true geometry and the exit's position, the
 in 180 s, at 46 units a second against Doom's running 507, with 45% of its ticks pressed against geometry.**
 Nothing about perception could have shown up behind that. Brief §5 case 1: the executor is the priority.
 
-After three executor fixes the same rung reads 0.45 of the way, 164 units a second, 22% rubbing. Still
-does not finish.
+After three executor fixes the same rung reads, over six dev attempts, **0 of 6 finished and 0.24 of the
+way on average** -- up from 0.16 on the seed that was checked before the fixes, but nowhere near the
+brief's "well under 60 s". Three seeds of the same level scored 0.60, 0.11 and 0.11 with identical
+information. The executor is not slow so much as unreliable.
 
 ---
 
@@ -37,7 +39,26 @@ does not finish.
 
 ## 3. Oracle ladder
 
-*(to be filled from `research/out/ladder3-*`)*
+Dev maps only, code decider, 3 seeds each, 180 s. Diagnostic: flagged ORACLE in every record, refused by
+`grade.py`, never in the ledger.
+
+**L0 -- the whole level's true geometry, and where the exit is.**
+
+| | finished | best progress | cells | walked | tic rate | deaths |
+| --- | --- | --- | --- | --- | --- | --- |
+| E1M1 s1 | no | 0.60 | 27 | 14,988 u | 44/s | 2 |
+| E1M1 s2 | no | 0.11 | 23 | 11,423 u | 40/s | 0 |
+| E1M1 s3 | no | 0.11 | 16 | 12,763 u | 40/s | 0 |
+| E1M2 s1 | no | 0.06 | 21 | 9,995 u | 40/s | 1 |
+| E1M2 s2 | no | 0.27 | 31 | 25,180 u | 45/s | 11 |
+| E1M2 s3 | no | 0.27 | 30 | 15,633 u | 44/s | 3 |
+| **mean** | **0 of 6** | **0.24** | 25 | 15,000 u | 42/s | 2.8 |
+
+Read the first three rows together. Same level, same perfect map, same known exit, three seeds: 0.60,
+0.11, 0.11, and between eleven and fifteen thousand units walked in every case. The pilot is not short of
+information and it is not short of travel. It cannot reliably convert either into progress.
+
+*(L1 and L2 to be filled from `research/out/ladder3-L1` and `-L2`.)*
 
 **Which case, and why.** Case 1. L0 is the rung with nothing in its way -- the whole level, the exit's
 position, no question of seeing -- and it did not finish. Until it does, an exploration number and a

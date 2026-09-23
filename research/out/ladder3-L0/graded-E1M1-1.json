@@ -1,0 +1,113 @@
+{
+ "map": "E1M1",
+ "seed": 1,
+ "tier": "bench",
+ "decider": "code",
+ "run_id": "20260923T011124-code-5047",
+ "versions": {
+  "commit": "6dc06891",
+  "pinned": null,
+  "dirty": false,
+  "branch": "overnight-0924",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t3",
+  "levels_sha": "c596038d5921",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "30a5d19a30fc"
+ },
+ "commit": "6dc06891",
+ "dirty": false,
+ "score": 0.5393,
+ "completed": false,
+ "level_time": 180.09,
+ "end_reason": "timeout",
+ "deaths": 2,
+ "deaths_per_minute": 0.666,
+ "watchdog_trips": {
+  "asked to move and did not for 2.5 s": 5
+ },
+ "freezes": 5,
+ "executor_stats": {
+  "ticks": 6303,
+  "safe_ticks": 0,
+  "recover_ticks": 265,
+  "intents": 334,
+  "stale_dropped": 0,
+  "look_ticks": 341,
+  "move_ticks": 3704,
+  "full_speed_ticks": 2694,
+  "turn_ticks": 3272,
+  "rub_ticks": 1697,
+  "no_plan_ticks": 51,
+  "resyncs": 2
+ },
+ "cache_hit_rate": 0.1291,
+ "model_unavailable": 0,
+ "door_presses": 5,
+ "door_opens": 1,
+ "door_precision": 0.2,
+ "door_recall": {
+  "real_doors": 31,
+  "came_into_view": 11,
+  "offered": 1,
+  "door_recall": 0.0909
+ },
+ "exit_ever_seen": true,
+ "progress": 0.0615,
+ "progress_best": 0.5992,
+ "progress_given_back": 0.5377,
+ "oracle": "L0",
+ "geometry": "off",
+ "geometry_stats": {
+  "classified": 1050,
+  "admitted": 1050,
+  "pending": 0,
+  "sectors": 182,
+  "reveal": "all",
+  "doors": 30,
+  "doors_opened": 0,
+  "admitted_unseen": 979,
+  "seen_fraction_of_level": 1.0
+ },
+ "tic_rate": 43.8,
+ "start_distance": 3231.3,
+ "remaining_distance": 3032.6,
+ "exit_reachable_from_start": true,
+ "level_has_teleport": false,
+ "exit_lines": 1,
+ "metrics": {
+  "decisions": 334,
+  "decisions_per_s": 1.872,
+  "decision_age_p50_ms": 0.0,
+  "decision_age_p95_ms": 0.0,
+  "decision_age_complete": 1.0,
+  "jev_share": 0.8235,
+  "fallback_rate": 0.1407,
+  "decision_reasons": {
+   "asked and used": 0.5778,
+   "held": 0.2036,
+   "unsure band": 0.1407,
+   "cached": 0.0479,
+   "gave up": 0.0269,
+   "no answers": 0.003
+  },
+  "speed_explore": 135.34,
+  "coverage_rate": 9.08,
+  "revisit_fraction": 0.3653,
+  "spin_rate": 0.26337,
+  "idle_fraction": 0.3926,
+  "watchdog_trips": {},
+  "mode_share": {
+   "APPROACH": 0.6647,
+   "EXPLORE": 0.2485,
+   "RETREAT": 0.0868
+  },
+  "deaths_by_mode": {
+   "RETREAT": 2
+  },
+  "tokens_per_decision": 0.0,
+  "cells": 27,
+  "path_units": 14988.1
+ }
+}
