@@ -118,7 +118,8 @@ DEPTH_UNITS = 7.16     # map units per depth-buffer step; the buffer holds perpe
 STEP_BAND = (0.60, 0.74)   # fraction of image height: the floor a short way in front of the player
 STEP_RATIO = 0.65          # this much closer than level ground is a step, not a floor
 STEP_CALIB_MIN = 40        # samples before the calibration is worth believing
-STEP_ACTS = False          # off: the sense is validated, what to do about it is not
+STEP_ACTS = False          # off: clamping the clearance put the avoidance guard at its harshest
+STEP_MARKS_BARRIER = True  # on: tell the planner instead, so it routes round rather than crawls along
 DEPTH_FAR = 56         # depth steps beyond which the range camera is not trusted (~400 units)
 SENSE_EVERY = 7        # tics between automap stamps and the slower sensing (5 Hz)
 UPLINK_TIMEOUT_S = 3.0  # no CONTROL for this long -> release everything (safe mode)
@@ -703,6 +704,13 @@ class Payload:
         if len(self.floor_seen) >= STEP_CALIB_MIN:
             level = sorted(self.floor_seen)[int(0.8 * len(self.floor_seen))]
             step_ahead = floor_ahead < STEP_RATIO * level and clear_fwd > 120
+            if step_ahead and STEP_MARKS_BARRIER and self.last_move[0] > 0:
+                # A barrier the planner can route around, triggered by seeing the step rather than by
+                # having failed to move. That distinction is the whole difference: the push heuristic
+                # fired about 130 times in 180 seconds, could not tell a step from a shoulder brushed
+                # while turning, and fragmented the map until the player was down to nineteen cells.
+                # This fires about eighteen times, and only when the camera can point at the thing.
+                ex.mark_barrier(x, y, angle, STUCK_BARRIER_S, dist=max(24, floor_ahead))
             if step_ahead and self.game_time - self.step_said > 2.0:
                 self.step_said = self.game_time
                 print("[payload] step ahead at (%.0f,%.0f): floor reads %d where level ground reads %d, "
