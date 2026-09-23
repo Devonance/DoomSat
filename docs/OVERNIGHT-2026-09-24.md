@@ -312,6 +312,30 @@ this run scored 0.050, and the pilot had been 0.224 of the way there.
 
 ---
 
+## 6c. Where the ticks go, before and after
+
+`research/where_the_time_goes.py`, dev maps, code decider, as a share of the executor's ticks:
+
+| | t3 baseline (18 attempts) | with the night's fixes (9 attempts so far) |
+| --- | --- | --- |
+| **rubbing** -- asking to move and not moving | **34%** | **9%** |
+| commanding movement | 90% | 49% |
+| at full speed | 67% | 46% |
+| recovering | 0% | 20% |
+| looking around | 7% | 9% |
+| watchdog trips per attempt | 1.4 | 24 |
+
+Rubbing fell by a factor of four. The recovery share went from nothing to a fifth, and the trips from
+1.4 an attempt to 24 -- which is not a regression, it is the same flailing, now counted. The old watchdog
+could not see a player that covered seven hundred units inside a box a few feet across.
+
+The remaining 22% of ticks that command no movement at all, outside recovery and looking, are the
+throttle returning zero: the shoulders are inside the player's own radius, so the drift calculation
+allows nothing. That is wrong at the limit -- a player already touching a wall has no drift left to
+prevent, and this engine charges nothing for a scrape and a whole tic for a stop.
+
+---
+
 ## 7. Track t3, and the harness changes that start it
 
 Two, both named in the brief, both announced here because they invalidate every t2 number:
