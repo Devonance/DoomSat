@@ -292,6 +292,9 @@ class TargetMemory:
         self.gave_up = {}          # (rx, ry) -> ticks left before it is worth trying again
         self.fallbacks = 0
         self.changes = 0
+        self.give_ups = 0
+        self._since_progress = 0   # decisions committed to this target without getting closer to it
+        self._best = None          # the closest we have been to it
 
     @staticmethod
     def key(x, y):
@@ -316,6 +319,24 @@ class TargetMemory:
             self.committed = k
             self.held = 0
             self.changes += 1
+            self._since_progress, self._best = 0, None
+
+    def note_progress(self, distance, stall_after):
+        """Watch the distance to the committed target, and give up when it stops falling.
+
+        The flight status check stalled here: 187 of 342 decisions in OPERATE, 69 of them consecutive at
+        the end, standing at a door pressing Use with the level untouched around it. `give_up` existed
+        and nothing ever called it, so a target once chosen was chosen forever. This is the call.
+
+        Returns True when the target has just been abandoned.
+        """
+        if distance is None:
+            return False
+        if self._best is None or distance < self._best - 8.0:
+            self._best, self._since_progress = distance, 0
+            return False
+        self._since_progress += 1
+        return self._since_progress >= int(stall_after)
 
     def is_committed(self, x, y):
         return self.committed == self.key(x, y)
@@ -496,7 +517,14 @@ def intent_for(t, state, candidates, pick, cfg, mode=None, danger_level=None, in
         elif mode == "RETREAT":
             stance = "retreat"
         elif mode == "OPERATE":
-            stance = "hold" if cand is not None and cand["path_units"] < 48 else "advance"
+            # Holding still at a door is fine in an empty room and fatal in a fight: 37 of 203 deaths.
+            # With something in view, keep moving and keep shooting; the Use press is pulsed either way.
+            threatened = int(t.get("ENEMY_COUNT", 0) or 0) and float(t.get("ENEMY_DIST", 0) or 0) <= float(
+                cfg["thresholds"]["threat_dist"])
+            if threatened:
+                stance = "advance_strafing"
+            else:
+                stance = "hold" if cand is not None and cand["path_units"] < 48 else "advance"
     return {
         "intent_id": int(intent_id) & 0xFFFF,
         "based_on_tic": int(t.get("TIC", tic) or 0),
@@ -505,7 +533,10 @@ def intent_for(t, state, candidates, pick, cfg, mode=None, danger_level=None, in
         "target_y": float(cand["y"]) if cand else 0.0,
         "has_target": cand is not None,
         "stance": stance,
-        "fire_policy": FIRE_NONE if mode == "RETREAT" else FIRE_ANY_ATTACKER,
+        # Always. A retreat that does not return fire is a slower death -- it was half the deaths on the
+        # dev set (RETREAT x99 of 203), because the player turned its back and stopped shooting at the
+        # one moment something was shooting at it.
+        "fire_policy": FIRE_ANY_ATTACKER,
         "fire_target_id": 255,
         "weapon": weapon_backstop(t, weapon_answer, rules or {}) if weapon_answer else best_weapon_slot(t),
         "use_at_target": bool(cand and cand["kind"] in ("door", "exit", "switch")),
@@ -543,6 +574,22 @@ def decide(t, candidates, cfg, mem, system_one, rules, n=0, ask_need=False, cach
                          "usage": {"input_tokens": 0}, "unavailable": unavailable}
         answers = reply["answers"]
     pick_i, detail = (None, {}) if not qs else pick(answers, state, candidates, cfg, mem)
+    # A target we are committed to but getting no closer to is abandoned, and stays unattractive for a
+    # while. Without this the pilot can pick a door it cannot open and stand there for the rest of the
+    # attempt -- which is exactly what the first full-pipeline flight did.
+    if pick_i is not None and candidates:
+        c = candidates[pick_i]
+        if mem.is_committed(c["x"], c["y"]) and mem.note_progress(c.get("path_units"),
+                                                                  cfg["select"]["approach_ticks"]):
+            mem.give_up(c["x"], c["y"], int(cfg["select"]["target_give_up_ticks"]))
+            mem.give_ups += 1
+            detail["gave_up"] = True
+            remaining = [i for i in range(len(candidates))
+                         if not mem.gave_up_recently(candidates[i]["x"], candidates[i]["y"])]
+            if remaining:
+                rule = {i: rule_score(state["targets"]["t%d" % i]) for i in remaining}
+                pick_i = max(rule, key=lambda i: (rule[i], -candidates[i]["path_units"]))
+                mem.commit(candidates[pick_i]["x"], candidates[pick_i]["y"])
     engage = (answers.get("engage") or {}).get("choice")
     if state.get("combat", {}).get("threat", "none") != "none" and engage not in ENGAGE_MODE:
         engage = engage_backstop(t, cfg)

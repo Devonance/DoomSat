@@ -438,6 +438,13 @@ class Payload:
         self.use_ok = False
         self.world = None            # charter 3.2, rebuilt every episode
         self.executor = None         # charter 3.1, rebuilt every episode
+        # The executor runs on GAME time, not wall time. In flight the two agree, because the loop is
+        # paced at 35 Hz in real time. On the bench they do not: the game advances by the latency the
+        # harness injects, so half a second spent waiting for a real model answer is half a second of
+        # wall clock in which no tic passes. Measured against the wall, the watchdog then sees a player
+        # that has not moved and calls it a freeze -- 37 in 15 jev attempts against 6 in 30 code ones,
+        # which is a property of the decider's latency and nothing to do with the pilot.
+        self.game_time = 0.0
         self.candidates = []
         self.exec_obs = None
         self.new_episode()
@@ -775,7 +782,7 @@ class Payload:
                 target_x=tx, target_y=ty, has_target=bool(has_t),
                 stance=ex_mod.STANCES[stance] if stance < len(ex_mod.STANCES) else "advance",
                 fire_policy=fire, fire_target_id=ftid, weapon=weapon, use_at_target=bool(use_at), ttl_ms=ttl),
-                now=time.time())
+                now=self.game_time)
             self.last_control_time = time.time()
             if has_t and self.exec_obs is not None:
                 cand = self._candidate_at(tx, ty)
@@ -828,8 +835,9 @@ class Payload:
         so the graph from before the charter still flies and the two can be compared on the bench; it is
         the executor that the charter's phase 2 exit test measures.
         """
+        self.game_time += 1.0 / TICRATE
         if self.executor is not None and self.executor.intent is not None and self.exec_obs is not None:
-            cmd = self.executor.step(self.exec_obs, time.time())
+            cmd = self.executor.step(self.exec_obs, self.game_time)
             if cmd["use"] and self.use_ok:
                 self.door_presses += 1
                 self.world.note_door_try(self.exec_obs["x"], self.exec_obs["y"], time.time())

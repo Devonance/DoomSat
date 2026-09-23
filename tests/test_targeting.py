@@ -229,7 +229,9 @@ class TestTheIntent(unittest.TestCase):
         it = self.intent({"HEALTH": 20, "SHELLS": 8, "BULLETS": 50, "ENEMY_COUNT": 1, "ENEMY_DIST": 200})
         self.assertEqual(it["mode"], "RETREAT")
         self.assertEqual(it["stance"], "retreat")
-        self.assertEqual(it["fire_policy"], tg.FIRE_NONE)
+        self.assertEqual(it["fire_policy"], tg.FIRE_ANY_ATTACKER,
+                         "a retreat that does not return fire is a slower death: RETREAT was 99 of the "
+                         "203 deaths on the dev set")
 
     def test_a_player_with_no_ammunition_retreats(self):
         it = self.intent({"HEALTH": 90, "SHELLS": 0, "BULLETS": 0, "ENEMY_COUNT": 1, "ENEMY_DIST": 200})
@@ -475,3 +477,72 @@ class TestWhenTheModelCannotAnswer(unittest.TestCase):
         d = tg.decide(self.t, [cand()], self.cfg, tg.TargetMemory(self.cfg),
                       TestDeterminismWithinARun.Counter(), RULES, 0)
         self.assertIsNone(d["unavailable"])
+
+
+class TestGivingUpOnATarget(unittest.TestCase):
+    """The first full-pipeline flight stalled here: 187 of 342 decisions in OPERATE, 69 of them
+    consecutive at the end, standing at a door pressing Use with the level untouched around it.
+    `TargetMemory.give_up` existed and nothing ever called it, so a target once chosen was chosen for
+    the rest of the attempt."""
+
+    def setUp(self):
+        self.cfg = gc.load()
+        self.mem = tg.TargetMemory(self.cfg)
+
+    def test_getting_closer_is_not_a_stall(self):
+        self.mem.commit(0.0, 0.0)
+        for d in (500.0, 400.0, 300.0, 200.0, 100.0):
+            self.assertFalse(self.mem.note_progress(d, 5))
+
+    def test_standing_still_at_a_target_eventually_gives_up(self):
+        self.mem.commit(0.0, 0.0)
+        gave_up = [self.mem.note_progress(300.0, 5) for _ in range(12)]
+        self.assertTrue(any(gave_up), "it never gave up on a target it was getting no closer to")
+
+    def test_choosing_a_new_target_resets_the_patience(self):
+        self.mem.commit(0.0, 0.0)
+        for _ in range(4):
+            self.mem.note_progress(300.0, 5)
+        self.mem.commit(9000.0, 9000.0)
+        self.assertFalse(self.mem.note_progress(300.0, 5))
+
+    def test_a_target_given_up_on_is_not_immediately_chosen_again(self):
+        self.mem.give_up(100.0, 200.0, 30)
+        self.assertTrue(self.mem.gave_up_recently(100.0, 200.0))
+        for _ in range(31):
+            self.mem.step()
+        self.assertFalse(self.mem.gave_up_recently(100.0, 200.0))
+
+    def test_the_decision_abandons_a_target_it_is_getting_nowhere_with(self):
+        cands = [cand(kind="door", path=40.0), cand(kind="frontier", path=600.0)]
+        cands[1]["x"] = 5000.0
+        t = {"HEALTH": 90, "SHELLS": 8, "BULLETS": 40}
+        one = TestDeterminismWithinARun.Counter()
+        mem = tg.TargetMemory(self.cfg)
+        picks = []
+        for _ in range(int(self.cfg["select"]["approach_ticks"]) + 4):
+            d = tg.decide(t, cands, self.cfg, mem, one, RULES, 0)
+            picks.append(d["pick"])
+        self.assertGreater(mem.give_ups, 0, "it stood at the same door forever")
+        self.assertGreater(len(set(picks)), 1, "it never tried anything else")
+
+
+class TestFightingWhileBusy(unittest.TestCase):
+    def setUp(self):
+        self.cfg = gc.load()
+        self.cands = [cand(kind="door", path=40.0)]
+        t = {"HEALTH": 90, "SHELLS": 8, "BULLETS": 50}
+        self.state = tg.build_state(t, self.cands, tg.needs_from(t, RULES), [], rules=RULES)
+
+    def test_a_door_in_an_empty_room_is_worked_standing_still(self):
+        it = tg.intent_for({"HEALTH": 90, "SHELLS": 8, "BULLETS": 50, "ENEMY_COUNT": 0},
+                           self.state, self.cands, 0, self.cfg, rules=RULES)
+        self.assertEqual(it["mode"], "OPERATE")
+        self.assertEqual(it["stance"], "hold")
+
+    def test_a_door_with_something_shooting_at_it_is_not(self):
+        """37 of 203 deaths were in OPERATE with stance=hold."""
+        it = tg.intent_for({"HEALTH": 90, "SHELLS": 8, "BULLETS": 50, "ENEMY_COUNT": 1, "ENEMY_DIST": 200},
+                           self.state, self.cands, 0, self.cfg, rules=RULES)
+        self.assertNotEqual(it["stance"], "hold")
+        self.assertEqual(it["fire_policy"], tg.FIRE_ANY_ATTACKER)

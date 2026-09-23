@@ -83,6 +83,22 @@ The split matters because a comparison is only as good as what each side was all
   is smaller than the thing measuring it.
 - A flight check on a dev subset every 5 keeps, or daily.
 
+## Two lanes
+
+**Fast lane** -- an obvious bug. A retreat that does not return fire, a ten-second timeout on a model
+whose median latency is half a second, a target the pilot can never give up on. These do not need thirty
+paired attempts and two standard errors; they need enough runs to show the failure mode is gone.
+
+    python research/ledger.py --fast deaths_by_mode.RETREAT --direction down --parent A --new B ...
+
+Six attempts. The bar is that the watched number moved the right way and no guardrail that passed before
+now fails. The row records which number it watched, so nobody has to guess later what "it worked" meant.
+
+**Full paired test** -- a tuning choice, where the effect is small and the noise is not. Thirty attempts,
+the keep rule below.
+
+Waiting hours for statistics a fix does not need is its own kind of mistake.
+
 ## The keep rule
 
 From `levels.yaml`, applied by `ledger.py`, not by judgement:

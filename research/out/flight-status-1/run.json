@@ -1,0 +1,19 @@
+{
+ "run_id": "flight-status-1",
+ "tier": "flight",
+ "versions": {
+  "commit": "5270035",
+  "pinned": null,
+  "dirty": false,
+  "branch": "charter-build-out",
+  "graph_version": 3,
+  "model": "jev-1.13.0",
+  "track": "t2",
+  "levels_sha": "dee1db53edf1",
+  "knowledge_sha": "a8029b812481",
+  "metrics_sha": "051c7540a48f"
+ },
+ "attempts": [
+  "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/flight-status-1/attempt-E1M1-0.json"
+ ]
+}

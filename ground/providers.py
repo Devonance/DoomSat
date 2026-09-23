@@ -19,6 +19,13 @@ import time
 
 import requests
 
+# A System One call is a reflex, not a deliberation. jev's median latency on the flight stack is 540 ms
+# and its 95th percentile is 647; a ten-second ceiling therefore is not a timeout, it is a stall. One slow
+# call used to hold the decision loop for ten seconds, which on the bench voided six attempts out of
+# fifteen and on any tier leaves the player standing still long enough for the watchdog to call it a
+# freeze. Past about a second the answer is worth less than the delay, and the code rule is right there.
+SYSTEM_ONE_TIMEOUT_S = 1.2
+
 TYPESAFE_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 
 
@@ -43,7 +50,8 @@ class TypeSafeSystemOne:
     def ask(self, state, questions):
         t0 = time.time()
         r = requests.post(TYPESAFE_ENDPOINT, headers={"Authorization": f"Bearer {self.api_key}"},
-                          json={"state": state, "model": self.model, "questions": questions}, timeout=10)
+                          json={"state": state, "model": self.model, "questions": questions},
+                          timeout=SYSTEM_ONE_TIMEOUT_S)
         r.raise_for_status()
         body = r.json()
         return {"answers": body["answers"], "latency_ms": int((time.time() - t0) * 1000), "model": body.get("model", self.model),

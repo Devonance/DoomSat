@@ -559,9 +559,13 @@ class Pilot:
             if n % 20 == 0:
                 self.check_stall()
             if row and n % 10 == 0:
+                c = row['control']
+                doing = (f"-> {c['mode']} {'target' if c.get('has_target') else 'no target'} "
+                         f"{c['stance']} ttl={c['ttl_ms']}ms" if 'mode' in c
+                         else f"-> {c['move']}/{c['turn']:.0f}")
                 print(f"[pilot] #{n} jev {row['latency_ms']} ms cmd {row['cmd_ms']} ms  hp={row['health']} "
-                      f"{row['mode']} goal={self.goal} pick={row['pick']} "
-                      f"{' '.join(f'{k}={v}' for k, v in row['answers'].items())} -> {row['control']['move']}/{row['control']['turn']:.0f}  "
+                      f"{row['mode']} cand={row.get('candidates', '-')} pick={row['pick']} "
+                      f"{' '.join(f'{k}={v}' for k, v in row['answers'].items())} {doing}  "
                       f"frames ok={self.frames.complete} lost={self.frames.incomplete}", flush=True)
             remaining = self.args.period - (time.time() - t0)
             if remaining > 0:
