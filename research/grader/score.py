@@ -116,14 +116,16 @@ def grade(attempt):
         end = list(pos[-1]) if pos else start
     remaining = field.at(*end)
 
-    # The closest the attempt ever came. Not what the score uses -- charter 6.4 scores where it ended, so
-    # walking away from the exit costs -- but the gap between the two is how you see thrashing.
+    # The closest the attempt ever came. Track t3 scores THIS, not where it ended: see
+    # frozen_metrics.attempt_score. The gap between the two is how you see thrashing, and it is reported
+    # as `progress` beside it rather than folded into one number.
     best = start_d
-    for r in rows:
-        raw = r.get("raw") or {}
-        if raw.get("POS_X") is None:
-            continue
-        d = field.at(float(raw["POS_X"]), float(raw["POS_Y"]))
+    for px, py in ([(float(r["raw"]["POS_X"]), float(r["raw"]["POS_Y"])) for r in rows
+                    if (r.get("raw") or {}).get("POS_X") is not None] + [tuple(end)]):
+        # `end` is in the list because the closest approach may BE the last position, and under t3 the
+        # score is the closest approach: leaving it out scored an attempt that walked straight at the
+        # exit and ran out of clock as though it had never left the start.
+        d = field.at(px, py)
         if d is not None and (best is None or d < best):
             best = d
 
@@ -131,13 +133,14 @@ def grade(attempt):
     level_time = attempt.get("game_seconds")
     completed = attempt.get("end_reason") == "exit" and level_time is not None and level_time <= budget
     prog = fm.progress(start_d, remaining)
+    prog_best = fm.progress(start_d, best)
 
     out = {
         "map": attempt["map"], "seed": attempt.get("seed"), "tier": attempt.get("tier"),
         "decider": attempt.get("decider"),
         "run_id": attempt.get("run_id"), "versions": attempt.get("versions", {}),
         "commit": attempt.get("commit"), "dirty": attempt.get("dirty"),
-        "score": round(fm.attempt_score(completed, level_time, prog, budget), 4),
+        "score": round(fm.attempt_score(completed, level_time, prog_best, budget), 4),
         "completed": bool(completed),
         "level_time": level_time,
         "end_reason": attempt.get("end_reason"),
@@ -160,7 +163,14 @@ def grade(attempt):
         "door_recall": door_recall(level, rows),
         "exit_ever_seen": any((r.get("raw") or {}).get("EXIT_DIST") for r in rows),
         "progress": round(prog, 4),
-        "progress_best": round(fm.progress(start_d, best), 4),
+        "progress_best": round(prog_best, 4),
+        # how much of the closest approach was given back afterwards. A large number here is a pilot that
+        # found the way and then lost it, which is a different failure from one that never found it.
+        "progress_given_back": round(prog_best - prog, 4),
+        "oracle": attempt.get("oracle"),
+        "geometry": attempt.get("geometry"),
+        "geometry_stats": attempt.get("geometry_stats"),
+        "tic_rate": attempt.get("tic_rate"),
         "start_distance": None if start_d is None else round(start_d, 1),
         "remaining_distance": None if remaining is None else round(remaining, 1),
         # the grader's own caveats, so a number is never read without them
@@ -189,6 +199,7 @@ def metrics_of(rows):
         "decision_age_complete": round(fm.decision_age_complete(ctl), 3),
         "jev_share": None if fm.jev_share(ctl) is None else round(fm.jev_share(ctl), 4),
         "fallback_rate": None if fm.fallback_rate(ctl) is None else round(fm.fallback_rate(ctl), 4),
+        "decision_reasons": fm.decision_reasons(ctl),
         "speed_explore": round(fm.speed_explore(ctl), 2),
         "coverage_rate": round(fm.coverage_rate(ctl), 2),
         "revisit_fraction": round(fm.revisit_fraction(ctl), 4),

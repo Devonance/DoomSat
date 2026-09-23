@@ -20,10 +20,13 @@ class TestTheRepoIsHonest(unittest.TestCase):
         for f in honesty.run(ROOT):
             self.assertTrue(f.ok, "%s: %s" % (f.test, f.detail))
 
-    def test_all_six_checks_ran(self):
+    def test_every_check_ran(self):
+        """Charter 2.4's six, plus the two t3 added for geometry and for the oracle ladder."""
         names = [f.test for f in honesty.run(ROOT)]
-        self.assertEqual(len(names), 6, names)
-        self.assertEqual(len(set(names)), 6, "a check is reported twice: %s" % names)
+        self.assertEqual(len(names), len(honesty.CHECKS), names)
+        self.assertIn("test_geometry_seen_only", names)
+        self.assertIn("test_oracle_inert", names)
+        self.assertEqual(len(set(names)), len(honesty.CHECKS), "a check is reported twice: %s" % names)
 
     def test_the_automap_is_normal_and_no_cheat_is_set(self):
         text = honesty.read_sources(ROOT)[honesty.PAYLOAD]

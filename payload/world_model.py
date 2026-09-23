@@ -483,6 +483,18 @@ class WorldModel:
         """
         import numpy as np
         ex = self.ex
+        if getattr(ex, "geom", None) is not None:
+            # Exact geometry: a door is a sector whose ceiling is at its own floor, so there are no
+            # suspects to sift and none of the machinery below applies. Width, see-through and
+            # settle-by-arrival all exist to tell a doorway from a ceiling change, which is a question
+            # the colours could not answer and this one never has to ask.
+            for (dx, dy, width) in ex.geom.doors():
+                cell = (int(math.floor(dx / GRID)), int(math.floor(dy / GRID)))
+                rec = self.doors.setdefault(cell, {"x": dx, "y": dy, "colour": "", "tries": 0,
+                                                   "opened": False, "last_try": 0.0, "not_a_door": False,
+                                                   "see_through": False, "width": width, "why": ""})
+                rec["x"], rec["y"], rec["width"] = dx, dy, width
+            return
         cx_, cy_ = ex.wpx(*self._last_pos) if getattr(self, "_last_pos", None) else (ex.n // 2, ex.n // 2)
         a, b = max(0, cx_ - radius_px), min(ex.n, cx_ + radius_px)
         c, d = max(0, cy_ - radius_px), min(ex.n, cy_ + radius_px)

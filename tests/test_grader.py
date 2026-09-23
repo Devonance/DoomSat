@@ -179,11 +179,25 @@ class TestTheScore(unittest.TestCase):
         self.assertGreater(near["score"], far["score"])
         self.assertLess(near["score"], 0.9, "an unfinished level can never outscore a finished one")
 
-    def test_going_back_costs_but_the_closest_approach_is_still_reported(self):
+    def test_the_score_is_the_closest_approach_and_going_back_is_reported_separately(self):
+        """Track t3. "Did it find the way out" and "what did it do afterwards" are two questions."""
         rows = [{"kind": "control", "t": i, "raw": {"POS_X": x, "POS_Y": 128, "ANGLE": 0.0}}
                 for i, x in enumerate((64, 200, 440, 200, 64))]
         g = gscore.grade(self.attempt(decisions=rows, end_xy=[64, 128]))
         self.assertGreater(g["progress_best"], g["progress"])
+        self.assertAlmostEqual(g["score"], 0.9 * g["progress_best"], places=4)
+        self.assertAlmostEqual(g["progress_given_back"], g["progress_best"] - g["progress"], places=4)
+
+    def test_walking_away_no_longer_erases_having_got_there(self):
+        went = [{"kind": "control", "t": i, "raw": {"POS_X": x, "POS_Y": 128, "ANGLE": 0.0}}
+                for i, x in enumerate((64, 440, 64))]
+        never = [{"kind": "control", "t": i, "raw": {"POS_X": 64, "POS_Y": 128, "ANGLE": 0.0}}
+                 for i in range(3)]
+        a = gscore.grade(self.attempt(decisions=went, end_xy=[64, 128]))
+        b = gscore.grade(self.attempt(decisions=never, end_xy=[64, 128]))
+        self.assertGreater(a["score"], b["score"],
+                           "under t2 these scored the same, which is why every exploration experiment "
+                           "was being graded on what happened after the closest approach")
 
     def test_a_map_with_no_route_says_so_instead_of_scoring_zero_quietly(self):
         verts = [(0, 0), (256, 0), (256, 256), (0, 256), (512, 0), (768, 0), (768, 256), (512, 256)]

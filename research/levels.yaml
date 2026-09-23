@@ -12,7 +12,13 @@ version: 2
 #       (payload/speed_probe.py), and the onboard executor carries an INTENT with a TTL. Nothing measured
 #       on t1 is comparable: the speed fix alone moved EXPLORE speed from 66 to about 180 units/s and
 #       deaths on the dev set from 34 in 30 attempts to 142.
-track: t2
+#   t3  23 Sep 2026. The brief of that morning, and two harness changes it asks for by name. The score is
+#       built on the CLOSEST APPROACH rather than the final position, because "did it find the way out"
+#       and "what did it do afterwards" are different questions and t2 folded them into one number. And
+#       `sectors_info` becomes an allowed SOURCE, gated inside payload/seen_geometry.py on the automap
+#       having drawn the line -- honesty test 2 now asks where the filter is rather than whether the
+#       switch is off. No t2 number is comparable.
+track: t3
 
 # ---------------------------------------------------------------- the two level sets (charter 2.5)
 # Tune on dev. Score on test. The experiment agent never sees a per-level test trace.
@@ -55,8 +61,10 @@ perception:
   exit_line_max_units: 512      # 8.3, provisional: an exit line counts only while it has been this close
                                 #   and drawn on the automap this attempt. 0 removes exit colouring entirely.
   automap_mode: NORMAL          # never WHOLE or OBJECTS (honesty test 1)
-  objects_info: false           # honesty test 2
-  sectors_info: false           # honesty test 2
+  objects_info: false           # honesty test 2: the whole-level object table stays off
+  sectors_info: seen_lines_only # t3. Allowed as a source and gated in payload/seen_geometry.py: a line
+                                #   reaches the pilot only once the automap has drawn it, which is what a
+                                #   player's own automap shows. `off` restores the t2 sensing.
 
 # ---------------------------------------------------------------- scoring (charter 6.4)
 scoring:

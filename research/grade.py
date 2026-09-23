@@ -34,6 +34,11 @@ def guardrails(graded, conf):
     out, tier = {}, (graded[0].get("tier") if graded else None)
     crashes = sum(1 for r in graded if r["end_reason"] == "crash")
     out["crashes"] = (crashes <= g["crashes_allowed"], "%d" % crashes)
+    # t3, the brief's honesty test for geometry, measured on the live run rather than read off the
+    # source: a line in the world model with no automap pixels along it is a leak.
+    leaked = sum((r.get("geometry_stats") or {}).get("admitted_unseen", 0) for r in graded)
+    if any(r.get("geometry_stats") for r in graded):
+        out["geometry_seen_only"] = (leaked == 0, "%d admitted lines the automap never drew" % leaked)
     # Going faster is only an improvement if it does not cost more than it buys. The suite score hides
     # the trade, because a death and a slow walk both come out as "did not finish".
     dpm = [r.get("deaths_per_minute", 0.0) for r in graded]
@@ -117,6 +122,11 @@ def summarise(graded, conf):
         "deaths_by_mode": _sum_dicts(graded, "deaths_by_mode"),
         "mode_share": _mean_dicts(graded, "mode_share"),
         "mean_progress": round(statistics.fmean([r["progress"] for r in usable]), 4) if usable else None,
+        # what the score is built on since t3: the closest the attempt ever came, not where it stopped
+        "mean_progress_best": round(statistics.fmean([r["progress_best"] for r in usable]), 4) if usable else None,
+        "decision_reasons": _mean_dicts(graded, "decision_reasons"),
+        "tic_rate": (round(statistics.fmean([r["tic_rate"] for r in graded if r.get("tic_rate")]), 1)
+                     if any(r.get("tic_rate") for r in graded) else None),
         "maps_without_a_usable_progress_score": [r["map"] for r in graded if not r["exit_reachable_from_start"]],
         "guardrails": {k: {"pass": v[0], "value": v[1]} for k, v in guardrails(graded, conf).items()},
         "guardrails_pass": all(v[0] for v in guardrails(graded, conf).values()),
@@ -153,12 +163,35 @@ def main(argv=None):
         graded.append(g)
         if not a.quiet:
             m = g["metrics"]
-            print("%-7s seed %-3s score %.3f  %-9s progress %.2f (best %.2f)  cells %-4d  %.0f u/s  jev %s"
-                  % (g["map"], g["seed"], g["score"], g["end_reason"], g["progress"], g["progress_best"],
+            print("%-7s seed %-3s score %.3f  %-9s best %.2f (ended %.2f)  cells %-4d  %.0f u/s  "
+                  "%s tic/s  jev %s"
+                  % (g["map"], g["seed"], g["score"], g["end_reason"], g["progress_best"], g["progress"],
                      m["cells"], m["speed_explore"],
+                     "-" if g.get("tic_rate") is None else "%.0f" % g["tic_rate"],
                      "-" if m["jev_share"] is None else "%.0f%%" % (100 * m["jev_share"])))
             if g.get("warning"):
                 print("        ! %s" % g["warning"])
+    rungs = sorted({r.get("oracle") for r in graded if r.get("oracle")})
+    if rungs:
+        # ORACLE. The brief of 23 September: flag these runs, never score them, never put them in the
+        # ledger. They are handed knowledge the charter forbids, so a suite score from one is not a
+        # number about the pilot -- it is a number about how much the pilot was told. The per-attempt
+        # diagnostics printed above are the whole point of the run and are kept.
+        diag = {"ORACLE": rungs, "run_dir": a.run_dir, "attempts": len(graded),
+                "not_scored": "charter 2.2 and the 23 September brief: diagnostic only",
+                "per_attempt": [{k: r.get(k) for k in
+                                 ("map", "seed", "end_reason", "level_time", "completed", "progress_best",
+                                  "progress", "tic_rate", "geometry_stats", "deaths", "freezes")}
+                                | {"cells": r["metrics"]["cells"],
+                                   "path_units": r["metrics"]["path_units"],
+                                   "speed_explore": r["metrics"]["speed_explore"],
+                                   "jev_share": r["metrics"]["jev_share"],
+                                   "decision_reasons": r["metrics"]["decision_reasons"]}
+                                for r in graded]}
+        json.dump(diag, open(os.path.join(a.run_dir, "ORACLE.json"), "w", encoding="utf-8"), indent=1)
+        print("\n  ORACLE %s: diagnostic only, not scored and not ledgerable." % ", ".join(rungs))
+        print("  wrote %s" % os.path.join(a.run_dir, "ORACLE.json"))
+        return 0
     summary = summarise(graded, conf)
     summary["per_level"] = per_level_sd(graded)
     summary["run_dir"] = a.run_dir
@@ -188,6 +221,9 @@ def main(argv=None):
               % (rec["recall"], rec["offered"], rec["came_into_view"]))
     if summary.get("deaths_by_mode"):
         print("  died in: %s" % ", ".join("%s x%d" % kv for kv in summary["deaths_by_mode"].items()))
+    if summary.get("decision_reasons"):
+        print("  decisions by reason: %s"
+              % ", ".join("%s %.0f%%" % (k, 100 * v) for k, v in summary["decision_reasons"].items()))
     for name, v in summary["guardrails"].items():
         print("  guardrail %-18s %-4s %s" % (name, "pass" if v["pass"] else "FAIL", v["value"]))
     sds = [v["sd"] for v in summary["per_level"].values() if v["sd"] is not None]

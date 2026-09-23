@@ -130,7 +130,18 @@ def percentile(values, p):
 
 
 def attempt_score(completed, level_time, progress_, budget=LEVEL_BUDGET_S):
-    """Charter 6.4. Completed in time scores 1 to 2; otherwise partial credit for how far it got."""
+    """Charter 6.4, amended 23 September (track t3). Completed in time scores 1 to 2; otherwise partial
+    credit for how far it got.
+
+    `progress_` is now the CLOSEST APPROACH, not where the attempt stopped. Charter 6.4 scored the end
+    position on the reasoning that walking away from the exit should cost, and that turned out to measure
+    the wrong thing: a pilot that reaches two thirds of the way and then wanders scores the same as one
+    that never left the first room, so every experiment about finding the way was being graded on what
+    happened afterwards. Where it got to is what "did it find the way out" means; what it did next is
+    `progress` minus `progress_best`, reported beside it, and it is a different question.
+
+    Changing this invalidates every t2 number. That is why it is a track change and not an experiment.
+    """
     if completed and level_time is not None and level_time <= budget:
         return COMPLETED_BASE + (budget - level_time) / budget
     return INCOMPLETE_WEIGHT * max(0.0, min(1.0, progress_ or 0.0))
@@ -192,6 +203,48 @@ def jev_share(rows):
         sel = r.get("select") or {}
         return bool(r.get("answers")) and not sel.get("fallback") and not sel.get("held")
     return sum(1 for r in changes if by_model(r)) / len(changes)
+
+
+def decision_reasons(rows):
+    """Why a decision was not the model's, broken down. Charter 7 measures `jev_share`; this says what
+    the other share is made of, because the four causes call for four different fixes.
+
+      asked and used     the model answered and code did not overrule it: this is `jev_share`
+      unsure band        the two best candidates were within `unsure_gap`, so the exact rule settled it
+      held               commitment: already walking somewhere and the new pick did not beat the margin
+      unavailable        the model could not be reached in time and the rule stood in for it
+      cached             an identical state, answered from the within-run cache (charter 3.4)
+      no answers         nothing was asked, or nothing came back: there were no candidates to score
+      gave up            the committed target stopped getting closer and was abandoned by rule
+
+    Counted over every control decision rather than over intent changes, because "how often was the model
+    in charge" and "how often did the answer change anything" are different questions and conflating them
+    is how a fallback rate hides behind a share.
+    """
+    out = Counter()
+    for r in rows:
+        if r.get("kind") != "control":
+            continue
+        sel = r.get("select") or {}
+        fb = sel.get("fallback")
+        if r.get("unavailable") or (r.get("model") or "").startswith("code (fallback)"):
+            out["unavailable"] += 1
+        elif not r.get("answers"):
+            out["no answers"] += 1
+        elif fb == "no answers":
+            out["no answers"] += 1
+        elif fb:
+            out["unsure band"] += 1
+        elif sel.get("held"):
+            out["held"] += 1
+        elif sel.get("gave_up"):
+            out["gave up"] += 1
+        elif r.get("cached"):
+            out["cached"] += 1
+        else:
+            out["asked and used"] += 1
+    total = sum(out.values())
+    return {k: round(v / total, 4) for k, v in out.most_common()} if total else {}
 
 
 def fallback_rate(rows):

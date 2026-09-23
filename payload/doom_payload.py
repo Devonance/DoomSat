@@ -45,6 +45,7 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import executor as ex_mod            # noqa: E402  the onboard executor (charter 3.1)
+import seen_geometry as geom_mod     # noqa: E402  exact lines, gated on the automap having drawn them
 import world_model as wm_mod         # noqa: E402  frontiers, objects, the planner (charter 3.2)
 
 TICRATE = 35
@@ -176,6 +177,23 @@ _VECS = np.array([np.array(c, np.float32) / np.linalg.norm(c) for c in list(CLAS
 _VEC_CLASS = np.array(list(CLASS_RGB.keys()) + [NONE], np.uint8)
 
 
+class Phase:
+    """A stopwatch that adds to the payload's running per-phase total. One `with` per thing worth timing."""
+
+    __slots__ = ("store", "name", "t0")
+
+    def __init__(self, store, name):
+        self.store, self.name = store, name
+
+    def __enter__(self):
+        self.t0 = time.perf_counter()
+        return self
+
+    def __exit__(self, *_exc):
+        self.store[self.name] = self.store.get(self.name, 0.0) + (time.perf_counter() - self.t0)
+        return False
+
+
 def bearing_deg(x, y, angle, tx, ty):
     """Signed bearing to (tx, ty) relative to heading `angle`; positive means left."""
     return (math.degrees(math.atan2(ty - y, tx - x)) - angle + 180) % 360 - 180
@@ -219,12 +237,18 @@ class Explorer:
         self.ux = (np.arange(AM_W) - AM_CX) / AM_SCALE          # automap column -> x offset from the player (units)
         self.vy = -(np.arange(AM_H) - AM_CY) / AM_SCALE         # automap row -> y offset (map y is up)
         self.free = set()
+        # What the automap has drawn, ever, as a mask. The raster holds a CLASS per pixel and is rewritten
+        # window by window; this only ever grows, because a line the player has seen stays on the automap.
+        # It is what `seen_geometry` gates on, so it has to be the record of looking rather than of
+        # classifying -- the two came apart the moment the classes stopped coming from the colours.
+        self.drawn = np.zeros((self.n, self.n), bool)
         self.exit_px = set()   # raster pixels recognised as an exit line from close enough to read it
         self.visited = {}      # cell -> tics the player has stood in it (the walk, remembered)
         self.items = {}        # (kind, rounded x, rounded y) -> {"kind", "name", "x", "y", "seen"}
         self.keys = set()      # colours of keys picked up
         self.hint = None       # (absolute bearing, expiry)
         self.stamps = 0
+        self.geom = None       # set by the payload when the geometry sensor owns the raster
 
     @staticmethod
     def cell(x, y):
@@ -243,22 +267,29 @@ class Explorer:
         a, b, c, d = max(0, ix0 + 2), min(self.n, ix1 - 1), max(0, iy0 + 2), min(self.n, iy1 - 1)
         cx_, cy_ = self.wpx(px, py)
         under = self.raster[cy_ - 5:cy_ + 6, cx_ - 5:cx_ + 6].copy()   # the arrow hides the lines beneath it
-        if a < b and c < d:
+        if a < b and c < d and self.geom is None:
+            # When the geometry sensor owns the raster, the automap is a record of looking and nothing
+            # more: blanking the window here would wipe the exact lines and leave the pilot steering by
+            # whatever the colour classifier happened to think, which is the pipeline being replaced.
             self.raster[c:d, a:b] = 0
         if len(xs):
             ix = ((px + self.ux[xs] - self.ox) / WPX).astype(np.intp)
             iy = ((self.oy - (py + self.vy[ys])) / WPX).astype(np.intp)
             ok = (ix >= 0) & (ix < self.n) & (iy >= 0) & (iy < self.n)
+            # Looking, recorded separately from classifying. Cumulative, and never cleared by the window
+            # rewrite above: the automap does not forget a line, so neither does this.
+            self.drawn[iy[ok], ix[ok]] = True
             # An exit line is a wall until it has been seen from within EXIT_LINE_MAX_UNITS; once it has, the
             # pixel is remembered as an exit for the rest of the attempt (the window is rewritten every stamp,
             # so the memory has to live outside the raster).
             close = ok & (cls[ys, xs] == EXIT) & (np.hypot(self.ux[xs], self.vy[ys]) <= EXIT_LINE_MAX_UNITS)
             self.exit_px.update(zip(iy[close].tolist(), ix[close].tolist()))
-            vals = cls[ys[ok], xs[ok]].copy()
-            vals[vals == EXIT] = WALL
-            np.maximum.at(self.raster, (iy[ok], ix[ok]), vals)
+            if self.geom is None:
+                vals = cls[ys[ok], xs[ok]].copy()
+                vals[vals == EXIT] = WALL
+                np.maximum.at(self.raster, (iy[ok], ix[ok]), vals)
         blk = self.raster[cy_ - 5:cy_ + 6, cx_ - 5:cx_ + 6]
-        if blk.shape == under.shape:
+        if blk.shape == under.shape and self.geom is None:
             np.maximum(blk, under, out=blk)
         for ey_, ex_ in self.exit_px:
             if c <= ey_ < d and a <= ex_ < b:
@@ -292,8 +323,13 @@ class Explorer:
             r = GRID / 2
             while r < dist - GRID / 2:
                 px, py = x + r * ca, y + r * sa
-                if r > SEE_OVER_LEDGE_UNITS and self.near_class(*self.wpx(px, py), STEP, 1):
-                    break     # a floor-height change: seen past, not walked past
+                if (self.geom is None and r > SEE_OVER_LEDGE_UNITS
+                        and self.near_class(*self.wpx(px, py), STEP, 1)):
+                    # Only while the colours are the source. The automap draws a 16-unit stair tread and
+                    # a 200-unit drop in the same colour, so the sweep has to stop at both; with exact
+                    # geometry a STEP is a rise the engine lets the player climb and a ledge is already
+                    # a WALL, so stopping here would blind the camera to floor the player can reach.
+                    break
                 self.free.add(self.cell(px, py))
                 r += GRID / 2
 
@@ -478,6 +514,30 @@ class Payload:
         self.args = args
         self.wad = self._find_wad(args.wad)
         self.map = args.map
+        # Two switches, and the difference between them is the whole knowledge boundary.
+        #
+        # `geometry` turns on the exact-lines sensor (payload/seen_geometry.py). It is honest: a line
+        # reaches the pilot only once the automap has drawn it, which is what a player's own automap
+        # shows. `oracle` opens that gate, and is a diagnostic: an attempt that ran with it says so in
+        # its own record and the grader refuses to score it (payload/oracle.py).
+        self.geometry = getattr(args, "geometry", "off")
+        self.oracle = getattr(args, "oracle", "off")
+        if self.oracle in ("L0", "L1"):
+            self.geometry = "on"
+        elif self.oracle == "L2":
+            self.geometry = "off"
+        # "seen" unless the oracle says otherwise, and the oracle is the only thing that may say so:
+        # honesty test 2b fails a payload that opens the gate on its own account.
+        self.geom_reveal = "seen"
+        self.oracle_exits, self.oracle_mod = [], None
+        if self.oracle in ("L0", "L1"):
+            import oracle as _oracle             # ORACLE only: never imported on an honest run
+            self.oracle_mod = _oracle
+            self.geom_reveal = _oracle.reveal_for(self.oracle)
+            self.oracle_exits = _oracle.exit_positions(self.wad, self.map)
+            print("[payload] ORACLE %s: geometry reveal=%s, %d exit line(s) known in advance"
+                  % (self.oracle, self.geom_reveal, len(self.oracle_exits)), flush=True)
+        self.geom = None
         self.game = self._make_game()
         self.explorer = None
         self.explorer_map = None
@@ -521,6 +581,10 @@ class Payload:
         self.game_time = 0.0
         self.candidates = []
         self.exec_obs = None
+        # Where a tic goes. The flight loop has 28.6 ms and has been measured over it on one tic in
+        # seven; without this the only honest thing anyone could say about it was "slow".
+        self.phase_s = {}
+        self.exit_bearing_of = None
         self.new_episode()
 
     @staticmethod
@@ -550,6 +614,9 @@ class Payload:
         g.set_automap_mode(vzd.AutomapMode.NORMAL)      # only what the player has seen
         g.set_automap_rotate(False)
         g.set_automap_render_textures(False)
+        # Exact geometry, for the sensor that gates it on the automap. Off unless asked for, so the
+        # default build is the one the honesty suite has always described.
+        g.set_sectors_info_enabled(self.geometry != "off")
         g.set_sound_enabled(False)
         g.set_episode_timeout(0)
         g.set_seed(self.args.seed)
@@ -589,6 +656,11 @@ class Payload:
         carried_log = list(self.executor.watchdog.trip_log) if self.executor is not None else []
         carried_stats = dict(self.executor.stats) if self.executor is not None else {}
         self.explorer = Explorer(self.var("POSITION_X"), self.var("POSITION_Y"))
+        # Thrown away with everything else (charter 2.2): the geometry sensor remembers which lines have
+        # been drawn, and that is exactly the kind of memory an attempt is not allowed to inherit.
+        self.geom = (geom_mod.SeenGeometry(self.explorer, reveal=self.geom_reveal)
+                     if self.geometry != "off" else None)
+        self.explorer.geom = self.geom
         self.world = wm_mod.WorldModel(self.explorer, enemies=ENEMIES, item_kind=ITEM_KIND)
         self.executor = ex_mod.Executor(self.world)
         self.executor.watchdog.trips.update(carried_trips)
@@ -596,6 +668,9 @@ class Payload:
         for k, v in carried_stats.items():
             self.executor.stats[k] = self.executor.stats.get(k, 0) + v
         self.candidates = []
+        self.episode_wall = time.time()
+        self.phase_said = {}
+        self.oracle_flooded = False
         self.explorer_map = self.map
         self.positions.clear()
         self.motions.clear()
@@ -704,10 +779,28 @@ class Payload:
         depth_row = band.max(axis=0)                                            # farthest surface: sees past bars and sprites
         near_row = depth[196 * depth.shape[0] // 480: 222 * depth.shape[0] // 480].min(axis=0)   # nearest surface at eye level
         slow = state.tic % 3 == 0 or self.sense is None
+        # Staggered, not synchronised. Every one of these ran on tic % 7 == 0 and nothing ran on the
+        # other six, so one tic in seven carried the whole sensing budget: the mean was 4.5 ms and the
+        # p95 was 21. Spreading them over the cycle changes no rate and flattens the spike.
         if state.tic % SENSE_EVERY == 0 or ex.stamps == 0:
-            ex.stamp(state.automap_buffer, x, y)
+            with Phase(self.phase_s, "automap stamp"):
+                ex.stamp(state.automap_buffer, x, y)
         self.world.note_here(x, y)
-        ex.sweep(x, y, angle, depth_row)
+        if self.geom is not None and state.tic % SENSE_EVERY == 2:
+            # The only read of state.sectors in the payload. Everything downstream sees `ex.raster`,
+            # which holds the lines this has released, and nothing else (payload/seen_geometry.py).
+            with Phase(self.phase_s, "geometry"):
+                self.geom.observe(state.sectors)
+            if self.geom.reveal == "all" and not self.oracle_flooded:
+                # ORACLE L0 only. With every line released the flood is the level's exact walkable map,
+                # which is what this rung is for: the executor is asked to walk to a known exit across
+                # known ground, and nothing about seeing is in the way of the answer.
+                ex.free.update(self.geom.flood_open(ex.cell(x, y), now))
+                self.oracle_flooded = True
+                print("[payload] ORACLE L0: %d cells of true walkable floor" % len(ex.free), flush=True)
+            self.reveal_oracle_exit(x, y)
+        with Phase(self.phase_s, "camera sweep"):
+            ex.sweep(x, y, angle, depth_row)
         ex.remember_items(x, y, state.labels)
         for lab in state.labels:
             if lab.object_name in SOLID_THINGS and 24 < math.hypot(lab.object_position_x - x, lab.object_position_y - y) < 400:
@@ -752,7 +845,8 @@ class Payload:
         if step_ahead and STEP_ACTS:
             clear_fwd = min(clear_fwd, 40)
         if slow:
-            self.sense = self.slow_sense(x, y, angle, now, clear_fwd, enemies)
+            with Phase(self.phase_s, "map rays"):
+                self.sense = self.slow_sense(x, y, angle, now, clear_fwd, enemies)
         s = self.sense
         # stuck: a motion command has been held for a while and the player did not get anywhere
         self.positions.append((x, y))
@@ -790,7 +884,7 @@ class Payload:
             self.press_watch = None
         # A suspect the player is standing in front of, with nothing to open, is settled here and now.
         self.doors_settled += self.world.settle_by_arrival(x, y, angle, s["ahead_kind"], s["ahead_dist"])
-        if state.tic % SENSE_EVERY == 0:
+        if state.tic % SENSE_EVERY == 6:
             self.frontiers_dropped += self.world.note_frontier_reached(x, y, now)
         # doors: presses are counted while something usable is at arm's length; a door that never opens becomes a wall for a while
         usable = s["ahead_kind"] in ("door", "exit") and s["ahead_dist"] <= 80
@@ -815,6 +909,13 @@ class Payload:
                   flush=True)
             self.world.empty_reason = None
         if state.tic % (TICRATE * 30) == 0 and self.executor is not None:
+            # The tic rate itself, every 30 s. The charter's budget is 35 Hz and the brief's floor is 33;
+            # until this line existed the only evidence either way was that flight crossed a level at
+            # half the speed the bench did, which could have been anything.
+            wall = time.time() - self.episode_wall
+            self.phase_said = {k: v for k, v in self.phase_s.items()}
+            print("[payload] tic rate %.1f/s over %.0f s of wall clock (floor 33)"
+                  % (state.tic / max(1e-6, wall), wall), flush=True)
             st, n = self.executor.stats, max(1, self.executor.stats.get("ticks", 1))
             print("[payload] %4.0fs  move %d%%  full %d%%  turn %d%%  look %d%%  recover %d%%  rub %d%%"
                   "  safe %d%%  noplan %d%%  intents %d stale %d" %
@@ -822,7 +923,9 @@ class Payload:
                                      ("move_ticks", "full_speed_ticks", "turn_ticks", "look_ticks",
                                       "recover_ticks", "rub_ticks", "safe_ticks", "no_plan_ticks")],
                    st.get("intents", 0), st.get("stale_dropped", 0)), flush=True)
-        if state.tic % 35 == 0:
+        # Only when something is going to look at it. On the bench nothing is, and building a PIL image
+        # of the whole map once a second is pure cost on the one loop that has a deadline.
+        if state.tic % 35 == 0 and (self.args.map_png or self.frame_hz):
             img = ex.render(x, y, angle)
             if img is not None:
                 if state.tic % 175 == 0:
@@ -839,11 +942,12 @@ class Payload:
         self.world.see_objects(x, y, state.labels, int(state.tic))
         # Ask the camera about every door suspect in view. A closed door is solid; a window, a ledge or a
         # step in the ceiling is not, and the camera sees straight past it.
-        if state.tic % SENSE_EVERY == 0:
+        if state.tic % SENSE_EVERY == 5:
             self.world.confirm_doors(x, y, angle, lambda rel: self.depth_at(near_row, rel), now)
-        if state.tic % SENSE_EVERY == 0:
-            self.candidates = self.world.candidates(x, y, angle, now, keys_held=ex.keys,
-                                                    need=self.need_now(), boss_names=BOSS_CLASSES)
+        if state.tic % SENSE_EVERY == 4:
+            with Phase(self.phase_s, "candidates"):
+                self.candidates = self.world.candidates(x, y, angle, now, keys_held=ex.keys,
+                                                        need=self.need_now(), boss_names=BOSS_CLASSES)
         # what the executor gets every tic, at control rate
         all_blocked = all(r[0] <= 48 for r in s["rays"].values())
         self.exec_obs = {"x": x, "y": y, "angle": angle, "clear_fwd": clear_fwd, "clear_fl": clear_fl,
@@ -897,6 +1001,15 @@ class Payload:
             door_presses_total=self.press_total, door_opens_total=self.press_opened,
             candidates=[self.pack_candidate(c, x, y, angle, self.world.outwardness(c, x, y))
                         for c in self.candidates])
+
+    def reveal_oracle_exit(self, x, y):
+        """ORACLE: hand the exit over, on the rung of the ladder this attempt is flying.
+
+        The work is in payload/oracle.py, which is the only file allowed to write a map class it did not
+        see; keeping it out of here is what lets honesty test 5 stay strict about everything else.
+        """
+        if self.oracle_mod is not None and self.oracle_exits:
+            self.oracle_mod.reveal_exit(self.explorer, self.oracle_exits, self.oracle == "L0", x, y)
 
     def need_now(self):
         """What a detour would actually be for. Nothing, most of the time."""
@@ -1173,6 +1286,12 @@ def main():
     p.add_argument("--quality", type=int, default=45, help="JPEG quality")
     p.add_argument("--status-every", type=int, default=3, help="status record every N tics (35 Hz game)")
     p.add_argument("--map-png", default=None, help="also write the self-built map here every second (diagnostics)")
+    p.add_argument("--geometry", default="off", choices=["off", "on"],
+                   help="exact lines from the engine, released only once the automap has drawn them "
+                        "(payload/seen_geometry.py). Honest; off is the pre-23-September sensing.")
+    p.add_argument("--oracle", default="off", choices=["off", "L0", "L1", "L2"],
+                   help="DIAGNOSTIC LADDER, never scored: L0 the whole level and the exit, L1 seen "
+                        "geometry with the exit revealed once looked at, L2 the stack as flown")
     Payload(p.parse_args()).serve()
 
 

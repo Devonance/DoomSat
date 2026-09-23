@@ -200,20 +200,22 @@ def intent_bytes(it):
 
 
 def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat_pool, rng, verbose=False,
-                  control="intent"):
+                  control="intent", geometry="off", oracle="off"):
     """One level attempt, in process. Returns the attempt record the grader eats."""
     sys.path.insert(0, str(ROOT / "payload"))
     import doom_payload as dp
 
     import argparse as _ap
     p = dp.Payload(_ap.Namespace(port=0, wad=wad_path, map=map_name, skill=skill, seed=seed,
-                                 fps=0, quality=45, status_every=3, map_png=None))
+                                 fps=0, quality=45, status_every=3, map_png=None,
+                                 geometry=geometry, oracle=oracle))
     mem = dg.NavMemory(graph)
     tmem = targeting.TargetMemory(graph)
     cache = targeting.DecisionCache()      # charter 3.4: an identical state gets an identical action
     rules = knowledge()
     goal, rows, deaths, unavailable = "EXPLORE", [], 0, 0
     tic, n, t_wall = 0, 0, time.time()
+    o, tic_ms = None, []
     end_reason, end_xy = "timeout", None
     start_xy = None
     while tic / TICRATE < budget_s:
@@ -230,7 +232,8 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
         state = p.game.get_state()
         if state is None:
             break
-        o = p.observe(state)
+        if o is None:
+            o = p.observe(state)          # the first one; after this the tic loop keeps it fresh
         if start_xy is None:
             start_xy = [o["x"], o["y"]]
         end_xy = [o["x"], o["y"]]
@@ -270,6 +273,9 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
                      "pick": d["pick"], "select": d["detail"],
                      "latency_ms": reply.get("latency_ms", 0), "cmd_ms": 0, "tel_age_ms": 0,
                      "model": reply.get("model"), "usage": reply.get("usage"),
+                     # why this decision was or was not the model's; frozen_metrics.decision_reasons
+                     # reads these, and without them "not jev" is one undifferentiated number
+                     "cached": bool(d.get("cached")), "unavailable": d.get("unavailable"),
                      "answers": {k: dg.answer_label(v) for k, v in d["answers"].items()},
                      "control": cmd, "health": o["health"], "kills": o["kills"],
                      "candidates": int(t.get("CAND_COUNT", 0) or 0),
@@ -277,12 +283,24 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
                                  for c in (cands if control == "intent" else [])],
                      "raw": {k: t.get(k) for k in _RAW_KEYS}})
         n += 1
-        # the game waits exactly as long for this answer as flight would
+        # The game waits exactly as long for this answer as flight would -- and it SENSES the whole time,
+        # which it did not until the 23 September brief pointed at it. The bench used to call observe()
+        # once per decision and then run nineteen tics of make_action with nothing updating `exec_obs`,
+        # so the executor steered nineteen tics on a stale position while the flight executor steered on
+        # a fresh one every tic. That is not a slower robot, it is a different robot: measured on the
+        # same seed of a dev map, 175 units/s and 29 cells against 95 and 23. Every constant tuned on the
+        # old bench was tuned on something that does not fly.
         step = max(1, int(round(rng.choice(lat_pool) / 1000.0 * TICRATE)))
         for _ in range(step):
             if p.game.is_episode_finished() or p.game.is_player_dead():
                 break
+            st = p.game.get_state()
+            if st is None:
+                break
+            t_tic = time.perf_counter()
+            o = p.observe(st)
             p.game.make_action(p.action(tic), 1)
+            tic_ms.append((time.perf_counter() - t_tic) * 1000.0)
             tic += 1
         if verbose and n % 50 == 0:
             print("    %s seed %d: %4d decisions, %5.1f game s, %s" % (map_name, seed, n, tic / TICRATE, d["mode"]),
@@ -296,7 +314,23 @@ def bench_attempt(wad_path, map_name, seed, skill, budget_s, decider, graph, lat
         p.game.close()
     except Exception:                                          # noqa: BLE001
         pass
+    geom_stats = p.geom.stats() if getattr(p, "geom", None) is not None else None
+    # The tic loop's own cost. 1/35 s is 28.6 ms, so a p95 above that is a payload that cannot keep up
+    # with the game even before F', JPEG and Yamcs are in the picture.
+    tic_ms.sort()
+    tic_cost = ({"n": len(tic_ms), "median_ms": round(tic_ms[len(tic_ms) // 2], 2),
+                 "p95_ms": round(tic_ms[int(0.95 * (len(tic_ms) - 1))], 2),
+                 "over_28_6_ms": round(sum(1 for v in tic_ms if v > 28.6) / len(tic_ms), 4),
+                 "phases": {k: round(v * 1000.0 / max(1, len(tic_ms)), 3)
+                            for k, v in sorted(p.phase_s.items(), key=lambda kv: -kv[1])}}
+                if tic_ms else None)
     return {"tier": "bench", "wad_path": wad_path, "map": map_name, "seed": seed, "skill": skill,
+            # ORACLE runs carry the rung they were flown on, and grade.py refuses to summarise them.
+            # A diagnostic that can be mistaken for a result is worse than no diagnostic.
+            "oracle": None if oracle == "off" else oracle, "geometry": geometry,
+            "geometry_stats": geom_stats,
+            "tic_rate": round(tic / max(1e-6, time.time() - t_wall), 1),
+            "tic_cost": tic_cost,
             "watchdog_trips": wd, "watchdog_context": trip_log, "executor_stats": ex_stats,
             "model_unavailable": unavailable,
             "door_presses": int((rows[-1].get("raw") or {}).get("DOOR_PRESSES") or 0) if rows else 0,
@@ -384,8 +418,9 @@ def run_bench(a):
     out_dir = Path(a.out or (HERE / "out" / run_id))
     out_dir.mkdir(parents=True, exist_ok=True)
     vers = versions(graph)
-    print("run %s: %s %s, maps %s, seeds %s, budget %ds, skill %d, decider %s"
-          % (run_id, a.set, which["wad"], ",".join(maps), seeds, budget, skill, a.decider), flush=True)
+    print("run %s: %s %s, maps %s, seeds %s, budget %ds, skill %d, decider %s%s"
+          % (run_id, a.set, which["wad"], ",".join(maps), seeds, budget, skill, a.decider,
+             "" if a.oracle == "off" else ("  ORACLE %s -- diagnostic, never scored" % a.oracle)), flush=True)
     print("latency pool: %d samples, median %.0f ms  (frozen in research/latency.json)"
           % (len(lat_pool), sorted(lat_pool)[len(lat_pool) // 2]), flush=True)
     made = []
@@ -393,7 +428,7 @@ def run_bench(a):
         for seed in seeds:
             t0 = time.time()
             att = bench_attempt(wad_path, map_name, seed, skill, budget, decider, graph, lat_pool, rng,
-                                a.verbose, control=a.control)
+                                a.verbose, control=a.control, geometry=a.geometry, oracle=a.oracle)
             att.update({"run_id": run_id, "versions": vers,
                         # per attempt, not just per run: the bench starts a fresh payload each time, so
                         # "which code ran" is an attempt-level fact
@@ -486,6 +521,11 @@ def main(argv=None):
         s.add_argument("--grade", action="store_true",
                        help="grade the run when it finishes, in a separate process (charter phase 1: one "
                             "command turns a commit into a graded run)")
+        s.add_argument("--geometry", default="off", choices=["off", "on"],
+                       help="exact lines from the engine, released only once the automap has drawn them")
+        s.add_argument("--oracle", default="off", choices=["off", "L0", "L1", "L2"],
+                       help="the diagnostic ladder of the 23 September brief. Never scored: every "
+                            "attempt is stamped with its rung and grade.py refuses to summarise it.")
         s.add_argument("--control", default="intent", choices=["intent", "legacy"],
                        help="intent: the charter's executor with an INTENT and a TTL. legacy: the "
                             "pre-charter CONTROL command every tick, kept so the two can be compared.")

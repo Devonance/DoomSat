@@ -24,19 +24,29 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The code the pilot process actually runs. Everything else in the repo (tools/, research/, tests/) is
 # developer-side: it may read the WAD, name levels and do whatever it likes, because it never flies.
 PAYLOAD = "payload/doom_payload.py"
+# t3: exact geometry is allowed as a SOURCE, and this is the one module permitted to touch it. The whole
+# knowledge boundary for geometry lives in its `_admit` gate, so the check below reads this file rather
+# than trusting that a switch is off.
+SENSOR = "payload/seen_geometry.py"
 GROUND = ["ground/decision_graph.py", "ground/graph_config.py", "ground/pilot.py", "ground/after_action.py",
           "ground/providers.py", "ground/metrics.py"]
 KNOWLEDGE = ["knowledge/doom_rules.yaml"]
-PILOT_SIDE = [PAYLOAD] + GROUND + KNOWLEDGE
+PILOT_SIDE = [PAYLOAD, SENSOR] + GROUND + KNOWLEDGE
 
 # ViZDoom calls and console commands that hand over more than a player can see.
 CHEATS = ["am_cheat", "iddt", "idclev", "idbehold", "idclip", "idkfa", "iddqd", "notarget", "god ",
           "AutomapMode.WHOLE", "AutomapMode.OBJECTS", "set_objects_info_enabled(True)",
-          "set_sectors_info_enabled(True)", "get_available_game_variables_of_all", "viz_debug"]
+          "get_available_game_variables_of_all", "viz_debug"]
 # Reading the level file. Only the grader may do this, and only in its own process. The lump names are
 # matched as string literals: `SECTORS` on its own is a perfectly innocent identifier (the ground code's
 # eight directions are called that), while `"SECTORS"` is a lump being pulled out of a WAD.
+#
+# t3 narrows this to MAP lumps, as the brief asks. Texture and sprite graphics are assets the game ships
+# and every level shares -- recognising an exit switch on screen means having a picture of one, and that
+# picture comes from the IWAD like every other pixel the player sees. What stays forbidden is the part of
+# the file that says what THIS level is shaped like.
 WAD_READING = ['"LINEDEFS"', '"VERTEXES"', '"SIDEDEFS"', '"SECTORS"', '"THINGS"', "'LINEDEFS'", "'THINGS'",
+               "'VERTEXES'", "'SECTORS'", "'SIDEDEFS'", '"NODES"', '"SEGS"', '"SSECTORS"', '"BLOCKMAP"',
                "wad_stats", "wad_map", "research.grader", "from grader", "import grader"]
 LEVEL_NAME = re.compile(r"\bE\dM\d\b|\bMAP\d\d\b")
 # Lines in the payload where a level name is a launch parameter, not knowledge: which map to start on and
@@ -86,16 +96,29 @@ def test_automap_normal(src):
 
 
 def test_no_whole_level_info(src):
-    """2. No whole-level object or sector tables, and no pilot-side code opens the WAD."""
+    """2. No whole-level object table, no map lumps, and sector info only through the gate.
+
+    Amended for t3. The brief of 23 September makes exact geometry a legitimate SOURCE, because colour
+    cannot tell a doorway from a ledge and a sensor that cannot do that leaves the pilot pressing Use on
+    light recesses. What it does not make legitimate is the pilot KNOWING the whole level, so the test
+    moves from "is the switch off" to "where is the filter": `state.sectors` may be read in exactly one
+    place, that place hands it straight to the sensor, and the sensor only releases a line the automap
+    has already drawn (test 2b).
+    """
     bad = []
     text = src.get(PAYLOAD) or ""
-    for call in ("set_objects_info_enabled", "set_sectors_info_enabled"):
-        for arg in re.findall(re.escape(call) + r"\(\s*(\w+)", text):
-            if arg != "False":
-                bad.append("%s(%s)" % (call, arg))
-    for attr in ("state.objects", "state.sectors", ".get_objects(", ".get_sectors("):
+    for arg in re.findall(r"set_objects_info_enabled\(\s*(\w+)", text):
+        if arg != "False":
+            bad.append("set_objects_info_enabled(%s): the whole-level object table stays off" % arg)
+    for attr in ("state.objects", ".get_objects(", ".get_sectors("):
         if attr in text:
             bad.append("%s reads %s" % (PAYLOAD, attr))
+    reads = [ln.strip() for ln in text.splitlines()
+             if "state.sectors" in ln and not ln.strip().startswith("#")]
+    if len(reads) > 1:
+        bad.append("%s reads state.sectors in %d places; it may do so in one" % (PAYLOAD, len(reads)))
+    elif reads and "self.geom.observe(state.sectors)" not in reads[0]:
+        bad.append("%s reads state.sectors outside the sensor: %r" % (PAYLOAD, reads[0][:70]))
     for rel, body in src.items():
         if body is None:
             continue
@@ -103,7 +126,60 @@ def test_no_whole_level_info(src):
             if token in body:
                 bad.append("%s reads the level file (%r)" % (rel, token))
     return Finding("test_no_whole_level_info", not bad,
-                   "; ".join(bad) or "objects/sectors info off, no pilot-side WAD reading")
+                   "; ".join(bad) or "no object table, no map lumps; sector info only via the sensor gate")
+
+
+def test_geometry_seen_only(src):
+    """2b. A line reaches the pilot only once the automap has drawn it.
+
+    The brief's own words: every line in the world model must have automap pixels. That is a runtime
+    property and `research/preflight.py` asserts it on the live payload; this is the source half, which
+    is what catches the gate being removed rather than the gate being wrong.
+    """
+    text = src.get(SENSOR)
+    if text is None:
+        return Finding("test_geometry_seen_only", True, "no geometry sensor in this tree: nothing to gate")
+    bad = []
+    body = _method_body(text, "_admit")
+    if body is None:
+        bad.append("%s has no _admit: nothing is gating the lines" % SENSOR)
+    else:
+        joined = "\n".join(body)
+        if "drawn_fraction" not in joined:
+            bad.append("_admit does not consult drawn_fraction: lines are released unchecked")
+        if 'self.reveal == "all"' not in joined:
+            bad.append("_admit has no named ORACLE branch, so a diagnostic cannot be told from a run")
+    if "def drawn_fraction" in text and "drawn = getattr(ex" not in text:
+        bad.append("drawn_fraction does not read the automap record")
+    # The one place the gate may be opened is the oracle, reached by a flag. Not a default in the payload.
+    if re.search(r'reveal\s*=\s*"all"', src.get(PAYLOAD) or ""):
+        bad.append("%s asks the sensor for reveal='all' directly; that belongs to the oracle" % PAYLOAD)
+    return Finding("test_geometry_seen_only", not bad,
+                   "; ".join(bad) or "geometry is released only where the automap has drawn it")
+
+
+def test_oracle_inert(src, root=ROOT):
+    """2c. The diagnostic ladder exists, and an honest run cannot wander into it.
+
+    `payload/oracle.py` is deliberately dishonest -- it opens the level file and writes an exit into the
+    map -- so the question is not whether it is allowed but whether it can happen by accident. It may
+    only be imported inside the branch that the `--oracle` flag turns on, and that flag defaults to off.
+    """
+    text = src.get(PAYLOAD) or ""
+    bad = []
+    if not os.path.isfile(os.path.join(root, "payload", "oracle.py")):
+        return Finding("test_oracle_inert", True, "no oracle in this tree")
+    for i, line in enumerate(text.splitlines(), 1):
+        if re.search(r"^\s*(import oracle|from oracle)", line):
+            if not line.startswith("            "):
+                bad.append("line %d imports the oracle outside the --oracle branch" % i)
+    m = re.search(r'add_argument\("--oracle",\s*default="(\w+)"', text)
+    if not m:
+        bad.append("no --oracle flag: the ladder cannot be told from a run")
+    elif m.group(1) != "off":
+        bad.append("--oracle defaults to %r, so an ordinary run is a diagnostic" % m.group(1))
+    return Finding("test_oracle_inert", not bad,
+                   "; ".join(bad) or "the oracle is reachable only through --oracle, which is off by default")
 
 
 def test_memory_empty_at_level_start(src):
@@ -189,14 +265,15 @@ def test_grader_isolation(src, root=ROOT):
                    "; ".join(bad) or "no pilot-side import of the grader; the grader refuses to load under DOOMSAT_ROLE=pilot")
 
 
-CHECKS = (test_automap_normal, test_no_whole_level_info, test_memory_empty_at_level_start,
-          test_no_level_identifiers, test_seen_only, test_grader_isolation)
+CHECKS = (test_automap_normal, test_no_whole_level_info, test_geometry_seen_only, test_oracle_inert,
+          test_memory_empty_at_level_start, test_no_level_identifiers, test_seen_only,
+          test_grader_isolation)
 
 
 def source_checks(src, root=ROOT):
     out = []
     for fn in CHECKS:
-        out.append(fn(src, root) if fn is test_grader_isolation else fn(src))
+        out.append(fn(src, root) if fn in (test_grader_isolation, test_oracle_inert) else fn(src))
     return out
 
 
@@ -227,6 +304,18 @@ CANARIES = [
     ("the pilot importing the grader", "ground/pilot.py",
      "import after_action", "import after_action\nfrom research.grader import score",
      "test_grader_isolation"),
+    # t3, and the canary the brief asks for by name: a line the automap never drew, reaching the world
+    # model. If removing the gate does not fail the suite, the suite says nothing about geometry.
+    ("the geometry gate opened, so unseen lines reach the pilot", SENSOR,
+     'if self.reveal == "all" or self.drawn_fraction(rec) >= SEEN_FRACTION:',
+     "if True:  # every line, drawn or not",
+     "test_geometry_seen_only"),
+    ("the pilot reading the sector table for itself", PAYLOAD,
+     "self.geom.observe(state.sectors)", "self.every_line = list(state.sectors)",
+     "test_no_whole_level_info"),
+    ("the diagnostic ladder left switched on", PAYLOAD,
+     'p.add_argument("--oracle", default="off"', 'p.add_argument("--oracle", default="L0"',
+     "test_oracle_inert"),
 ]
 
 
