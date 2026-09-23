@@ -515,9 +515,16 @@ class WorldModel:
             best["opened"] = True
             return True
         best["tries"] += 1
-        if best["tries"] >= 1:
+        # Three, not one. One press was right while the verdict could never be read: the pending watch was
+        # overwritten every eight tics, note_door_try was reached almost never, and a single failure
+        # costing a door did not matter because it never happened. With the watch fixed it happens on the
+        # first press -- and a press landed a moment early, or at the wrong panel of a wide frame, or
+        # while the player was still sliding into place, then retires a real door for the whole attempt.
+        # The flight after that fix offered none of the two doors it walked up to and pressed Use zero
+        # times, and spent 48% of its ticks grinding on geometry that would have opened.
+        if best["tries"] >= 3:
             best["not_a_door"] = True
-            best["why"] = "pressed, nothing opened"
+            best["why"] = "pressed three times, nothing opened"
         return False
 
     def door_suspects(self):

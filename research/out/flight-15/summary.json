@@ -1,0 +1,57 @@
+{
+ "attempts": 1,
+ "suite_score": 0.2653,
+ "score_sd": 0.0,
+ "completed": 0,
+ "deaths": 0,
+ "episodes": 1,
+ "freezes": null,
+ "freeze_reasons": {},
+ "model_unavailable": 0,
+ "door_presses": 16,
+ "door_opens": 2,
+ "door_precision": 0.125,
+ "exit_ever_seen": 0,
+ "door_recall": {
+  "came_into_view": 2,
+  "offered": 2,
+  "recall": 1.0
+ },
+ "deaths_by_mode": {},
+ "mode_share": {
+  "EXPLORE": 0.9723,
+  "FIGHT": 0.0119,
+  "APPROACH": 0.0099,
+  "OPERATE": 0.004,
+  "RETREAT": 0.002
+ },
+ "mean_progress": 0.2948,
+ "maps_without_a_usable_progress_score": [],
+ "guardrails": {
+  "crashes": {
+   "pass": true,
+   "value": "0"
+  },
+  "deaths_per_minute": {
+   "pass": true,
+   "value": "0.00 (ceiling 2.20)"
+  },
+  "jev_share": {
+   "pass": false,
+   "value": "0.67 (floor 0.70)"
+  },
+  "decision_age_p95": {
+   "pass": true,
+   "value": "721 ms (budget 900)"
+  }
+ },
+ "guardrails_pass": false,
+ "per_level": {
+  "E1M1": {
+   "n": 1,
+   "mean": 0.2653,
+   "sd": null
+  }
+ },
+ "run_dir": "/mnt/c/Users/Kevin/Genai/DoomSat/research/out/flight-15"
+}

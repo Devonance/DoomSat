@@ -58,6 +58,12 @@ RUB_SECONDS = 0.45      # no real displacement for this long while asking to mov
 RUB_UNITS = 12.0        # "no real displacement"; a run covers 228 units in that time
 RUB_FLIP_S = 0.7        # how long to try one shoulder before trying the other
 RUB_TURN_DEG = 40.0     # lean this far off the heading, the angle a player takes to slide past a corner
+# And when leaning off the wall does not work, say so. Path length alone cannot catch a wedge: a player
+# scraping a corner still covers 48 units in four seconds, so the watchdog stayed quiet through a flight
+# that spent 38% of its ticks pressed against geometry at full throttle -- one freeze logged, and the
+# level crossed at 93 units a second instead of 507. "Asked to move and did not" is the honest test, and
+# two and a half seconds of it is not a corner being rounded.
+RUB_STUCK_S = 2.5
 
 FIGHT_KEEP_UNITS = 260.0   # in a fight, hold this much room rather than closing at a run
 FIRE_DEG = 7.0          # an enemy this close to the crosshair is worth a shot
@@ -162,6 +168,10 @@ class Watchdog:
             self.blocked_since = None
         return False
 
+    def trip(self, now, reason):
+        """Trip from outside: the executor can see reasons the track cannot."""
+        return self._trip(now, reason)
+
     def _trip(self, now, reason):
         self.recover_until = now + self.RECOVER_SECONDS
         self.trips[reason] = self.trips.get(reason, 0) + 1
@@ -258,6 +268,11 @@ class Executor:
         while len(self._trail) > 2 and now - self._trail[0][0] > 1.0:
             self._trail.pop(0)
         rub = self._rubbing(now, x, y)
+        if rub and now - self._rub_since >= RUB_STUCK_S:
+            self.stats["recover_ticks"] += 1
+            self._trail, self._rub_since = [], None
+            self.watchdog.trip(now, "asked to move and did not for %.1f s" % RUB_STUCK_S)
+            return self._recover(obs)
 
         want = None
         if it.mode in ("FIGHT", "RETREAT") and obs["enemies"]:
@@ -304,7 +319,13 @@ class Executor:
             if abs(rel) <= ALIGN_FULL:
                 speed = RUN_DELTA
             elif abs(rel) <= ALIGN_WALK:
+                # Lead with the shoulder. Doom strafes and turns at the same time, and a player closing a
+                # sixty-degree angle does not pivot on the spot and then set off -- they run and slide
+                # into it, so the velocity vector points at the target long before the crosshair does.
+                # Measured with the freezes gone: only 40% of ticks were at full speed and 96% were
+                # turning, which is a player spending its afternoon aiming rather than arriving.
                 speed = RUN_DELTA * 0.6
+                cmd["strafe"] = STRAFE_DELTA * (1.0 if rel > 0 else -1.0)
             # The guard scales with how fast we are actually going, so it is the same amount of warning
             # at a run as it was at a walk.
             guard = max(AVOID_MIN_UNITS, speed * UNITS_PER_S_PER_DELTA * AVOID_SECONDS)

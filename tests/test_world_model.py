@@ -213,16 +213,17 @@ class TestTheCandidateList(unittest.TestCase):
         self.assertIn(wm.KIND_DOOR, kinds, "with the key in hand it is a place to go")
 
     def test_a_door_that_refused_to_open_stops_being_offered(self):
-        """One press that opens nothing settles it: pressing Use on a wall is the cheapest possible
-        experiment and its result is unambiguous."""
+        """Pressing Use is the cheapest possible experiment, but one result is not unambiguous: it takes
+        three refusals before a suspect is retired for the attempt."""
         self.w.see_doors = lambda *a, **k: None
         self.w.doors[(5, 2)] = {"x": 5.5 * GRID, "y": 2.5 * GRID, "colour": "", "tries": 0,
                                 "opened": False, "last_try": 0.0, "not_a_door": False,
                                 "see_through": False, "width": 64.0, "why": ""}
         kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 0.0)]
         self.assertIn(wm.KIND_DOOR, kinds, "an untried suspect should still be offered")
-        self.w.note_door_try(5.5 * GRID, 2.5 * GRID, 1.0, opened=False)
-        kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 1.0)]
+        for t in (1.0, 2.0, 3.0):
+            self.w.note_door_try(5.5 * GRID, 2.5 * GRID, t, opened=False)
+        kinds = [c.kind for c in self.w.candidates(16.0, 16.0, 0.0, 3.0)]
         self.assertNotIn(wm.KIND_DOOR, kinds)
 
     def test_somewhere_with_no_route_to_it_is_not_offered(self):
@@ -312,9 +313,18 @@ class TestADoorHasToEarnTheName(unittest.TestCase):
         self.assertFalse(rec["see_through"])
         self.assertIn(wm.KIND_DOOR, self.kinds())
 
-    def test_a_press_that_opens_nothing_settles_it_for_the_attempt(self):
+    def test_three_presses_that_open_nothing_settle_it_for_the_attempt(self):
+        """Not one. A single press retires a real door pressed a moment early, at the wrong panel of a
+        wide frame, or while the player was still sliding into place -- and the flight where that first
+        started happening offered neither of the two doors it walked up to, pressed Use zero times, and
+        ground on geometry that would have opened for 48% of its ticks."""
         rec = self.suspect()
         self.assertIs(self.w.note_door_try(rec["x"], rec["y"], 1.0, opened=False), False)
+        self.assertFalse(rec["not_a_door"], "one press is not proof")
+        self.assertIn(wm.KIND_DOOR, self.kinds())
+        self.w.note_door_try(rec["x"], rec["y"], 2.0, opened=False)
+        self.assertFalse(rec["not_a_door"])
+        self.w.note_door_try(rec["x"], rec["y"], 3.0, opened=False)
         self.assertTrue(rec["not_a_door"])
         self.assertNotIn(wm.KIND_DOOR, self.kinds())
 

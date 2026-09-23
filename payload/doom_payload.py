@@ -119,7 +119,9 @@ DOOR_RETRY_S = 120.0   # a door that did not open is treated as a wall for this 
 # frame walled off a corridor for the rest of the attempt and the planner believed it. EXP-0001.
 STUCK_BARRIER_S = 25.0
 RAY_MAX = 400          # how far the map rays look (units)
-DOOR_OPEN_WAIT_S = 0.6  # game seconds to wait after a Use press before judging whether anything opened
+DOOR_OPEN_WAIT_S = 1.0  # game seconds to wait after a Use press before judging whether anything opened.
+                        # A Doom door takes about a second and a half to rise clear; at 0.6 the verdict
+                        # was being taken while it was still moving.
 DOOR_OPEN_UNITS = 100   # the clearance ahead has to grow by this much for the press to count as an open
 # Charter 2.3, the one borderline call that adds information rather than hiding it. ZDoom colours an exit
 # line on the automap from its special type, so the colour is readable from across a level the moment the
@@ -701,6 +703,18 @@ class Payload:
                 self.door_presses, self.sense = 0, None
         elif clear_fwd > 120:
             self.door_presses = 0
+        # Where the flight's time goes. The executor's tick accounting is not downlinked -- there is no
+        # channel for it -- so on a flight this line is the only way to tell a player that is walking from
+        # one that is aiming. The bench and the flight run the same executor and came back 209 units per
+        # second against 93, which is a difference nobody could explain from the telemetry that exists.
+        if state.tic % (TICRATE * 30) == 0 and self.executor is not None:
+            st, n = self.executor.stats, max(1, self.executor.stats.get("ticks", 1))
+            print("[payload] %4.0fs  move %d%%  full %d%%  turn %d%%  look %d%%  recover %d%%  rub %d%%"
+                  "  safe %d%%  noplan %d%%  intents %d stale %d" %
+                  (self.game_time, *[round(100 * st.get(k, 0) / n) for k in
+                                     ("move_ticks", "full_speed_ticks", "turn_ticks", "look_ticks",
+                                      "recover_ticks", "rub_ticks", "safe_ticks", "no_plan_ticks")],
+                   st.get("intents", 0), st.get("stale_dropped", 0)), flush=True)
         if state.tic % 35 == 0:
             img = ex.render(x, y, angle)
             if img is not None:
