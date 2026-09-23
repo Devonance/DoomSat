@@ -445,18 +445,28 @@ this one is a question about the target rather than about the measurement.
 
 ## 8. Blockers
 
-1. **The executor cannot follow a path it has been given.** The rub loop: pressed against geometry, the
-   correction leans 40 degrees off the heading, which moves the player off the path, which puts the next
-   waypoint behind a wall, which keeps it leaning. L0 log: `rel=0 ahead=wall@7 fwd=7 fl=7 fr=412
-   plan_left=37` -- heading dead on the aim point, wall at arm's length, 37 waypoints to go.
-2. **`advance_strafing` never advances.** Measured directly: with any enemy inside `FIGHT_KEEP_UNITS` the
-   stance commands zero forward movement on 60 tics out of 60, indefinitely. The brief's words for that
-   are "never stand still under fire".
-3. **Thirty-six orphaned ViZDoom processes** were alive on this machine, the oldest seven hours old, all
-   competing for the cores every measurement was taken on. ViZDoom ignores SIGTERM -- measured, by sending
-   it to thirty-five of them and finding thirty-five still running. `research/reap.py` sends SIGKILL, by
-   pid. Wall-clock and tic-rate numbers taken before that was found are on a busier machine than they
-   claim.
+1. **The walking has no net direction.** This is the one that matters now, and it replaced the one I
+   started the night with. Measured on the oracle rung, which is handed the whole level and the exit:
+   **49% of the walking went toward the exit and 51% away.** On the dev bench after every fix tonight:
+   52%. Locomotion is no longer what is in the way -- the pilot goes half again as fast as it did and
+   arrives at the same place. Something is undoing progress as fast as it is made, and the two
+   candidates are the give-up rule (§10) and target switching, which even after the commitment fix runs
+   at one change every 6.7 decisions.
+2. **Nothing can see the exit.** Measured, and not tonight: at 68 units from a level's exit switch,
+   looking all around, with `am_interlevelcolor` set and `am_showtriggerlines` both ways -- 458 wall
+   pixels, 106 door pixels, **zero exit pixels**. ZDoom draws a one-sided line as plain wall before it
+   asks whether the line is an exit, and a Doom exit switch is a one-sided wall. The flight saw the exit
+   on 0 of 1 attempts and the dev bench on 3 of 9. Step 4's detector is the only honest way out of this
+   and it is not written.
+3. **The bench segfaults on Freedoom E1M4 with geometry on.** Twice, reproducibly, on the first attempt
+   of that map, taking nine attempts of the dev set with it. Not investigated -- it appeared at 02:30 and
+   the flights were the higher call. The other five dev maps run clean.
+
+Also found and fixed, but worth knowing happened: **thirty-six orphaned ViZDoom processes** were alive on
+this machine, the oldest seven hours old, competing for the cores every measurement was taken on. ViZDoom
+ignores SIGTERM -- measured, by sending it to thirty-five of them and finding thirty-five still running.
+`research/reap.py` sends SIGKILL, by pid. Wall-clock and tic-rate numbers from before that was found
+describe a busier machine than they claim.
 
 ---
 
