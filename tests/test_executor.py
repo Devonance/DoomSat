@@ -309,3 +309,22 @@ class TestWithdrawing(unittest.TestCase):
         cmd = self.e.step(obs(enemies=enemy(2.0, 200.0), clear_back=10), 0.1)
         self.assertEqual(cmd["move"], 0.0)
         self.assertEqual(cmd["fire"], 1, "cornered is exactly when it needs to be shooting")
+
+
+class TestLookingIsNotFreezing(unittest.TestCase):
+    """Eleven panoramas of 1.4 s each, inside a 4 s window that wants 48 units of travel, and 16% of a
+    dev attempt went on recovering from sensing actions the executor had itself chosen."""
+
+    def test_a_player_that_is_only_looking_is_not_pulled_out(self):
+        e = ex.Executor(NoWorld())
+        e.set_intent(ex.Intent(target_x=1000.0, has_target=True, ttl_ms=100000), now=0.0)
+        for i in range(int(ex.LOOK_SECONDS * 35) + 2):
+            e.step(obs(), i / 35.0)
+        self.assertFalse(e.watchdog.trips, "the panorama tripped the freeze watchdog")
+
+    def test_a_player_that_is_genuinely_frozen_is_still_pulled_out(self):
+        e = settled(ex.Executor(NoWorld()))
+        e.set_intent(ex.Intent(target_x=1000.0, has_target=True, ttl_ms=100000), now=0.0)
+        for i in range(250):
+            e.step(obs(), i / 35.0)
+        self.assertTrue(e.watchdog.trips)

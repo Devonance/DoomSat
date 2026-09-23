@@ -148,6 +148,11 @@ class Watchdog:
     def recovering(self, now):
         return now < self.recover_until
 
+    def pause(self, now):
+        """Time the executor spent deliberately standing still. It does not count as not moving."""
+        self.track = [p for p in self.track if now - p[0] < 0.5]
+        self.blocked_since = None
+
 
 class Executor:
     """Turns an intent plus the last observation into buttons, every tic."""
@@ -181,12 +186,17 @@ class Executor:
         """`obs` is the payload's fast sensing: x, y, angle, clear_fwd/fl/fr, enemies, ahead_kind/dist."""
         self.stats["ticks"] += 1
         x, y, angle = obs["x"], obs["y"], obs["angle"]
+        if self._should_look(obs, now):
+            # A panorama is standing still on purpose. Counting it against the freeze watchdog is how the
+            # executor ended up triggering its own recoveries: eleven looks of 1.4 s each, inside a 4 s
+            # window that wants 48 units of travel, and 16% of the attempt went on recovering from
+            # sensing actions it had chosen. The watchdog is for freezes, not for looking.
+            self.watchdog.pause(now)
+            return self._look(obs)
         tripped = self.watchdog.step(now, x, y, obs.get("all_blocked", False), obs["expire_barriers"])
         if tripped or self.watchdog.recovering(now):
             self.stats["recover_ticks"] += 1
             return self._recover(obs)
-        if self._should_look(obs, now):
-            return self._look(obs)
         it = self.intent
         if it is None or it.expired(now):
             self.stats["safe_ticks"] += 1
