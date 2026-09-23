@@ -58,6 +58,15 @@ def pair(parent, child):
     if not keys:
         raise SystemExit("the two runs share no (map, seed) pair, so they cannot be compared")
     skipped = sorted(set(a) ^ set(b))
+    # Every attempt on a side must have run from the same code, or the row is comparing two mixtures.
+    for side, name in ((parent, "parent"), (child, "new")):
+        commits = {r.get("commit") for r in side if r.get("commit")}
+        if len(commits) > 1:
+            raise SystemExit("the %s run spans %d commits (%s): the bench starts a fresh payload per "
+                             "attempt, so an edit mid-run lands in the later attempts only. Re-run with "
+                             "--pin." % (name, len(commits), ", ".join(sorted(commits))))
+        if any(r.get("dirty") for r in side):
+            print("  ! the %s run was measured from an uncommitted tree; it cannot be re-run" % name)
     return keys, [(a[k], b[k]) for k in keys], skipped
 
 

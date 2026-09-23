@@ -401,16 +401,26 @@ WEAPON_SLOT = {"Fist": 1, "Pistol": 2, "Shotgun": 3, "Chaingun": 4, "RocketLaunc
 def engage_backstop(t, cfg):
     """What to do about a fight when the head was not asked, or its answer cannot be used.
 
-    Exact, and deliberately cautious. It exists because the first executor baseline had no rule here at
-    all: with no danger answer the code fell through to FIGHT every time, the player charged everything
-    it met at a run, and the dev set went from 34 deaths to 142.
+    Deliberately neutral, and that is the whole design. Fight, avoid or retreat is a judgement the
+    charter gives to the model; a backstop that picks a fight is not a backstop, it is the code making
+    the decision and then being compared against the model on it.
+
+    The first executor baseline had no rule here at all and fell through to FIGHT every time, which is
+    how the dev set went from 34 deaths to 142 -- and it meant the code baseline was the most dangerous
+    player in the comparison, so a jev-versus-code row on combat was measuring the code's recklessness
+    rather than the model's judgement. The default is now "break off and keep moving to the target".
+    The executor still shoots whatever lines up with the crosshair on the way past; this is not pacifism,
+    it is declining to choose a fight.
+
+    The one thing the rule does decide is when to run, because that is a safety floor rather than a
+    judgement: critically hurt, outnumbered while hurt, or nothing loaded.
     """
     th = cfg["thresholds"]
     hp = int(t.get("HEALTH", 100) or 100)
     enemies = int(t.get("ENEMY_COUNT", 0) or 0)
     no_ammo = not int(t.get("SHELLS", 0) or 0) and not int(t.get("BULLETS", 0) or 0)
     outgunned = hp < int(th["health_critical"]) or (enemies > 2 and hp < int(th["health_low"]))
-    return "Retreat" if (outgunned or no_ammo) else "Fight while moving"
+    return "Retreat" if (outgunned or no_ammo) else "Break off and go round"
 
 
 def weapon_backstop(t, answer, rules):

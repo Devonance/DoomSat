@@ -82,6 +82,7 @@ def grade(attempt):
         "map": attempt["map"], "seed": attempt.get("seed"), "tier": attempt.get("tier"),
         "decider": attempt.get("decider"),
         "run_id": attempt.get("run_id"), "versions": attempt.get("versions", {}),
+        "commit": attempt.get("commit"), "dirty": attempt.get("dirty"),
         "score": round(fm.attempt_score(completed, level_time, prog, budget), 4),
         "completed": bool(completed),
         "level_time": level_time,

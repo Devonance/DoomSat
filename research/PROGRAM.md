@@ -31,6 +31,39 @@ Changing a harness file is allowed when it is *wrong*, but it is not an experime
 (`track:` in `levels.yaml`), every earlier number stops being comparable, and the dev set has to be
 re-measured. Say so out loud before doing it.
 
+## The gate: survive before anything else
+
+Feature work is frozen until **M1** holds on the dev set:
+
+- zero freezes the watchdog has to catch, in 50 episodes;
+- deaths per minute under `guardrails.deaths_per_minute_max`.
+
+Until then, only single-change experiments through the ledger. Phases 4, 5 and 6 were built while the
+executor was still failing its own exit test, which is a lot of code in the tree that no measurement has
+touched. Nothing downstream can be measured while most attempts end in a death: targets, combat heads and
+jev-versus-code all come out as noise.
+
+The milestones, so that "working" is a test and not an opinion:
+
+| | Test |
+| --- | --- |
+| **M1 Survive** | dev set: zero freezes, deaths per minute under the guardrail |
+| **M2 Find** | the exit reached on at least half the dev levels, with no time limit |
+| **M3 Fast** | at least half the dev levels inside 180 s, jev deciding, `jev_share` at or above 0.70 |
+| **M4 Flight** | M3 holds on the full F' / Yamcs pipeline for a dev subset |
+| **M5 Campaign** | E1M1 to E1M8, 4 of 5 attempts |
+
+## Who owns which question
+
+The split matters because a comparison is only as good as what each side was allowed to decide.
+
+- **Executor safety** -- lookahead, drop-offs, damaging floors, when to slow down -- is tuned on
+  **code-decider** runs. It is not a judgement and the model should not be in the loop for it.
+- **Fight, avoid or retreat** is judged only on **jev** runs. The code baseline's engage default is
+  deliberately neutral ("break off and keep moving to the target"), because a baseline that picks fights
+  is the most dangerous player in its own comparison, and a row built on it measures the code's
+  recklessness rather than the model's judgement.
+
 ## Never
 
 - Run the test set (shareware E1M1 to E1M8). It is scored by a person at a milestone. `runner.py` refuses
@@ -68,7 +101,11 @@ Otherwise discard and `git reset`. An override is allowed and is recorded in the
    should move, in which direction, and by roughly how much. One change per experiment.
 3. Branch `research/<date>`.
 4. `python research/preflight.py --run-dir <dir> --kill`
-5. `python research/runner.py bench --set dev --seeds 1 2 3 --decider jev`
+5. `python research/runner.py bench --set dev --seeds 1 2 3 --decider jev --pin HEAD`
+   `--pin` checks the commit out into its own git worktree and measures there. Without it the runner
+   refuses a dirty tree, because the bench starts a fresh payload per attempt and an edit made while a
+   run is in flight lands in the later attempts only -- half a run on one version of the code, half on
+   another, and nothing in the output saying so.
 6. `python research/grade.py <dir>`
 7. `python research/ledger.py --parent <parent dir> --new <dir> --hypothesis ... --change ...`
 8. Keep or `git reset` as the row says. Write `verdict.md` with anything the numbers do not carry.

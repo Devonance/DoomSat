@@ -395,7 +395,9 @@ class TestTheCombatHeads(unittest.TestCase):
         self.assertEqual(tg.engage_backstop(self.met(HEALTH=20), self.cfg), "Retreat")
         self.assertEqual(tg.engage_backstop(self.met(SHELLS=0, BULLETS=0), self.cfg), "Retreat")
         self.assertEqual(tg.engage_backstop(self.met(HEALTH=40, ENEMY_COUNT=4), self.cfg), "Retreat")
-        self.assertEqual(tg.engage_backstop(self.met(), self.cfg), "Fight while moving")
+        # Neutral by design: choosing a fight is the model's judgement, and a code baseline that picks
+        # one is the most dangerous player in its own comparison.
+        self.assertEqual(tg.engage_backstop(self.met(), self.cfg), "Break off and go round")
 
     def test_the_weapon_rule_overrules_the_head_on_an_empty_gun(self):
         # holding the shotgun, out of shells: drop to the pistol

@@ -36,6 +36,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "ground"))
 
+import pinned                         # noqa: E402  run from a commit, not from the tree
 import decision_graph as dg           # noqa: E402
 import graph_config as gc             # noqa: E402
 import targeting                      # noqa: E402
@@ -65,7 +66,8 @@ def versions(cfg):
         except Exception:                                      # noqa: BLE001
             return None
     return {"commit": git("rev-parse", "--short", "HEAD"),
-            "dirty": bool(git("status", "--porcelain")),
+            "pinned": os.environ.get("DOOMSAT_PINNED"),
+            "dirty": bool(pinned.dirty_paths(ROOT)),
             "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
             "graph_version": cfg.get("version"),
             "model": cfg.get("model"),
@@ -368,7 +370,11 @@ def run_bench(a):
             t0 = time.time()
             att = bench_attempt(wad_path, map_name, seed, skill, budget, decider, graph, lat_pool, rng,
                                 a.verbose, control=a.control)
-            att.update({"run_id": run_id, "versions": vers})
+            att.update({"run_id": run_id, "versions": vers,
+                        # per attempt, not just per run: the bench starts a fresh payload each time, so
+                        # "which code ran" is an attempt-level fact
+                        "commit": vers.get("pinned") or vers.get("commit"),
+                        "dirty": vers.get("dirty")})
             path = out_dir / ("attempt-%s-%s.json" % (map_name, seed))
             json.dump(att, open(path, "w", encoding="utf-8"))
             made.append(str(path))
@@ -440,6 +446,13 @@ def main(argv=None):
         s.add_argument("--out", default=None)
         s.add_argument("--run-id", default=None)
         s.add_argument("--verbose", action="store_true")
+        s.add_argument("--pin", default=None, metavar="COMMIT",
+                       help="check this commit out into its own git worktree and measure there, so the "
+                            "row can be re-run and mean the same thing. HEAD is usually what you want.")
+        s.add_argument("--pinned-at", default=None, help=argparse.SUPPRESS)
+        s.add_argument("--allow-dirty", action="store_true",
+                       help="a scratch run from an uncommitted tree; recorded in the attempt so a row "
+                            "built from one is obvious")
         s.add_argument("--i-am-a-person", action="store_true", help="required to touch the test set")
         s.add_argument("--grade", action="store_true",
                        help="grade the run when it finishes, in a separate process (charter phase 1: one "
@@ -455,6 +468,9 @@ def main(argv=None):
         else:
             s.add_argument("--from-log", required=True)
     a = ap.parse_args(argv)
+    handed_off = pinned.prepare(a, list(argv if argv is not None else sys.argv[1:]), ROOT)
+    if handed_off is not None:
+        return handed_off
     return run_bench(a) if a.tier == "bench" else run_flight(a)
 
 
