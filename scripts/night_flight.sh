@@ -32,9 +32,11 @@ for i in $(seq 1 60); do
   sleep 10
 done
 
-rm -f out/decisions.jsonl
+# One log per flight. The first night this script was used, two flights wrote to the same
+# file and the second one's data was gone before it could be graded.
+mkdir -p "out/$NAME"
 PYTHONUTF8=1 ground/.venv/Scripts/python ground/pilot.py \
-    --system-two none --duration "$SECONDS_TO_FLY" --level-budget 180 "$@" \
+    --system-two none --duration "$SECONDS_TO_FLY" --level-budget 180 --out-dir "out/$NAME" "$@" \
     2>&1 | tail -30
 
 MSYS_NO_PATHCONV=1 wsl -d ros2 -u root -- bash /mnt/c/Users/Kevin/Genai/DoomSat/scripts/wsl_run_flight.sh stop
@@ -46,5 +48,5 @@ MSYS_NO_PATHCONV=1 wsl -d ros2 -u root -- bash -c \
 echo "-- grading"
 MSYS_NO_PATHCONV=1 wsl -d ros2 -u root -- bash -c \
     "cd /mnt/c/Users/Kevin/Genai/DoomSat && DOOMSAT_HARNESS=/mnt/c/Users/Kevin/Genai/DoomSat \
-     /root/doom/payload-venv/bin/python research/runner.py flight --from-log out/decisions.jsonl \
+     /root/doom/payload-venv/bin/python research/runner.py flight --from-log out/$NAME/decisions.jsonl \
      --wad /root/doom/wads/$WAD --maps $MAP --out research/out/$NAME --grade" 2>&1 | tail -25
