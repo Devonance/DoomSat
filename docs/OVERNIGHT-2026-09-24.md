@@ -24,6 +24,15 @@ finished.**
 | door recall | 2 of 2 |
 | exit ever seen | 0 of 1 |
 
+Three flights were flown. The second one's decision log was overwritten before it could be graded -- my
+mistake, and the script now gives each flight its own log:
+
+| flight | best progress | cells | speed | deaths | jev_share | decision age p95 | exit seen |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | **0.67** | 63 | 153 u/s | 1 | 0.44 | 781 ms | no |
+| 2 | *log lost* | | | | | | |
+| 3 | 0.34 | 47 | 117 u/s | 0 | 0.38 | 755 ms | no |
+
 For scale: the best E1M1 number this project had before tonight was 0.45, on the bench, on a ruler that
 scored where an attempt stopped rather than how far it got.
 
@@ -264,24 +273,25 @@ ruler.
 
 The flight's breakdown, which is what the brief asks to be reported by reason:
 
-| | share of decisions |
-| --- | --- |
-| **asked and used** -- jev's answer chose the target | **43%** |
-| unsure band -- the top two scores within `unsure_gap`, so a rule settled it | 31% |
-| held -- commitment: already walking there, and the new pick did not beat the margin | 24% |
-| cached -- an identical state answered from the within-run cache | 2% |
+| | flight 1 | flight 3 |
+| --- | --- | --- |
+| **asked and used** -- jev's answer chose the target | **43%** | **34%** |
+| unsure band -- the top two scores within `unsure_gap`, so a rule settled it | 31% | **49%** |
+| held -- commitment: already walking there, and the new pick did not beat the margin | 24% | 14% |
+| cached -- an identical state answered from the within-run cache | 2% | 3% |
 
-`jev_share` counts only the first row: 0.44 against a floor of 0.70. Two of the other three rows are
+`jev_share` counts only the first row: 0.44 and 0.38 against a floor of 0.70. On the second of those
+flights the unsure band settled more decisions than jev did. Two of the other three rows are
 things the brief itself asks for, which is a question for you rather than for me:
 
 - **Commitment is the brief's own frozen fallback** (§2 rule 3: "keep the current target, else the nearest
   frontier"). Every decision where commitment holds is one the metric scores against the model. The better
   commitment works -- and it needed fixing tonight -- the lower `jev_share` reads.
-- **The unsure band is settled by the wrong rule.** It falls back to `rule_score`, which is a different
-  rule from the one the brief permits. The correction -- keep the current target, else the nearest way on
-  -- is written and staged in `research/_queued_patch8.py`; whether it is in the tree by the time you read
-  this depends on whether the last flight left room to measure it, and the commit log is the honest
-  answer. It is a correctness fix against the brief, not a way of moving the number.
+- **The unsure band was settled by the wrong rule, and that is fixed** (`3cbc583`). It fell back to
+  `rule_score` -- exit, then key, then an untried door, then the nearest unexplored edge -- which is a
+  second rule and not the one the brief permits. It now keeps the current target, else takes the nearest
+  way on, which is the brief's own sentence. A correctness fix against the brief; that it should also
+  raise `jev_share` is a consequence and not the reason.
 
 I have not changed `jev_share`'s definition. It is a frozen metric, changing it is a track change, and
 this is a question about the target rather than about the measurement.
