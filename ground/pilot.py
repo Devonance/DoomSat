@@ -36,6 +36,7 @@ import decision_graph as dg
 import graph_config as gc
 import targeting
 from providers import make_system_one, make_system_two
+from ops_telemetry import OpsTelemetry
 
 HERE = Path(__file__).resolve().parent
 SPACE_SYSTEM = "/DoomSat_DoomSat/DoomSat/doom"
@@ -166,6 +167,7 @@ class Pilot:
         log_name = "manual.jsonl" if self.manual else "decisions.jsonl"
         self.log = open(args.out_dir / log_name, "a", buffering=1, encoding="utf-8")
         self.rows = []                 # this run's decision rows (for after-action)
+        self.ops = OpsTelemetry(self.pub_processor)   # the autonomy block for Open MCT (docs/OPENMCT.md)
         self.episode = None
         self.level = None
         self.episode_start_row = 0
@@ -341,6 +343,7 @@ class Pilot:
             row["questions"] = questions
         self.log.write(json.dumps(row) + "\n")
         self.rows.append(row)
+        self.ops.update(row, [])
         if time.time() - self.last_stats > 1.0:
             self.last_stats = time.time()
             self.set_ground({"SystemOneLatencyMs": float(reply.get("latency_ms", 0)), "ControlCommands": self.control_count,
@@ -390,6 +393,7 @@ class Pilot:
             row["questions"] = d["questions"]
         self.log.write(json.dumps(row) + "\n")
         self.rows.append(row)
+        self.ops.update(row, cands)
         if time.time() - self.last_stats > 1.0:
             self.last_stats = time.time()
             target = "-" if d["pick"] is None else "%s@%.0fu" % (cands[d["pick"]]["kind"],
