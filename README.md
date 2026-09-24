@@ -113,7 +113,7 @@ Use four terminals, or background the servers:
 ```bash
 scripts/flight.sh start              # Doom payload + F´ + Yamcs          → http://localhost:8090
 python3 tools/serve_dashboard.py     # mission dashboard                  → http://localhost:8070
-scripts/start_openmct.sh             # Open MCT                           → http://localhost:9000
+scripts/start_openmct.sh             # Open MCT + DoomSat displays         → http://localhost:9000
 scripts/start_pilot.sh --duration 600   # jev plays; add --system-two none to leave Claude out
 scripts/flight.sh stop
 ```
@@ -210,10 +210,30 @@ scripts/flight.sh yamcs        # or `start` for live Doom telemetry and video
 scripts/start_openmct.sh       # → http://localhost:9000
 ```
 
-The DoomSat configuration is `ground/openmct/index.html` and `index.js`. Edit it there:
-`start_openmct.sh` copies it into the plugin's example on every start. In the tree, open
-**fprime-project → DoomGround → DoomFrame** as an imagery view to see the video. Parameters under
-**DoomSat_DoomSat** open as plots.
+The tree shows a full set of mission displays, generated as code by `tools/build_openmct_displays.py` and
+served read-only as **DoomSat Displays**: a mission overview wall, the player as payload, the onboard side (world
+model and executor, the F´ flight computer, downlink products), the ground side (jev and Sonnet, the ground data
+system, command and event history), a time strip with the E1 campaign as a plan, after-action, and a phone view.
+Two custom views draw what no built-in view can: a sector radar of the payload's eight-direction sensing and a
+candidate board of what the world model offered, what jev scored and what code picked.
+[docs/OPENMCT.md](docs/OPENMCT.md) says what every screen, panel, indicator and value is.
+
+![Open MCT mission overview, replay of flight-32](docs/images/openmct/overview.jpg)
+
+The same displays run offline against any recorded flight in `research/out`, with no Yamcs at all:
+
+```bash
+python3 tools/build_openmct_replay.py          # replay pack from research/out/flight-32 (git-ignored)
+(cd ground/openmct && npm install openmct@^4.3)
+python3 tools/openmct_serve.py                 # → http://localhost:8071/replay.html
+python3 tools/set_yamcs_alarms.py              # live: alarm ranges for flight parameters, after flight.sh start
+python3 tools/build_openmct_displays.py --doc  # after changing a display: regenerates the JSON and docs/OPENMCT.md
+```
+
+The DoomSat configuration is `ground/openmct/index.html` and `index.js`, with the displays and custom views
+beside them. Edit them there: `start_openmct.sh` copies them into the plugin's example on every start. Add
+`?commanding=on` to the URL to enable the guarded HOLD button. **fprime-project → DoomGround → DoomFrame**
+opens the video as an imagery view, and parameters under **DoomSat_DoomSat** open as plots.
 
 </details>
 
