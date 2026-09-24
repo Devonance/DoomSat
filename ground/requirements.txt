@@ -1,0 +1,5 @@
+# The ground side: the pilot, the dashboard server, the tools and the tests.
+yamcs-client==2.1.0
+requests>=2.31
+PyYAML>=6.0
+numpy>=1.26          # tests and the research harness

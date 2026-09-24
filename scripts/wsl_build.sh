@@ -1,9 +1,10 @@
 #!/bin/bash
-# Sync the flight sources and build the DoomSat deployment (run inside WSL).
+# Sync the flight sources and build the DoomSat deployment (incremental). Linux, macOS or inside WSL.
 set -e
-bash /mnt/c/Users/Kevin/Genai/DoomSat/scripts/wsl_sync.sh
-cd /root/doom/DoomSat
+. "$(dirname "$0")/common.sh"
+bash "$DOOMSAT_REPO/scripts/wsl_sync.sh"
+cd "$PROJ"
 . fprime-venv/bin/activate
-fprime-util build -j 24 2>&1 | grep -v "^\s*$" | grep -i -E "error|warning: unused|FAILED|Doom\.cpp|BUILD_DONE|Installing: .*DoomSat/bin" | grep -v "fprime-gds has unexpected" | head -60
+fprime-util build -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" 2>&1 | grep -v "^\s*$" | grep -i -E "error|warning: unused|FAILED|Doom\.cpp|BUILD_DONE|Installing: .*DoomSat/bin" | grep -v "fprime-gds has unexpected" | head -60
 echo "BUILD_EXIT ${PIPESTATUS[0]}"
-ls -la build-artifacts/Linux/DoomSat/bin/DoomSat build-artifacts/Linux/DoomSat/dict/DoomSatTopologyDictionary.json
+ls -la $DEPLOY/bin/DoomSat $DEPLOY/dict/DoomSatTopologyDictionary.json

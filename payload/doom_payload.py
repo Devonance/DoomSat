@@ -693,7 +693,7 @@ class Payload:
 
     @staticmethod
     def _find_wad(name):
-        for p in (name, os.path.join("/root/doom/wads", name), os.path.join(os.path.dirname(vzd.__file__), name)):
+        for p in (name, os.path.join(os.environ.get("DOOMSAT_HOME", os.path.expanduser("~/doom")), "wads", name), os.path.join(os.path.dirname(vzd.__file__), name)):
             if os.path.isfile(p):
                 return p
         raise SystemExit(f"WAD not found: {name}")

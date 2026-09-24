@@ -1,0 +1,2 @@
+# Shell scripts run inside WSL/Linux/macOS: a CR at the end of a line breaks bash.
+*.sh text eol=lf

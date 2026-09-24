@@ -1,334 +1,270 @@
 ![DoomSat: playing Doom through a real mission stack](docs/images/doomsat-header.png)
 
-# DoomSat: playing Doom through a real mission stack
+# DoomSat
 
-Doom runs as a **payload** behind an **F´ (F Prime) flight computer**. Telemetry and image products go
-down through **CCSDS frames** into **Yamcs** (via `fprime-yamcs`; the XTCE mission database is generated from
-the F´ dictionary) and are displayed in the **Yamcs web UI**, **Open MCT** and a small mission dashboard. A
-ground pilot plays the game by uplinking commands: **jev** (TypeSafe's System One model) scores how promising
-each open direction is, every half second, and code turns those scores into one command; **Claude Sonnet 5**
-(System Two) nudges exploration once a minute and, after each attempt, rewrites the questions jev plays with.
-Code owns the loop and never reads the level file.
+Doom runs as the payload of a spacecraft. An **F´** flight computer sends its telemetry and video down through
+**CCSDS** frames to **Yamcs**, and you watch it in **Open MCT** or a small dashboard. The pilot on the ground is
+**jev** (TypeSafe's fast decision model). Every half second it picks where to go and uplinks an intent.
+**Claude** reviews each attempt. No part of the pilot ever reads the level file.
 
-## It finished E1M1
+On 24 September 2026 jev finished **E1M1 in 105 s**, with no deaths, through the full stack.
 
-On 24 September 2026, on the full stack, **jev finished Doom E1M1 in 104.97 seconds of game time** — the
-charter's budget is 180 — with **no deaths** and **four monsters killed**. Payload to F´ to CCSDS to Yamcs
-to the pilot to jev and back up, at the engine's own 35 tics a second.
-
-![The last 28 seconds: the fourth kill at 33% health, then the run to the exit](docs/video/e1m1-finish.gif)
-
-The clip is the last 28 seconds, downlinked as JPEG frames over the link — it is what the *ground* saw,
-not a screen capture. [The whole run](docs/video/e1m1-finished.mp4) (105 s, 7 MB) and
-[just this clip](docs/video/e1m1-finish-clip.mp4) are in `docs/video/`.
-
-| | |
-|---|---|
-| game time | **104.97 s** (budget 180) |
-| deaths | 0 — health 100 → 40, low of 15 |
-| kills | 4, at 25.0 s, 34.9 s, 55.9 s and 79.9 s |
-| flight tic rate | 35.0/s |
-| decision age p95 | 845 ms (budget 900) |
-| honesty | 17 checks pass, including the canary; `--oracle off` |
-
-**What jev did at the two moments that decided it.** At 92.7 s the exit entered the candidate list for the
-first time and jev scored it 7.02 against a door at 5.49 and frontiers from 1.03 to 5.60 — and took it,
-while the engage head was saying *Retreat*. At 105.0 s it scored the exit 7.94, its highest of the run.
-The [full decision log](docs/results/e1m1-finished-decision-log.md) has every such moment.
-
-It was the **102nd attempt** this project had made at E1M1; none of the previous 101 finished, and the
-best of them reached 0.85 of the way. [Every attempt on one chart](docs/results/e1m1-progress.html):
-
-![Every attempt at E1M1](docs/results/e1m1-progress-light.png)
-
-What changed that night — the exit had never once been offered to jev as a candidate, on any run, because
-`path_costs` silently drops any goal it cannot reach and an exit line is a one-sided wall — is written up
-in the [overnight report](docs/results/2026-09-24-overnight-report.md).
+![The last 28 seconds of the run that finished E1M1](docs/video/e1m1-finish.gif)
 
 ![Architecture](docs/diagrams/architecture.png)
 
-## Data flow
+## Install
 
-Every message, its type and its rate, from the game to the models and back:
+You need about 3 GB of disk, 15 to 20 minutes, and a [TypeSafe API key](https://docs.typesafe.ai) for jev.
+You don't need a key for Claude: the pilot uses your [Claude Code](https://code.claude.com/docs) login.
 
-![Data flow](docs/diagrams/dataflow.png)
+> **Shortcut:** open [Claude Code](https://code.claude.com/docs) in this folder and say *"set DoomSat up on
+> this machine"*. [`CLAUDE.md`](CLAUDE.md) gives it the steps.
 
-The dashboard (`tools/serve_dashboard.py`, everything on it comes from Yamcs) during a live jev run:
+<details>
+<summary><b>Windows 10/11 (WSL2)</b></summary>
 
-![Dashboard](docs/images/dashboard.png)
+<br>
 
-## What the player side is allowed to see
+Everything runs inside WSL2 (Ubuntu). Your Windows browser reaches it on `localhost`.
 
-The rule for this demo: jev and code go in blind, like a person who knows how to play Doom but has never seen
-the level. Nothing from the WAD reaches the payload or the models.
+1. In **PowerShell as Administrator**:
+   ```powershell
+   wsl --install -d Ubuntu-24.04
+   ```
+   Restart if Windows asks you to, then open **Ubuntu** from the Start menu and create your user.
+2. From here on, work in the Ubuntu terminal and follow the **Linux** steps below. Clone into your Linux home
+   (`~/`), not `/mnt/c/...`, because builds on the Windows drive are many times slower.
+3. On Windows 11, WSLg shows the Doom window from `payload/play.py`. On Windows 10 use `--check` instead.
 
-| Sense | What it stands in for | Source |
-|---|---|---|
-| Depth buffer (range camera) | where the walls are | ViZDoom depth buffer; calibrated: 7.16 map units per step, perpendicular distance |
-| Object labels | recognising monsters, pickups, keys, barrels | ViZDoom labels buffer (only things in view) |
-| In-game automap, *seen lines only* | the map a player sees on Tab | ZDoom automap in `NORMAL` mode: lines the player has looked at, in the engine's default categories (wall, floor step, ceiling change = door, locked door in its key colour, exit line); only the colours are changed so code can read them |
-| HUD variables | health, armor, ammo, position, heading | ViZDoom game variables |
+*Optional, if you'd rather keep the repo on the Windows side and use Git Bash:* set
+`DOOMSAT_WSL_DISTRO` (and `DOOMSAT_WSL_USER`) in `.env`. `scripts/flight.sh` then forwards itself into WSL.
+Run `scripts/setup_ground.sh` from Git Bash so the pilot, the dashboard and Open MCT run on Windows.
 
-Not used: whole-map or "show objects" automap modes, the "show trigger lines" option, sector/line geometry
-from the game state, monster counts, item lists, warp cheats. `tools/wad_stats.py` reads WADs but only as a
-developer check for choosing levels and verifying results; the payload never imports it.
+</details>
 
-There is no route planner onboard. The payload (`payload/doom_payload.py`) stamps the automap into a world raster,
-sweeps the floor it has seen with the range camera, remembers where it has walked, and reports eight directions
-around the player (every 45 degrees): how far the way is open on the map, whether the ground that way is
-unexplored, new, or walked before, and — on its own channel — how far off a door lies that way. It also reports
-what is at arm's length ahead (a wall, a door, the exit switch, a locked door, something the map does not show),
-where an exit line, a key or a pickup was seen, and whether the player is stuck. Obstacles the automap does not
-draw (window bars, fake doors, barrels) are learned by pushing against them once. jev scores those words every
-~0.5 s; every number is bucketed before jev sees it.
+<details>
+<summary><b>Linux (Ubuntu 22.04 / 24.04, or inside WSL)</b></summary>
 
-**Nothing survives an attempt.** Every episode, including a retry of the same level, starts with an empty world
-model: no raster, no barrier marks, no door memory. The payload used to keep the map between attempts on the
-reasoning that a player remembers a layout, and the effect was that every run after the first began on a level
-it already believed was walled in (`EXPLORED_CELLS` 662 against 1 for a fresh one) — which is level knowledge,
-and it confounded an afternoon of measurement before anyone noticed. `docs/CHARTER.md` §2.2 makes it a rule and
-`research/honesty.py` makes it a test.
+<br>
 
-One more thing a player cannot do is read an exit line's colour from across a level, so an exit is only
-*recognised* while it has been within 512 units and drawn on the automap this attempt; recognition is then
-remembered, the way seeing a thing is. `EXIT_LINE_MAX_UNITS` in `payload/doom_payload.py`, 0 to remove exit
-colouring entirely.
+```bash
+# 1. System packages
+sudo apt update
+sudo apt install -y git curl build-essential binutils python3 python3-venv python3-pip
 
-## The decision graph
+# 2. Node.js 24 (for Open MCT)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.nvm/nvm.sh && nvm install 24
 
-jev classifies. It does not reason, plan or remember, so the graph asks it only the judgments that have no
-exact rule behind them, and code does the rest:
+# 3. Claude Code (for System Two; optional, the pilot runs without it)
+curl -fsSL https://claude.ai/install.sh | bash      # then run `claude` once to log in
 
-| Head | Type | Asked | What code does with it |
-|---|---|---|---|
-| `target` | Score, 9 levels | once per candidate the onboard world model offers, every decision | picks with commitment and an unsure band, plans the path, sends the INTENT |
-| `engage` | Choice | only when something has actually been met | sets the mode and the stance |
-| `weapon` | Choice | with `engage` | the slot to hold, with the splash rule as a backstop |
-| `need` | Score, 4 levels | every `goal_every` decisions | re-weights the candidates a detour would serve |
-| `sector` | Score, 9 levels | the pre-charter navigator, kept for comparison and as executor input | ranks the eight directions with hysteresis on a **world bearing** |
+# 4. This repo, your key, and the install
+git clone https://github.com/Devonance/DoomSat.git && cd DoomSat
+cp .env.example .env && nano .env      # set TYPESAFE_API_KEY
+scripts/flight.sh setup                # ViZDoom, F´ v4.3.0 + DoomSat build, Yamcs, WADs  (~10 min)
+scripts/setup_ground.sh                # pilot venv + Open MCT build                      (~5 min)
+python3 tools/doctor.py --jev          # checks every piece and makes one jev call
+```
 
-The rubric behind `target` asks for the trade-offs no single field settles: what is standing near the
-target against the health and ammunition there is to spend on it, how far it is *relative to the other
-options*, whether a detour answers a need that is real now. `targeting.rule_score` is the null hypothesis
-and is deliberately blind to all of that — exit, key, untried door, nearest unexplored edge. Writing the
-rubric as a restatement of the rule is how the old `sector` head ended up agreeing with ten lines of code
-89% of the time, which made the model redundant by construction; a test now guards the separation.
+</details>
 
-Walking, doors, firing, weapon selection, aiming and the mode machine (EXPLORE, APPROACH, OPERATE, FIGHT,
-RETREAT, RECOVER) are exact rules, so they live in `ground/decision_graph.py` and `payload/executor.py`,
-not in a question. Four things
-follow from jev being stateless and literal, and code holds all four:
+<details>
+<summary><b>macOS (Apple Silicon or Intel), not yet tested</b></summary>
 
-1. every fact a criterion mentions exists as a field of the state — `decision_graph.lint` refuses a graph
-   that names one that does not, and checks the question text **as rendered**, after `{dir}` substitution;
-2. anything that depends on the past is computed by code and written as a present-tense field (`NavMemory`):
-   the committed direction is kept as a world bearing, so "keep going left" cannot mean a new direction
-   after every turn;
-3. any rule code can compute exactly stays in code;
-4. every threshold on an answer has an unsure band and a **named** fallback, so a near-tie is never a coin flip.
+<br>
 
-`ground/graph_config.py` **rejects** a revision it cannot accept rather than trimming it, and hands the
-reason back to System Two for one more try. The old version silently cut every string to 700 characters and
-clamped the hysteresis margin, so ten of the last eleven reviews re-diagnosed the same truncation and every
-tuning of the margin was a no-op. See `docs/audit-2026-09-22.md`.
+The scripts support macOS (the F´ build goes to `build-artifacts/Darwin/`), but nobody has run them end to end on
+a Mac yet. The two likely weak spots are the Java runtime that fprime-yamcs bundles and ViZDoom's wheels. If a
+step fails, please open an issue with the output.
 
-## The rover split (charter 3)
+```bash
+# 1. Compiler, Python, git
+xcode-select --install
+brew install python@3.12 git          # `python3 --version` should now say 3.12
 
-The ground no longer sends buttons for one tic. It sends an **INTENT** with a time to live — a mode,
-somewhere to go, a stance, what to shoot at, which weapon, whether to press Use on arrival — and the
-onboard executor carries it out at 35 Hz. The player never stands still waiting for a decision.
+# 2. Node.js 24 and Claude Code
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.nvm/nvm.sh && nvm install 24
+curl -fsSL https://claude.ai/install.sh | bash
 
-| Tier | Where | Rate | Decides |
-|---|---|---|---|
-| Executor | payload (`executor.py`) | every tic | nothing strategic: follows the planned path, avoids what the camera sees, aims, fires, presses Use, and has the watchdog that pulls the player out of a freeze |
-| World model | payload (`world_model.py`) | 5 Hz | frontiers, the object table, A* with commitment, and the candidate targets it offers the ground |
-| Decider (jev) | ground (`targeting.py`) | 2 to 4 a second | which target, whether to fight, which weapon, what the player needs |
-| Reviewer (Sonnet) | ground | per attempt | proposes experiments; nothing auto-applies |
+# 3. This repo, your key, and the install
+git clone https://github.com/Devonance/DoomSat.git && cd DoomSat
+cp .env.example .env && open -e .env  # set TYPESAFE_API_KEY
+scripts/flight.sh setup
+scripts/setup_ground.sh
+python3 tools/doctor.py --jev
+```
 
-`docs/CHARTER.md` is the mission and the rules; `docs/CHARTER-STATUS.md` and `docs/PHASES-2-6.md` say what
-is built and what the numbers actually say, including where they say it is not finished.
+</details>
 
-## What is proven
+Each `scripts/flight.sh setup` step can also run on its own: `payload`, `fprime` or `wads`. The same goes for
+`scripts/setup_ground.sh python|openmct`. Re-running either script skips anything already installed.
 
-- F´ dictionary -> XTCE -> Yamcs: 148 parameters / 54 commands load; every Doom channel decodes.
-- Image products: each JPEG frame (320x240, ~8 KB) is split onboard into 960-byte `FrameChunk` telemetry
-  records that bypass `Svc.TlmChan` sampling (straight into the com queue, APID 1) and ride the CCSDS TM frames;
-  the ground reassembles ~10 fps with <1% loss and publishes them to the Yamcs bucket `doomframes`
-  (`/DoomGround/DoomFrame` carries the URL for Open MCT and the dashboard).
-- Uplink: CONTROL commands every ~0.5 s; the F´ command dispatcher, the Doom component and the payload all
-  report them (events `OpCodeDispatched/Completed`, `GoalSet`, `LevelStarted`, `KeyPickedUp`).
-- jev: one request per decision carrying a Score for each open direction (plus `danger` and, every 10th tick,
-  `goal`), ~460 ms median including the Yamcs round trip; every decision row in `out/decisions.jsonl` carries
-  the TypeSafe request id **and the exact state that was sent**, so a run can be replayed against a new graph
-  without the game (`tools/replay.py`).
-- Claude Sonnet 5 via the `claude` CLI as the after-action reviewer: one tool-free schema call per episode,
-  returning the revised graph. The CLI runs with `DISABLE_NON_ESSENTIAL_MODEL_CALLS=1`, so no helper-model calls;
-  `--system-two anthropic` uses the API directly.
+## Run the whole stack
 
-Integration findings worth keeping:
-1. F´ `string` telemetry is serialized length-prefixed, but `fprime-xtce` emits a fixed-size string type, so
-   Yamcs rejects every packet carrying one (the string channel became an enum).
-2. Opaque byte arrays need the `!binary` annotation (`fprime-xtce` PR #8, installed from the branch); the
-   whole-struct form rejects array members, the array form works.
-3. `FW_COM_BUFFER_MAX_SIZE` must be raised (512 -> 1000) through a `CONFIGURATION_OVERRIDES` config module
-   (`flight/config`), not `settings.ini`'s `config_directory`.
-4. `Svc.LinuxTimer` must tick faster than 1 Hz or the `ComAggregator` holds the last chunk of a frame until its
-   timeout; the deployment runs a 20 Hz base clock.
-5. Yamcs delivers F´ booleans as the strings "True"/"False"; a Yamcs bucket holds at most 1000 objects (image
-   products are written into a ring of 20 names); the parameter WebSocket drops after a few minutes.
-6. The ViZDoom depth buffer is perpendicular (z) distance at 7.16 units per step, its value 0 is the sky, and the
-   crosshair is drawn into it; the automap draws the player arrow over the lines beneath it.
+Use four terminals, or background the servers:
 
-## Layout
+```bash
+scripts/flight.sh start              # Doom payload + F´ + Yamcs          → http://localhost:8090
+python3 tools/serve_dashboard.py     # mission dashboard                  → http://localhost:8070
+scripts/start_openmct.sh             # Open MCT                           → http://localhost:9000
+scripts/start_pilot.sh --duration 600   # jev plays; add --system-two none to leave Claude out
+scripts/flight.sh stop
+```
 
-| Path | What |
+Logs go to `out/` (the pilot) and `~/doom/run/` (payload, Yamcs). `scripts/flight.sh check` prints a telemetry
+health report.
+
+## Use each piece on its own
+
+<details>
+<summary><b>Doom (ViZDoom)</b>: play it, or check it headless</summary>
+
+<br>
+
+```bash
+~/doom/payload-venv/bin/python payload/play.py            # a window; you play
+~/doom/payload-venv/bin/python payload/play.py --check    # no window: 100 tics → out/doom_check.png
+~/doom/payload-venv/bin/python payload/play.py --wad freedoom1.wad
+```
+
+</details>
+
+<details>
+<summary><b>F´</b>: the flight software with the stock F´ GDS</summary>
+
+<br>
+
+```bash
+scripts/flight.sh gds          # the DoomSat deployment + F´ GDS → http://localhost:5000
+scripts/flight.sh payload      # (another terminal) add the game, so the Doom channels move
+```
+
+The component is in `flight/Components/Doom/` and the topology in `flight/DoomSat/Top/`. After an edit, run
+`scripts/flight.sh build`.
+
+</details>
+
+<details>
+<summary><b>Yamcs</b>: mission control, fed by F´</summary>
+
+<br>
+
+```bash
+scripts/flight.sh yamcs        # F´ + Yamcs, no game  → http://localhost:8090  (instance fprime-project)
+scripts/flight.sh start        # the same, plus the game and the video frames
+```
+
+The Yamcs config is `ground/yamcs/`. The XTCE database is generated from the F´ dictionary at launch.
+
+</details>
+
+<details>
+<summary><b>Open MCT</b>: the DoomSat displays</summary>
+
+<br>
+
+Open MCT reads everything from Yamcs, so start Yamcs first. You don't need the game or the pilot:
+
+```bash
+scripts/flight.sh yamcs        # or `start` for live Doom telemetry and video
+scripts/start_openmct.sh       # → http://localhost:9000
+```
+
+The DoomSat configuration is `ground/openmct/index.html` and `index.js`. Edit it there:
+`start_openmct.sh` copies it into the plugin's example on every start. In the tree, open
+**fprime-project → DoomGround → DoomFrame** as an imagery view to see the video. Parameters under
+**DoomSat_DoomSat** open as plots.
+
+</details>
+
+<details>
+<summary><b>The dashboard</b></summary>
+
+<br>
+
+```bash
+python3 tools/serve_dashboard.py      # → http://localhost:8070 (needs Yamcs on :8090)
+```
+
+This is one static page (`ground/dashboard/index.html`) with a proxy to the Yamcs API, and it needs nothing
+installed.
+
+</details>
+
+<details>
+<summary><b>jev (System One)</b>: with or without the stack</summary>
+
+<br>
+
+```bash
+python3 tools/doctor.py --jev                          # one real call with your key
+# jev (or the code-only baseline) playing Doom in one process, no F´ or Yamcs:
+~/doom/payload-venv/bin/python research/runner.py bench --maps E1M1 --seeds 1 --budget 60 \
+    --decider jev --wad ~/doom/wads/freedoom1.wad --out out/bench --allow-dirty
+```
+
+Use `--decider code` to run the same bench with no model.
+
+</details>
+
+<details>
+<summary><b>Claude (System Two)</b></summary>
+
+<br>
+
+The pilot shells out to the `claude` CLI, so it uses your Claude Code login and needs no API key. Once a minute
+Claude pushes exploration in a direction, and after each attempt it revises the questions jev is asked.
+
+```bash
+scripts/start_pilot.sh --system-two claude-cli      # default
+scripts/start_pilot.sh --system-two anthropic       # the API instead; set ANTHROPIC_API_KEY in .env
+scripts/start_pilot.sh --system-two none            # jev + code only
+```
+
+</details>
+
+## Configuration
+
+Everything is in one file, `.env` at the repo root. Copy it from [`.env.example`](.env.example):
+
+| Variable | Needed for |
 |---|---|
-| `flight/Components/Doom/` | F´ component: commands, 64 telemetry channels, events, FrameChunk downlink (frames and the map product) (FPP + C++) |
-| `flight/DoomSat/Top/`, `flight/config/` | topology/instances/rate groups, com-buffer override (copied into the WSL project) |
-| `payload/doom_payload.py` | the game as an instrument: automap (seen lines) + range camera + labels, local sensing in eight directions, level progression |
-| `payload/world_model.py` | the world model for one attempt: frontiers, the object table, A* with commitment, and the candidate targets the ground scores |
-| `payload/executor.py` | the onboard executor: follows an INTENT with a time to live at 35 Hz, avoids what the camera sees, aims, fires, and has the watchdog that pulls the player out of a freeze |
-| `payload/speed_probe.py`, `payload/ray_class_probe.py` | the two measurements that settled a constant and a hypothesis: running speed, and what actually stops a collapsed map ray |
-| `payload/selfplay.py`, `payload/nav_probe.py` | code-only drivers of the navigator (no models) for fast iteration |
-| `ground/pilot.py` | the loop: Yamcs subscriptions, frame reassembly, jev control step, after-action reviews, commands |
-| `ground/decision_graph.py` | telemetry -> a structured state, the sector heads, the mode machine, the selection rules, the reflex layer, the criteria linter |
-| `ground/targeting.py` | the charter's navigator: candidate targets -> words -> the `target`, `need`, `engage` and `weapon` heads -> a pick with commitment -> an INTENT. The code baselines live beside them and are deliberately simpler |
-| `ground/graph_config.py` | the graph as data, with bounds code enforces by rejecting (versioned in `ground/graph/`) |
-| `ground/metrics.py` | one frozen definition per number the runs are compared on, shared by the report and the replay |
-| `ground/after_action.py` | the episode report (built from the heads actually asked) and the System Two review call |
-| `ground/providers.py` | System One: TypeSafe (jev) or any OpenAI-compatible endpoint; System Two: Claude CLI, Anthropic API or OpenAI-compatible |
-| `ground/yamcs/`, `ground/openmct/`, `ground/dashboard/` | Yamcs config + ground XTCE, Open MCT config, the mission dashboard page |
-| `docs/` | diagrams (Graphviz sources + renders), report (`doomsat-report.md/.tex/.pdf`), handoff (`HANDOFF.md`), images, charts, `video/` |
-| `runs/<date>/` | the day's decision logs (one row per jev decision: **the exact state sent**, the answers, the selection detail, request id, latency, telemetry), pilot log, final graph, map, replay results |
-| `docs/CHARTER.md` | the mission, the knowledge boundary, the architecture and the build order; `docs/CHARTER-STATUS.md` says what of it is built |
-| `knowledge/doom_rules.yaml` | how Doom works: monsters, weapons, ammo, pickups, keys, doors, damaging floors. Values only, no level ever named |
-| `research/` | the ruler. `PROGRAM.md` (the rules of the loop), `levels.yaml` (dev and test sets, and every charter decision as one value), `frozen_metrics.py`, `honesty.py`, `preflight.py`, `runner.py` (bench and flight), `grade.py`, `ledger.py` + `ledger.tsv`, `experiment.py` (one experiment end to end), `campaign.py` (the test campaign, run by a person) |
-| `research/grader/` | the only code allowed to open a WAD, in its own process: walkability, the distance field, the score. It refuses to import inside a pilot |
-| `tests/` | `python -m unittest discover -s tests` — 274 tests, no network and no game: the state, the selection, the modes, the reflex layer, the graph contract, the report's head coverage, the honesty suite and its canary, the grader and the keep rule |
-| `scripts/`, `tools/` | start/stop/build helpers (WSL), replay and boundary-set tools, run report, charts, decision-graph figures, screenshots/recording, developer probes |
+| `TYPESAFE_API_KEY` | jev (the pilot, the jev bench) |
+| `ANTHROPIC_API_KEY` | only `--system-two anthropic` |
+| `DOOMSAT_HOME` | where the flight side is installed (default `~/doom`) |
+| `DOOMSAT_WSL_DISTRO`, `DOOMSAT_WSL_USER` | only when you drive WSL from Git Bash |
 
-## Running it
+## Troubleshooting
 
-Prerequisites on this machine: WSL distro `ros2` with `/root/doom/DoomSat` (F´ v4.3.0 bootstrap +
-`fprime-yamcs`), `/root/doom/payload-venv` (ViZDoom 1.3.0), the shareware `doom1.wad` in `/root/doom/wads`
-(`tools/get_doom1.sh`; Freedoom is bundled with ViZDoom as a fallback: `WAD=freedoom2.wad MAP=MAP01`),
-`ground/.venv` (yamcs-client), `external/openmct-yamcs` with an Open MCT build, the `claude` CLI, and the day's
-TypeSafe key in `ground/.env` (`TYPESAFE_API_KEY=...`).
+<details>
+<summary>Common problems</summary>
 
-```
-scripts/flight.sh start                    # WSL: payload (E1M1) + fprime-yamcs (Yamcs :8090) + DoomSat binary
-scripts/flight.sh payload                  # restart only the game process (after editing the payload)
-scripts/flight.sh check                    # telemetry, frame chunks, events, links
-python tools/serve_dashboard.py            # mission dashboard on :8070 (proxies the Yamcs API)
-scripts/start_openmct.sh                   # Open MCT on :9000
-scripts/start_pilot.sh --duration 1800     # jev plays; Sonnet bumps every 60 s, 180 s budget per level attempt; logs in out/
-scripts/start_pilot.sh --bump-every 0 --level-budget 0   # no bumps, no budget: jev + graph only
-scripts/start_pilot.sh --no-after-action   # jev + code only, graph frozen at ground/graph/graph_current.json
-python tools/run_report.py                 # what each layer did in the last run (levels, decisions, reviews)
-python -m unittest discover -s tests       # the graph's contract and behaviour, no network, no game
-python tools/boundary_set.py --log runs/2026-09-22/decisions.jsonl --out runs/boundary_set.jsonl
-python tools/replay.py --pilots code,jev --cases 120 --passes 3    # the gate: jev against a code-only baseline
-node tools/dashboard_record.mjs out/dashrec 120         # 1080p dashboard capture (frames); python tools/stack_video.py --frames out/dashrec out/dash.mp4
-node tools/stack_record.mjs out/stackrec 120            # dashboard + Yamcs telemetry + Yamcs commands + Open MCT; python tools/stack_video.py out/stackrec out/stack.mp4
-python tools/charts.py                     # charts for the report from out/decisions*.jsonl
-scripts/start_pilot.sh --system-one openai --openai-base-url http://localhost:1234/v1 --system-one-model <local>
-```
+<br>
 
-After editing anything under `flight/`: `scripts/flight.sh build` (incremental) or `rebuild`, then
-`scripts/flight.sh start`.
+- **Start with `python3 tools/doctor.py`.** It lists what is missing and the command that fixes it.
+- **Yamcs never comes up.** Read `~/doom/run/yamcs.log`. Port 8090 may already be taken.
+- **Open MCT shows "Missing" rows.** That's the plugin's example layout. Browse the tree on the left instead.
+  Yamcs has to be up first.
+- **The jev call fails.** Check the key in `.env`. TypeSafe keys can expire.
+- **The pilot can't reach Yamcs.** Wait about 30 s after `flight.sh start`, then run `scripts/flight.sh check`.
+- **Scripts fail with `$'\r': command not found`.** Windows line endings have crept in. `.gitattributes`
+  keeps `*.sh` as LF, so re-clone, or run `sed -i 's/\r$//' scripts/*.sh`.
 
-## Who decides what
+</details>
 
-| Layer | Runs | Decides |
-|---|---|---|
-| Flight code (F´ + payload) | 35 Hz / 20 Hz | safety (uplink loss -> hold), heading setpoint loop, the map, the eight-sector sensing, door and barrier memory, door/switch attempts |
-| Ground code (the pilot) | every ~0.5 s | the mode machine and every transition in it, walking, doors, firing, weapon selection, aiming, sidestepping, the hysteresis, the unsure fallback, and a reflex layer that never fires at zero ammo, never walks into a known wall and never re-commands a turn still in flight |
-| System One: jev | every ~0.5 s, live | the judgments with no exact rule behind them: one Score per open direction (how promising it is for reaching the exit) on a shared 4-level rubric, one Score for how dangerous the scene is when an enemy is in view, and every 10th tick the `goal` Choice |
-| System Two: Claude Sonnet 5 | every minute, and after an episode | every minute: reads the map product and the recent walk and pushes exploration in a direction (`EXPLORE_HINT`, optionally `SET_GOAL`); after an episode (death, level finished, or the 3-minute level budget spent -> `RESET_GAME`): reads the after-action report and revises the graph — wording, rubric levels and the numbers in `thresholds` and `select`. A revision outside the bounds is rejected with the reason and it gets one more try |
+## Learn more
 
-![Decision graph](docs/diagrams/decision_graph.png)
-
-![One decision end to end](docs/diagrams/decision_flow.png)
-
-Nothing slower than jev sits in the live loop. The graph is data (`ground/graph_config.py`); every revision is
-validated by code (fixed head names and types, bounded text, numeric ranges, and a lint of every state field
-the criteria name) and stored as `ground/graph/graph_v<N>.json` with Sonnet's rationale in
-`ground/graph/CHANGELOG.md`. The System One model is **pinned** to `jev-1.13.0` rather than `jev-latest`,
-because the numbers in `select` are tuned against one version.
-
-## Status (22 September 2026)
-
-The stack works end to end under load and every layer is measured; the autonomous player explores, opens the
-first door and dies honestly, but does not yet finish E1M1. The report `docs/doomsat-report.md` (also `.tex`
-and `.pdf`) has the numbers, the data flow, the results per cycle and the reasons. `docs/HANDOFF.md` is the
-handoff for the next pass. `python tools/run_report.py` prints the current run.
-
-Later the same day, an audit of the decision graph found fourteen issues — most of them in the code around jev,
-not in jev's answers — and the graph was rewritten against them. **`docs/audit-2026-09-22.md` is the record:**
-what changed per issue, what the replay measured, and what it did not settle. The short version:
-
-- Every System Two edit had been silently cut at 700 characters and the hysteresis margin silently clamped, so
-  ten of the last eleven reviews re-diagnosed the same truncation and every tuning of the margin was a no-op.
-  Code now rejects a revision it cannot accept and hands the reason back for one more try.
-- The direction commitment was the *word* "left", which names a new direction after every turn. It is now a
-  world bearing, so holding a direction becomes walking rather than another 90 degrees.
-- Four of the eight heads were asking jev to re-derive rules code already had. They are code now, and the
-  `danger` Score — a judgment with no exact rule — took their place.
-- The unsure band was first written as "a near tie **and** low confidence" and never fired once in 116 replayed
-  states: each sector is scored by its own isolated question, so its `confidence` says nothing about how it
-  ranks against the others. The band is on the gap, and the threshold (0.10 rubric levels) comes from replay:
-  below it jev's own ranking flips ~30% between identical passes; at or above it, 0 of 51 states flipped.
-- The honest check the audit asked for is now a gate, not a footnote: `tools/replay.py --pilots code,jev` runs
-  the same states through jev and through a code-only function that encodes the rubric exactly. The rubric as
-  written is close to a function of four enum fields, so jev reproduces it and adds little. That is the
-  argument for the next pass — evidence no rule can read (the surface classifier), not a different question.
-- **Flying it found three freezes that no test caught**, because each is a property of a sequence of ticks
-  rather than of one decision: OPERATE could not give up, so the pilot stood at one door for 1,172
-  consecutive decisions commanding nothing; FIGHT triggered on bare visibility, so it spent 211 decisions
-  staring at an enemy 2,139 units away; and the reflex "never walk into a known wall" deadlocked the stuck
-  detector that depends on the player pushing, so it sat in one spot for 553 decisions with `STUCK` false.
-  All three are fixed and all three now have tests.
-- **The first comparison was wrong twice over.** It used the old run's *first* 150 seconds — the best of
-  its 27 windows — and every new-graph run had started on a map the payload had already filled with
-  barrier marks from the run before (`EXPLORED_CELLS` 662 at the start, against 1 for the baseline). From a
-  restarted payload and matched windows, the new graph's median beats **27 of 27** old windows on cells
-  explored and on distance walked, and its worst window clears the old median on all three measures. The
-  spin metric was also partly measuring the new design, which waits out its turns, so there is now a
-  fixed-time window alongside the per-tick one — and small corrections are taken while walking.
-- **The state churn was split into its causes** (`tools/churn_check.py`). Two fifths of the apparent churn
-  on turning ticks was the egocentric labels sliding under the readings; bin edges accounted for ~3%; the
-  rest is the payload re-sensing the same world direction differently. Sector words are now held against
-  the ray's world bearing, and a *better* reading has to be confirmed while a *worse* one is believed at
-  once — a third less churn for lag that can only ever delay good news.
-- **The four-level rubric was saturated**: scores clustered at 2.7–2.9, the median gap between the top two
-  was 0.08 levels, the fallback fired on 43% of ticks, and a visible exit tied with any fresh corridor.
-  Nine levels now, with the exit at the top. Flown, the median gap is ~1.0 levels and the fallback ~10%.
-
-Recordings of the last run of the day, 1080p, jev live through the stack:
-
-- `docs/video/doomsat_dashboard_1080p.mp4`: the mission dashboard (frames, telemetry, jev's decisions, Sonnet's bumps and reviews, F´ events, the command archive, the map product), all read from Yamcs.
-- `docs/video/doomsat_stack_1080p.mp4`: the dashboard, the Yamcs telemetry page, the Yamcs command history and Open MCT side by side.
-
-![Dashboard](docs/images/dashboard.png)
-
-![Open MCT imagery of the frame product](docs/images/openmct_imagery.png)
-
-![Exploration per cycle](docs/images/chart_exploration.png)
-
-## Sources
-
-Frameworks and services used, with the versions in this repository:
-
-- NASA F´ flight software framework, v4.3.0: https://github.com/nasa/fprime
-- fprime-yamcs (Yamcs bridge and launcher for F´) 0.2.1 and fprime-xtce (dictionary -> XTCE, PR #8 branch for `!binary`): https://github.com/fprime-community/fprime-yamcs, https://github.com/FarkasJoseph/fprime-xtce/tree/feature/binary-annotation-combined
-- Yamcs mission control 5.12.8: https://github.com/yamcs/yamcs
-- NASA Open MCT (built from master): https://github.com/nasa/openmct
-- openmct-yamcs plugin: https://github.com/akhenry/openmct-yamcs
-- TypeSafe jev (System One) and the Python SDK: https://docs.typesafe.ai/introduction, https://docs.typesafe.ai/sdk/python/api
-- Claude Sonnet 5 through Claude Code (System Two): https://code.claude.com/docs
-- ViZDoom 1.3.0 (Doom engine bindings; ZDoom automap/depth/labels buffers): https://vizdoom.farama.org, https://github.com/Farama-Foundation/ViZDoom
-- Shareware Doom IWAD (`doom1.wad`, from the Debian `doom-wad-shareware` package) and Freedoom: https://freedoom.github.io
-- yamcs-client (Python) 2.1: https://github.com/yamcs/python-yamcs-client
-- System One demo that this decision graph descends from (its Doom demo reads the WAD; ours does not): https://github.com/sgoedecke/system-one
-- Prior LLM-plays-Doom work for comparison: https://adriandewynter.substack.com/p/will-gpt-4-and-5-run-doom
-- Graphviz (diagrams), Playwright + Chrome (screenshots, recording), tectonic (PDF report)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers what the player may see, the decision graph, who decides
+  what, and the integration findings.
+- [docs/results/](docs/results/) has the E1M1 finish: the [decision log](docs/results/e1m1-finished-decision-log.md),
+  [every attempt](docs/results/e1m1-progress.html) and the [overnight report](docs/results/2026-09-24-overnight-report.md).
+- [docs/CHARTER.md](docs/CHARTER.md) sets out the mission and its rules, and
+  [docs/CHARTER-STATUS.md](docs/CHARTER-STATUS.md) says what is built.
+- The full report is [docs/doomsat-report.pdf](docs/doomsat-report.pdf).
+- Built on [F´](https://github.com/nasa/fprime) v4.3.0, [fprime-yamcs](https://github.com/fprime-community/fprime-yamcs) 0.2.1,
+  [Yamcs](https://github.com/yamcs/yamcs) 5.12.8, [Open MCT](https://github.com/nasa/openmct) with
+  [openmct-yamcs](https://github.com/akhenry/openmct-yamcs), [ViZDoom](https://vizdoom.farama.org) 1.3.0,
+  [TypeSafe jev](https://docs.typesafe.ai) and [Claude Code](https://code.claude.com/docs).
