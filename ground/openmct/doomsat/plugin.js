@@ -70,11 +70,12 @@ class Latest {
     await Promise.all(Object.entries(this.objects).map(async ([q, o]) => {
       if (!o || !this.openmct.telemetry.isTelemetryObject(o)) return;
       if (this.names.includes(q)) {
-        const r = await this.openmct.telemetry.request(o, { start, end, strategy: 'latest', size: 1 });
+        // openmct-yamcs answers 'latest' with [undefined] for a parameter that has never had a value
+        const r = (await this.openmct.telemetry.request(o, { start, end, strategy: 'latest', size: 1 })).filter(Boolean);
         this.values[q] = r.length ? r[r.length - 1].value : undefined;
       }
       if (this.history.includes(q)) {
-        const r = await this.openmct.telemetry.request(o, { start, end });
+        const r = (await this.openmct.telemetry.request(o, { start, end })).filter(Boolean);
         this.series[q] = r.map((d) => [d.timestamp ?? d.utc, d.value]);
       }
     }));
