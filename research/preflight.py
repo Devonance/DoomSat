@@ -135,7 +135,8 @@ def publish_honesty(ok, yamcs="http://localhost:8090", instance="fprime-project"
     Best effort: /DoomGround/HonestyStatus is a display value, not a gate. The gate is this script's exit code.
     """
     url = "%s/api/processors/%s/realtime/parameters/DoomGround/HonestyStatus" % (yamcs.rstrip("/"), instance)
-    body = json.dumps({"value": {"type": "STRING", "stringValue": "PASS" if ok else "FAIL"}}).encode()
+    # the body is the yamcs.protobuf.Value itself; wrapping it in {"value": ...} is a 400 on Yamcs 5.12
+    body = json.dumps({"type": "STRING", "stringValue": "PASS" if ok else "FAIL"}).encode()
     req = urllib.request.Request(url, data=body, method="PUT", headers={"Content-Type": "application/json"})
     try:
         urllib.request.urlopen(req, timeout=timeout).read()
