@@ -9,7 +9,10 @@ Doom runs as the payload of a spacecraft. An **F´** flight computer sends its t
 
 On 24 September 2026 jev finished **E1M1 in 105 s**, with no deaths, through the full stack.
 
-![The last 28 seconds of the run that finished E1M1](docs/video/e1m1-finish.gif)
+<div align="center">
+  <img src="docs/video/e1m1-finish.gif" alt="The last 28 seconds of the run that finished E1M1" width="600">
+  <p><em>The last 28 seconds of the run that finished E1M1</em></p>
+</div>
 
 ![Architecture](docs/diagrams/architecture.png)
 
