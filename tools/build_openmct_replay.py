@@ -206,7 +206,9 @@ def main():
         mp = Path(a.frames) / "latest_map.png"
         if mp.exists():
             shutil.copy(mp, out / "map.png")
-        for ov in Path(a.frames).glob("overlay-*.png"):
+    # the grader writes its overlay beside decisions.jsonl (research/out/<flight>/), not into frames/
+    for d in dict.fromkeys(p for p in (flight, Path(a.log).parent, a.frames and Path(a.frames)) if p):
+        for ov in sorted(Path(d).glob("overlay-*.png")):
             (out / "grader").mkdir(exist_ok=True)
             shutil.copy(ov, out / "grader" / ov.name)
 
