@@ -107,6 +107,10 @@ mdb:
   - type: xtce
     args:
       file: mdb/doom-ground.xtce.xml
+  # People, not software: Mission Status actions and Operator Status roles for Open MCT (docs/OPENMCT.md)
+  - type: xtce
+    args:
+      file: mdb/doom-ops.xtce.xml
 
 # Configuration for streams created at server startup
 streamConfig:
