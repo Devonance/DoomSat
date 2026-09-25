@@ -20,6 +20,7 @@ On 24 September 2026 jev finished **E1M1 in 105 s**, with no deaths, through the
 
 You need about 3 GB of disk, 15 to 20 minutes, and a [TypeSafe API key](https://docs.typesafe.ai) for jev.
 You don't need a key for Claude: the pilot uses your [Claude Code](https://code.claude.com/docs) login.
+Without a TypeSafe key, you can still [fly it yourself](#play-it-yourself-no-jev-no-key).
 
 > **Shortcut:** open [Claude Code](https://code.claude.com/docs) in this folder and say *"set DoomSat up on
 > this machine"*. [`CLAUDE.md`](CLAUDE.md) gives it the steps.
@@ -119,6 +120,39 @@ scripts/flight.sh stop
 
 Logs go to `out/` (the pilot) and `~/doom/run/` (payload, Yamcs). `scripts/flight.sh check` prints a telemetry
 health report.
+
+## Play it yourself (no jev, no key)
+
+To try the whole stack without a TypeSafe key, fly it yourself from the dashboard:
+
+```bash
+scripts/play.sh                 # you drive; opens http://localhost:8070
+scripts/play.sh --autopilot     # or watch the code rules fly it (no model)
+```
+
+`play.sh` starts the flight side and the dashboard server if they aren't already running. Click the picture to
+take the controls:
+
+| Keys | |
+|---|---|
+| <kbd>W</kbd> <kbd>S</kbd> or <kbd>↑</kbd> <kbd>↓</kbd> | forward / back |
+| <kbd>A</kbd> <kbd>D</kbd> or <kbd>←</kbd> <kbd>→</kbd> | turn left / right |
+| <kbd>Q</kbd> <kbd>E</kbd> | strafe left / right |
+| <kbd>F</kbd> or mouse button | fire |
+| <kbd>Space</kbd> | use (doors, switches, the exit) |
+| <kbd>2</kbd> <kbd>3</kbd> | pistol / shotgun |
+| <kbd>Esc</kbd> | let go |
+
+Your keys go up the same path the pilot's orders do: each change is a `CONTROL` command issued to Yamcs, which
+uplinks it to F´, which passes it to the game. The picture comes back down as telemetry. So what you see is the
+real mission loop, round-trip latency included. The commands appear in the dashboard's command panel and in
+Yamcs, and the telemetry and video appear in Open MCT (`scripts/start_openmct.sh`). Manual mode restarts the
+level when it starts (`--no-reset` keeps the game as it is). It logs to `out/manual.jsonl`, never to the pilot's
+`out/decisions.jsonl`. <kbd>Ctrl</kbd>+<kbd>C</kbd> stops it, and `scripts/flight.sh stop` stops the flight
+side.
+
+`--autopilot` flies the pilot with `--system-one code`, the exact rules jev's questions restate. It is the
+same code baseline as `research/runner.py --decider code`, flown on the full stack.
 
 ## Use each piece on its own
 

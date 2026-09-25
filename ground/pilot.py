@@ -12,6 +12,12 @@ Between episodes (death, level finished, run end):
 Code owns the loop, the mode machine, the thresholds, the hysteresis and the command mapping; jev judges,
 Sonnet reviews. Every row of the decision log carries the exact state jev saw, so a run can be replayed
 against a new graph without the game (tools/replay.py).
+
+Without jev (no key needed):
+  --system-one code    the exact rules answer every head: the bench's code baseline, flown on the full stack
+  --system-one manual  a person drives from the dashboard (http://localhost:8070); its keys go up as CONTROL
+                       commands through Yamcs. The pilot does the rest of the ground segment: frames, ground
+                       parameters, and a log in out/manual.jsonl.
 """
 import argparse
 import hashlib
@@ -132,8 +138,10 @@ class Pilot:
         self.cfg = gc.load()
         # The graph carries the System One version its numbers were tuned against; the flag still overrides it.
         args.system_one_model = args.system_one_model or self.cfg.get("model")
-        self.system_one = make_system_one(args.system_one, args)
+        self.manual = args.system_one == "manual"
+        self.system_one = None if self.manual else make_system_one(args.system_one, args, self.cfg)
         self.system_two = make_system_two(args.system_two, args) if args.after_action else None
+        self.pilot_name = "manual" if self.manual else self.system_one.name
         self.telemetry = {}
         self.telemetry_time = 0.0
         self.subscription = None
@@ -152,7 +160,11 @@ class Pilot:
         self.code_only_ticks = 0
         self.last_publish = 0.0
         self.last_stats = 0.0
-        self.log = open(args.out_dir / "decisions.jsonl", "a", buffering=1, encoding="utf-8")
+        self.last_print = 0.0
+        self.announce_ok = True
+        # A person's drive is not a decision log: kept apart so no tool mistakes it for a pilot's flight.
+        log_name = "manual.jsonl" if self.manual else "decisions.jsonl"
+        self.log = open(args.out_dir / log_name, "a", buffering=1, encoding="utf-8")
         self.rows = []                 # this run's decision rows (for after-action)
         self.episode = None
         self.level = None
@@ -223,7 +235,7 @@ class Pilot:
                     self.episode_outcome = "level finished"
 
     def publish_frame(self, seq, path):
-        """Put the image product in the Yamcs bucket for Open MCT, at most twice a second (maps: every time)."""
+        """Put the image product in the Yamcs bucket for Open MCT, at most --publish-hz times a second (maps: every time)."""
         if seq & 0x80000000:
             try:
                 with open(path, "rb") as f:
@@ -232,7 +244,7 @@ class Pilot:
             except Exception as e:
                 print(f"[pilot] map publish failed: {e}", file=sys.stderr)
             return
-        if time.time() - self.last_publish < 0.5:
+        if time.time() - self.last_publish < 1.0 / self.args.publish_hz:
             return
         self.last_publish = time.time()
         name = f"frame-{seq % 20:02d}.jpg"   # a ring of 20 objects: the bucket never fills, nothing to delete
@@ -253,6 +265,18 @@ class Pilot:
                 self.pub_processor.set_parameter_value(f"{GROUND}/{k}", v)
         except Exception as e:
             print(f"[pilot] ground parameter set failed: {e}", file=sys.stderr)
+
+    def announce(self):
+        """Tell the displays who is flying (jev, code or manual). A call of its own: a Yamcs started with an
+        older ground database has no PilotMode, and that must not take the other ground values down too."""
+        if not self.announce_ok:
+            return
+        try:
+            self.pub_processor.set_parameter_value(f"{GROUND}/PilotMode", self.pilot_name)
+        except Exception as e:
+            self.announce_ok = False
+            print(f"[pilot] PilotMode is not in this Yamcs's ground database (restart Yamcs to load it): {e}",
+                  file=sys.stderr)
 
     def command(self, name, args=None):
         t0 = time.time()
@@ -380,6 +404,29 @@ class Pilot:
             self.command("SET_GOAL", {"goal": goal})
             print(f"[pilot] goal {self.goal} -> {goal} (jev)", flush=True)
             self.goal = goal
+
+    # ------------------------------------------------------------ manual: a person drives from the dashboard
+    def manual_step(self):
+        """No decision to take. The dashboard sends the person's keys as CONTROL commands through Yamcs, the
+        same uplink the pilots use; this loop keeps up the rest of the ground segment (the telemetry
+        subscription, the image product, the ground parameters) and logs what happened."""
+        if time.time() - self.telemetry_time > 4.0:
+            self.resubscribe()
+            return
+        t = self.telemetry
+        now = time.time()
+        if now - self.last_stats > 1.0:
+            self.last_stats = now
+            self.set_ground({"Controls": "MANUAL: a person is driving from the dashboard. "
+                                         "uplinks=%s" % t.get("CMDS_RECEIVED", "-")})
+            self.announce()
+            self.log.write(json.dumps({"t": now, "kind": "manual", "episode": self.episode,
+                                       "raw": {k: t.get(k) for k in RAW_KEYS}}) + "\n")
+        if now - self.last_print > 5.0:
+            self.last_print = now
+            print(f"[pilot] manual: level {t.get('LEVEL')} hp={t.get('HEALTH')} kills={t.get('KILLS')} "
+                  f"uplinks={t.get('CMDS_RECEIVED')} frames ok={self.frames.complete} lost={self.frames.incomplete}",
+                  flush=True)
 
     # ------------------------------------------------------------ System Two: a bump when the walk stalls
     def check_stall(self):
@@ -529,11 +576,22 @@ class Pilot:
     # ------------------------------------------------------------ main
     def run(self):
         self.subscribe()
-        key = getattr(self.system_one, "api_key", "")
-        two = f"{self.system_two.name} ({getattr(self.system_two, 'model', '-')})" if self.system_two else "none"
-        print(f"[pilot] System One = {self.system_one.name} (key {key[:14]}...) plays; System Two = {two} reviews after each episode; graph v{self.cfg.get('version')}", flush=True)
         self.command("FRAME_RATE", {"hz": self.args.fps, "quality": self.args.quality})
-        self.command("SET_GOAL", {"goal": self.goal})
+        if self.manual:
+            print("[pilot] MANUAL: no model flies. Open the dashboard (http://localhost:8070), click the picture "
+                  "and drive; the keys go up as CONTROL commands through Yamcs.", flush=True)
+            if self.args.reset:
+                # A fresh game, and a fresh onboard executor: once a pilot has sent an INTENT the executor
+                # drives and CONTROL is ignored until the episode restarts.
+                self.command("RESET_GAME")
+        else:
+            key = getattr(self.system_one, "api_key", "")
+            two = f"{self.system_two.name} ({getattr(self.system_two, 'model', '-')})" if self.system_two else "none"
+            print(f"[pilot] System One = {self.system_one.name}{f' (key {key[:14]}...)' if key else ''} plays; "
+                  f"System Two = {two}{' reviews after each episode' if self.system_two else ''}; "
+                  f"graph v{self.cfg.get('version')}", flush=True)
+            self.command("SET_GOAL", {"goal": self.goal})
+        self.announce()
         deadline = time.time() + self.args.duration if self.args.duration else None
         n = 0
         while deadline is None or time.time() < deadline:
@@ -557,20 +615,21 @@ class Pilot:
                 self.level_start_t = time.time()
                 self.attempt = 1
             try:
-                row = self.control_step(n)
+                row = self.manual_step() if self.manual else self.control_step(n)
             except Exception as e:
                 row = None
-                print(f"[pilot] System One failed: {e}", file=sys.stderr)
+                print(f"[pilot] {'manual step' if self.manual else 'System One'} failed: {e}", file=sys.stderr)
                 time.sleep(1.0)
             n += 1
             if n % 20 == 0:
                 self.check_stall()
+                self.announce()     # a dashboard opened later still learns who is flying
             if row and n % 10 == 0:
                 c = row['control']
                 doing = (f"-> {c['mode']} {'target' if c.get('has_target') else 'no target'} "
                          f"{c['stance']} ttl={c['ttl_ms']}ms" if 'mode' in c
                          else f"-> {c['move']}/{c['turn']:.0f}")
-                print(f"[pilot] #{n} jev {row['latency_ms']} ms cmd {row['cmd_ms']} ms  hp={row['health']} "
+                print(f"[pilot] #{n} {self.pilot_name} {row['latency_ms']} ms cmd {row['cmd_ms']} ms  hp={row['health']} "
                       f"{row['mode']} cand={row.get('candidates', '-')} pick={row['pick']} "
                       f"{' '.join(f'{k}={v}' for k, v in row['answers'].items())} {doing}  "
                       f"frames ok={self.frames.complete} lost={self.frames.incomplete}", flush=True)
@@ -589,7 +648,9 @@ def main():
     p.add_argument("--yamcs", default="localhost:8090", help="Yamcs host:port for the client")
     p.add_argument("--yamcs-public", default="http://localhost:8090", help="Yamcs base URL as the browser reaches it (frame URLs)")
     p.add_argument("--instance", default="fprime-project")
-    p.add_argument("--system-one", default="typesafe", choices=["typesafe", "openai"])
+    p.add_argument("--system-one", default="typesafe", choices=["typesafe", "openai", "code", "manual"],
+                   help="typesafe: jev (needs TYPESAFE_API_KEY). code: the exact rules, no model, no key. "
+                        "manual: a person drives from the dashboard, no model, no key")
     p.add_argument("--system-one-model", default=None)
     p.add_argument("--system-two", default="claude-cli", choices=["claude-cli", "anthropic", "openai", "none"])
     p.add_argument("--system-two-model", default=None, help="e.g. sonnet (CLI alias), claude-sonnet-5, gpt-4o")
@@ -609,11 +670,18 @@ def main():
                         "pre-charter eight-sector graph sending CONTROL every tick.")
     p.add_argument("--fps", type=int, default=10)
     p.add_argument("--quality", type=int, default=45)
+    p.add_argument("--publish-hz", type=float, default=None,
+                   help="frames a second put in the Yamcs bucket for the displays (default 2; 10 when manual, "
+                        "because a person steering needs to see where they are going)")
+    p.add_argument("--no-reset", dest="reset", action="store_false",
+                   help="manual: keep the game as it is instead of restarting the episode first")
     p.add_argument("--duration", type=float, default=0.0, help="stop after this many seconds (0 = run forever)")
     p.add_argument("--out-dir", type=Path, default=HERE.parent / "out")
     args = p.parse_args()
-    if args.system_two == "none":
-        args.after_action = False
+    if args.system_two == "none" or args.system_one == "manual":
+        args.after_action = False   # nothing for System Two to review when a person is driving
+    if args.publish_hz is None:
+        args.publish_hz = 10.0 if args.system_one == "manual" else 2.0
     args.out_dir.mkdir(parents=True, exist_ok=True)
     Pilot(args).run()
 

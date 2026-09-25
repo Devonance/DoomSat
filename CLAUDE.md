@@ -44,8 +44,9 @@ cp .env.example .env
 Ask the user for their **TypeSafe API key** and write it as `TYPESAFE_API_KEY=` in `.env`. Never print it,
 never commit it, and never put it in a log you save to the repo. `.env` is git-ignored. Claude needs no key,
 because the pilot shells out to `claude` and uses the user's login. `ANTHROPIC_API_KEY` is only for
-`--system-two anthropic`. If they have no TypeSafe key yet, install everything anyway: only the pilot and the
-jev bench need it.
+`--system-two anthropic`. If they have no TypeSafe key yet, install everything anyway: only jev needs it, and
+`scripts/play.sh` flies the whole stack without one (they drive from the dashboard, or `--autopilot` lets the
+code rules fly).
 
 ### 4. Install
 
@@ -69,7 +70,8 @@ python3 -m unittest discover -s tests               # run with ground/.venv/bin/
 
 Then give the user the URLs: Yamcs http://localhost:8090, the dashboard (`python3 tools/serve_dashboard.py`)
 at http://localhost:8070, and Open MCT (`scripts/start_openmct.sh`) at http://localhost:9000. For a live
-flight, run `scripts/start_pilot.sh --duration 120 --system-two none`. Finish with `scripts/flight.sh stop`.
+flight, run `scripts/start_pilot.sh --duration 120 --system-two none`. With no key, run `scripts/play.sh`
+instead: the user clicks the dashboard's picture and drives. Finish with `scripts/flight.sh stop`.
 
 ## Running pieces on their own
 
@@ -83,6 +85,7 @@ flight, run `scripts/start_pilot.sh --duration 120 --system-two none`. Finish wi
 | Dashboard | `python3 tools/serve_dashboard.py` → :8070 | Yamcs running |
 | jev bench (no F´/Yamcs) | `~/doom/payload-venv/bin/python research/runner.py bench --maps E1M1 --seeds 1 --budget 60 --decider jev --wad ~/doom/wads/freedoom1.wad --out out/bench --allow-dirty` | key |
 | Pilot | `scripts/start_pilot.sh [--system-two claude-cli\|anthropic\|none] [--duration S]` | flight side up, key |
+| Play without jev | `scripts/play.sh` (a person drives from the dashboard) or `scripts/play.sh --autopilot` (the pilot with `--system-one code`) | flight side installed; no key |
 
 `WAD=`, `MAP=`, `GEOMETRY=on` and `SKILL=` before `scripts/flight.sh start` choose the level. Use `WAD=freedoom1.wad`
 for the dev set. The shareware `doom1.wad` E1M1 is the test level.

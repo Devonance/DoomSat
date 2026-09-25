@@ -6,6 +6,7 @@ Also serves the repo's out/ directory (the payload's diagnostic map image).
 """
 import argparse
 import http.server
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -35,6 +36,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(data)
+        except urllib.error.HTTPError as e:
+            # Yamcs answered, with a refusal: pass its status and its reason through (a refused command
+            # says why, and the page shows it) instead of hiding both behind a 502.
+            data = e.read()
+            self.send_response(e.code)
+            self.send_header("Content-Type", e.headers.get("Content-Type", "application/json"))
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         except Exception as e:  # noqa: BLE001
             self.send_error(502, str(e))
 

@@ -4,6 +4,7 @@ System One (fast typed judgments over a state + questions):
   - TypeSafeSystemOne   : jev via https://api.typesafe.ai/v1/systemone   (default)
   - OpenAISystemOne     : any OpenAI-compatible chat endpoint (OpenAI, LM Studio, llama.cpp, vLLM),
                           emulates the same answer shape with a JSON response
+  - CodeSystemOne       : no model and no key: the rubric as an exact function (the bench's code baseline)
 System Two (slow reasoning: pick a goal, look at the frame):
   - ClaudeCli           : the local `claude` CLI in print mode with a JSON schema (default; Sonnet 5)
   - AnthropicApi        : the Anthropic Messages API when ANTHROPIC_API_KEY is set
@@ -86,6 +87,39 @@ class OpenAISystemOne:
             c = picked.get(qid) if picked.get(qid) in options else options[0]
             answers[qid] = {"type": "choice", "choice": c, "confidence": 1.0, "probabilities": {o: float(o == c) for o in options}}
         return {"answers": answers, "latency_ms": int((time.time() - t0) * 1000), "model": self.model}
+
+
+class CodeSystemOne:
+    """No model at all: every head answered by the exact rule it restates.
+
+    The same answers as research/runner.py's CodeDecider, the bench's null hypothesis, so a flight flown
+    with it is the code baseline on the full stack. It needs no key, which makes it the way to show the
+    stack to someone who has none. tests/test_providers.py keeps the two from drifting apart.
+    """
+    name = "code"
+    api_key = ""
+
+    def __init__(self, cfg):
+        import decision_graph as dg
+        import targeting
+        self.dg, self.targeting = dg, targeting
+        self.levels = dg.levels_of(cfg)
+
+    def ask(self, state, questions):
+        out = dict(self.targeting.rule_answers(state, [q for q in questions if q[:2] in ("g_", "n_")]))
+        for qid in questions:
+            if qid in out:
+                continue
+            if qid.startswith("s_"):
+                out[qid] = {"type": "score", "score": self.dg.rule_score(state["sectors"][qid[2:]], self.levels),
+                            "confidence": 1.0}
+            elif qid == "danger":
+                hurt = state["player"]["health"] in ("critical", "low")
+                close = state["combat"]["enemy_distance"] in ("point blank", "close")
+                out[qid] = {"type": "score", "score": float(2 * close + hurt), "confidence": 1.0}
+            elif qid == "goal":
+                out[qid] = {"type": "choice", "choice": "Explore", "confidence": 1.0}
+        return {"answers": out, "latency_ms": 0, "usage": {"input_tokens": 0}, "model": "code"}
 
 
 # ---------------------------------------------------------------- System Two
@@ -239,7 +273,9 @@ class OpenAIChat:
 
 
 # ---------------------------------------------------------------- factories
-def make_system_one(kind, args):
+def make_system_one(kind, args, cfg=None):
+    if kind == "code":
+        return CodeSystemOne(cfg)
     if kind == "typesafe":
         key = load_env_key("TYPESAFE_API_KEY", args.env_files)
         if not key:

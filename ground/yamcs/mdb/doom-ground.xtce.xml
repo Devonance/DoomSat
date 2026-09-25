@@ -68,6 +68,10 @@
       <Parameter name="Controls" parameterTypeRef="text_t">
         <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
       </Parameter>
+      <!-- Who is flying: jev, code (the exact rules, no model) or manual (a person at the dashboard) -->
+      <Parameter name="PilotMode" parameterTypeRef="url_t">
+        <ParameterProperties dataSource="local" persistence="false"></ParameterProperties>
+      </Parameter>
     </ParameterSet>
   </TelemetryMetaData>
 </SpaceSystem>

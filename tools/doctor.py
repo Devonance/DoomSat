@@ -55,7 +55,11 @@ def main():
 
     print("== keys (.env at the repo root; see .env.example)")
     line((ROOT / ".env").exists() or (ROOT / "ground" / ".env").exists(), ".env present", "cp .env.example .env")
-    line(bool(env_key("TYPESAFE_API_KEY")), "TYPESAFE_API_KEY (jev, System One)", "put your key in .env")
+    if env_key("TYPESAFE_API_KEY"):
+        line(True, "TYPESAFE_API_KEY (jev, System One)")
+    else:   # only jev needs it: the stack flies without it (scripts/play.sh)
+        line(None, "TYPESAFE_API_KEY not set: jev cannot fly, but scripts/play.sh (you drive) and "
+                   "scripts/play.sh --autopilot (the code rules) need no key")
     claude = shutil.which("claude")
     line(bool(claude) or None, f"claude CLI (System Two, default; uses your Claude Code login): {claude or 'not found'}",
          "")

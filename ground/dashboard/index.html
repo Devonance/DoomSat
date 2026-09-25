@@ -6,6 +6,8 @@
 <style>
   :root { --bg:#0f1218; --panel:#171c26; --line:#2a3242; --fg:#e6e9ef; --dim:#8b95a7; --acc:#7cc4ff; --warn:#ffb454; --bad:#ff6b6b; --ok:#7ee081; }
   * { box-sizing: border-box; }
+  html { background:var(--bg); overflow:hidden; }
+  body { transform-origin:0 0; }
   body { margin:0; background:var(--bg); color:var(--fg); font: 15px/1.35 "Segoe UI", Helvetica, Arial, sans-serif; width:1920px; height:1080px; overflow:hidden; }
   header { height:64px; display:flex; align-items:center; gap:24px; padding:0 24px; border-bottom:1px solid var(--line); background:var(--panel); }
   header h1 { font-size:20px; margin:0; font-weight:600; letter-spacing:.3px; }
@@ -32,18 +34,55 @@
   #map { height:250px; display:block; margin:auto; image-rendering:pixelated; }
   .bar { height:10px; background:#222a38; border-radius:5px; overflow:hidden; margin-top:3px; }
   .bar > div { height:100%; background:var(--ok); }
+  /* manual mode: a person drives from here */
+  #screen { position:relative; width:932px; height:699px; }
+  #drive { position:absolute; inset:0; display:none; border-radius:6px; cursor:pointer; }
+  #drive.shown { display:block; }
+  #drive .invite { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; background:rgba(8,10,14,.62); border-radius:6px; text-align:center; }
+  #drive .invite b { font-size:30px; color:var(--acc); }
+  #drive.on { cursor:crosshair; box-shadow: inset 0 0 0 3px var(--ok); }
+  #drive.on .invite { display:none; }
+  #keys { display:grid; grid-template-columns:auto auto; gap:4px 16px; font-size:15px; color:#cfd6e2; text-align:left; }
+  #keys kbd { display:inline-block; min-width:24px; padding:1px 6px; border:1px solid #4a5568; border-bottom-width:2px;
+    border-radius:4px; background:#1d2330; font: 13px Consolas, monospace; color:var(--fg); text-align:center; }
+  #hud { position:absolute; right:10px; top:10px; background:rgba(0,0,0,.6); padding:6px 10px; border-radius:5px;
+    font: 13px/1.5 Consolas, monospace; color:#ddd; white-space:pre; display:none; }
+  #drive.on #hud { display:block; }
+  #restart { position:absolute; right:10px; bottom:10px; font:13px "Segoe UI", sans-serif; color:var(--fg); cursor:pointer;
+    background:#2a3242; border:1px solid #3d4759; border-radius:5px; padding:5px 10px; }
+  #restart:hover { background:#3a4458; }
 </style>
 </head>
 <body>
 <header>
   <h1>DoomSat</h1>
-  <span class="chain">Doom (payload) &rarr; F&acute; flight software &rarr; CCSDS &rarr; Yamcs &rarr; ground pilot &rarr; jev (System One) / Claude Sonnet 5 (System Two)</span>
+  <span class="chain">Doom (payload) &rarr; F&acute; flight software &rarr; CCSDS &rarr; Yamcs &rarr; <span id="who">ground pilot &rarr; jev (System One) / Claude Sonnet 5 (System Two)</span></span>
   <span class="level" id="level">level &ndash;<small id="episode"></small></span>
 </header>
 <main>
   <section class="panel" id="view">
     <h2>Image product: FRAME_CHUNK records reassembled on the ground (JPEG 320&times;240 via 960-byte telemetry records)</h2>
-    <img id="frame" alt="game frame">
+    <div id="screen">
+      <img id="frame" alt="game frame">
+      <div id="drive">
+        <div class="invite">
+          <b>Click the picture to drive</b>
+          <div>Manual mode: your keys go up as CONTROL commands, through Yamcs and F&acute;, to the game.</div>
+          <div id="keys">
+            <span><kbd>W</kbd> <kbd>S</kbd> or <kbd>&uarr;</kbd> <kbd>&darr;</kbd></span><span>forward / back</span>
+            <span><kbd>A</kbd> <kbd>D</kbd> or <kbd>&larr;</kbd> <kbd>&rarr;</kbd></span><span>turn left / right</span>
+            <span><kbd>Q</kbd> <kbd>E</kbd></span><span>strafe left / right</span>
+            <span><kbd>F</kbd> or mouse button</span><span>fire</span>
+            <span><kbd>Space</kbd></span><span>use (doors, switches, the exit)</span>
+            <span><kbd>2</kbd> <kbd>3</kbd></span><span>pistol / shotgun</span>
+            <span><kbd>Esc</kbd></span><span>let go of the controls</span>
+          </div>
+        </div>
+        <div id="hud"></div>
+        <button id="restart" type="button">Restart level</button>
+      </div>
+    </div>
     <div id="frameinfo">frame &ndash;</div>
   </section>
   <div id="right">
@@ -65,17 +104,17 @@
           <tr><td class="k">New ground ahead / left / right / behind</td><td><span id="NEW_FWD"></span> / <span id="NEW_LEFT"></span> / <span id="NEW_RIGHT"></span> / <span id="NEW_BACK"></span> %</td></tr>
           <tr><td class="k">Exit line seen / cells walked</td><td><span id="EXIT_DIST"></span> u / <span id="EXPLORED_CELLS"></span></td></tr>
           <tr><td class="k">Stuck / use ahead</td><td><span id="STUCK"></span> / <span id="DOOR_AHEAD"></span></td></tr>
-          <tr><td class="k">Goal (set by jev)</td><td id="GOAL"></td></tr>
+          <tr><td class="k">Goal (set by the pilot)</td><td id="GOAL"></td></tr>
           <tr><td class="k">Game tic / frames sent</td><td><span id="TIC"></span> / <span id="FRAMES_SENT"></span></td></tr>
         </tbody></table>
       </div>
     </section>
     <section class="panel">
-      <h2>System One: jev (TypeSafe) &mdash; live decisions every ~0.5 s <span id="s1lat" style="float:right"></span></h2>
+      <h2><span id="s1title">System One: jev (TypeSafe) &mdash; live decisions every ~0.5 s</span> <span id="s1lat" style="float:right"></span></h2>
       <div id="controls">&ndash;</div>
     </section>
     <section class="panel">
-      <h2>System Two: Claude Sonnet 5 &mdash; bumps a stalled walk, reviews after each episode <span id="s2lat" style="float:right"></span></h2>
+      <h2><span id="s2title">System Two: Claude Sonnet 5 &mdash; bumps a stalled walk, reviews after each episode</span> <span id="s2lat" style="float:right"></span></h2>
       <div id="plan">&ndash;</div>
     </section>
   </div>
@@ -113,9 +152,11 @@ async function poll() {
     $("ENEMY_DIST").textContent = Number(v.ENEMY_COUNT) ? `nearest ${v.ENEMY_DIST} u` : "";
     $("level").firstChild.textContent = `level ${v.LEVEL ?? "-"}`;
     $("episode").textContent = `episode ${v.EPISODE ?? "-"}  |  ${v.STUCK === "True" ? "STUCK" : ""}`;
-    $("s1lat").textContent = v.SystemOneLatencyMs ? `${Math.round(v.SystemOneLatencyMs)} ms per decision, ${v.ControlCommands} commands` : "";
+    $("s1lat").textContent = v.SystemOneLatencyMs ? `${Math.round(v.SystemOneLatencyMs)} ms per decision, ${v.ControlCommands} commands`
+      : mode === "code" && v.ControlCommands ? `${v.ControlCommands} commands, no model calls` : "";
     $("controls").textContent = v.Controls ? String(v.Controls).replace(/ (?=\w+=)/g, "\n") : "-";
-    $("plan").textContent = (v.SystemTwoHint ? "Latest bump: " + v.SystemTwoHint + "\n\n" : "") + (v.Plan || "no after-action review yet (first episode)");
+    $("plan").textContent = (v.SystemTwoHint ? "Latest bump: " + v.SystemTwoHint + "\n\n" : "") +
+      (v.Plan || (mode === "manual" ? "-" : "no after-action review yet (first episode)"));
     $("s2lat").textContent = v.SystemTwoLatencyMs ? `${(v.SystemTwoLatencyMs / 1000).toFixed(0)} s review` : "";
     if (v.DoomFrame && v.DoomFrame !== lastFrame) { lastFrame = v.DoomFrame; $("frame").src = v.DoomFrame.replace(/^https?:\/\/[^/]+/, ""); }
     if (v.DoomMap) window.lastMap = v.DoomMap;
@@ -135,8 +176,131 @@ async function pollArchive() {
     }).join("\n");
     if (window.lastMap) $("map").src = window.lastMap.replace(/^https?:\/\/[^/]+/, "");
   } catch (e) { console.log(e); }
+  try {
+    // Asked on its own: a Yamcs started with an older ground database has no PilotMode, and a batch that
+    // names it would fail whole and blank the page.
+    const r = await fetch("/api/processors/fprime-project/realtime/parameters" + G + "PilotMode");
+    if (r.ok) applyMode(val(await r.json()));
+  } catch (e) { console.log(e); }
 }
-setInterval(poll, 250); setInterval(pollArchive, 1000); poll(); pollArchive();
+
+// ---------------------------------------------------------------- who is flying
+const WHO = {
+  jev: ["ground pilot &rarr; jev (System One) / Claude Sonnet 5 (System Two)",
+        "System One: jev (TypeSafe) &mdash; live decisions every ~0.5 s",
+        "System Two: Claude Sonnet 5 &mdash; bumps a stalled walk, reviews after each episode"],
+  code: ["ground pilot &rarr; the code rules (System One, no model)",
+         "System One: the code rules &mdash; no model, no key",
+         "System Two: Claude, when the pilot was started with it"],
+  "openai-compatible": ["ground pilot &rarr; an OpenAI-compatible model (System One)",
+                        "System One: an OpenAI-compatible model",
+                        "System Two: when the pilot was started with it"],
+  manual: ["you, driving from this dashboard (manual mode)",
+           "Pilot: a person at this dashboard &mdash; keys go up as CONTROL commands",
+           "System Two: not used in manual mode"],
+};
+const forced = new URLSearchParams(location.search).has("drive");   // ?drive: for a Yamcs without PilotMode
+let mode = forced ? "manual" : "";
+function applyMode(m) {
+  if (forced) m = "manual";
+  if (!m || !WHO[m] || m === applyMode.shown) return;
+  applyMode.shown = mode = m;
+  [$("who").innerHTML, $("s1title").innerHTML, $("s2title").innerHTML] = WHO[m];
+  $("drive").classList.toggle("shown", m === "manual");
+  if (m !== "manual" && drive.on) letGo();
+}
+
+// ---------------------------------------------------------------- manual mode: drive from here
+// Each change of keys is one CONTROL command, issued to Yamcs through this page's proxy exactly as the
+// pilot issues its own. While a key is held the command is repeated: a turn is a setpoint the payload
+// works off in a few tics, and the payload lets go of everything 3 s after the last uplink.
+const CMD = "/api/processors/fprime-project/realtime/commands" + SS;
+const KEYMAP = {KeyW: "fwd", ArrowUp: "fwd", KeyS: "back", ArrowDown: "back", KeyA: "left", ArrowLeft: "left",
+  KeyD: "right", ArrowRight: "right", KeyQ: "sleft", KeyE: "sright", KeyF: "fire", Space: "use"};
+const WEAPON_KEYS = {Digit2: "PISTOL", Digit3: "SHOTGUN"};
+const SHOWN = {fwd: "↑", back: "↓", left: "←", right: "→", sleft: "strafe-L", sright: "strafe-R",
+  fire: "FIRE", mouse: "FIRE", use: "USE"};
+const TURN_STEP = 24, REPEAT_MS = 150;   // degrees per command while a turn key is held: about 160 deg/s
+const held = new Set();
+const drive = {on: false, inflight: false, dirty: false, sent: 0, errors: 0, ms: null, err: "", weapon: "FIST", weaponUntil: 0};
+
+// Every value goes as a string, the way yamcs-client sends the pilot's: an F´ bool is an enumeration in the
+// XTCE, and Yamcs refuses a JSON true for it ("Cannot convert value of type java.lang.Boolean").
+function controlArgs() {
+  const k = n => held.has(n) ? 1 : 0, b = x => x ? "True" : "False";
+  return {move: String(k("fwd") - k("back")), strafe: String(k("sright") - k("sleft")),
+          turn: String(TURN_STEP * (k("left") - k("right"))), fire: b(k("fire") || k("mouse")), use: b(k("use")),
+          weapon: Date.now() < drive.weaponUntil ? drive.weapon : "FIST"};   // FIST means keep the current one
+}
+async function issue(name, args) {
+  const r = await fetch(CMD + name, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({args})});
+  if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 120)}`);
+}
+async function sendControl() {
+  if (drive.inflight) { drive.dirty = true; return; }   // one in flight at a time; the newest keys go next
+  drive.inflight = true;
+  const t0 = performance.now();
+  try {
+    await issue("CONTROL", controlArgs());
+    drive.sent++; drive.ms = Math.round(performance.now() - t0); drive.err = "";
+  } catch (e) { drive.errors++; drive.err = String(e.message || e).slice(0, 90); }
+  drive.inflight = false;
+  renderHud();
+  if (drive.dirty) { drive.dirty = false; sendControl(); }
+}
+function renderHud() {
+  const keys = [...held].map(k => SHOWN[k]).join(" ") || "-";
+  $("hud").textContent = `DRIVING  (Esc lets go)\nkeys  ${keys}\nsent  ${drive.sent} commands, last ${drive.ms ?? "-"} ms` +
+    (drive.errors ? `\nerrors ${drive.errors}: ${drive.err}` : "");
+}
+function engage() { drive.on = true; $("drive").classList.add("on"); renderHud(); }
+function letGo() { drive.on = false; held.clear(); $("drive").classList.remove("on"); sendControl(); }
+
+document.addEventListener("keydown", e => {
+  if (!drive.on) return;
+  if (e.code === "Escape") { letGo(); return; }
+  const k = KEYMAP[e.code], w = WEAPON_KEYS[e.code];
+  if (!k && !w) return;
+  e.preventDefault();
+  if (e.repeat) return;
+  if (w) { drive.weapon = w; drive.weaponUntil = Date.now() + 500; } else held.add(k);
+  sendControl();
+});
+document.addEventListener("keyup", e => {
+  const k = KEYMAP[e.code];
+  if (!drive.on || !k) return;
+  e.preventDefault();
+  if (held.delete(k)) sendControl();
+});
+// A key released while the window is not looking never sends its keyup: let go rather than run into a wall.
+window.addEventListener("blur", () => { if (drive.on) letGo(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden && drive.on) letGo(); });
+$("drive").addEventListener("mousedown", e => {
+  if (e.target.id === "restart") return;
+  e.preventDefault();
+  if (!drive.on) { engage(); return; }
+  if (e.button === 0) { held.add("mouse"); sendControl(); }
+});
+document.addEventListener("mouseup", () => { if (held.delete("mouse")) sendControl(); });
+$("drive").addEventListener("contextmenu", e => e.preventDefault());
+$("restart").addEventListener("click", async e => {
+  e.currentTarget.blur();   // or Space, the Use key, would press the button again
+  if (!confirm("Restart the level from the beginning?")) return;
+  try { await issue("RESET_GAME", {}); } catch (err) { drive.errors++; drive.err = String(err.message || err).slice(0, 90); renderHud(); }
+});
+setInterval(() => { if (drive.on && (held.size || Date.now() < drive.weaponUntil + REPEAT_MS)) sendControl(); }, REPEAT_MS);
+
+// The page is laid out for 1920 x 1080; on a smaller screen, shrink it to fit rather than cut it off.
+function fit() {
+  const s = Math.min(1, innerWidth / 1920, innerHeight / 1080);
+  document.body.style.transform = s < 1 ? `scale(${s})` : "";
+}
+addEventListener("resize", fit); fit();
+applyMode(mode);
+
+// A person steering needs the picture sooner than an audience does.
+async function pollLoop() { await poll(); setTimeout(pollLoop, mode === "manual" ? 100 : 250); }
+pollLoop(); setInterval(pollArchive, 1000); pollArchive();
 </script>
 </body>
 </html>
